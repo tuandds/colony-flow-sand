@@ -782,7 +782,7 @@ function showBackups() {
 }
 
 // ---------- generate from an image ----------
-const gen: ConvertOpts = { n: 20, colors: 6, bg: 12, outline: true, smooth: 1 };
+const gen: ConvertOpts = { n: 20, colors: 6, bg: 12, outline: false, smooth: 1 };
 let genImage: HTMLImageElement | null = null, genName = '', genResult: string[] | null = null, genTimer = 0;
 
 function openGen() {

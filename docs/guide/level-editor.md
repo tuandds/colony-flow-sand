@@ -34,7 +34,7 @@ The phone panel can be dragged by its title bar, resized from its corner, reload
 
 ### Generator
 
-Settings: picture size (12–24 cells, so 96–192 grains per side), most colours (2–12, the outline not counted), background removal (grains this close in CIELAB to the image's corner colour become empty; transparent pixels are always empty), speckle smoothing (passes of a 3 × 3 majority filter), and a dark outline 4 grains wide.
+Settings: picture size (12–24 cells, so 96–192 grains per side), most colours (2–12, the outline not counted), background removal (grains this close in CIELAB to the image's corner colour become empty; transparent pixels are always empty), speckle smoothing (passes of a 3 × 3 majority filter), and an optional dark outline 4 grains wide (off by default, so the picture keeps the image's own edge).
 
 How it works: every grain takes the nearest palette colour in CIELAB, so "near" means "looks alike". While there are too many colours, it drops the colour whose loss changes the picture least, so a small but distinct detail (a red roof, a sun) is kept. Loose specks smaller than 64 grains are removed, because the game would let them fall at once. The preview shows the result as sand with its block counts; **Apply** replaces the picture.
 

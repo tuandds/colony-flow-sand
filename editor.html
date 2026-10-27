@@ -201,7 +201,11 @@
   .modal { position: fixed; inset: 0; background: rgba(2, 6, 23, .78); display: none; align-items: center; justify-content: center; z-index: 120; }
   .modal.on { display: flex; }
   .dialog { background: var(--panel); border: 1px solid var(--line2); border-radius: 16px; padding: 16px; max-height: 92vh; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
-  .gen-grid { display: grid; grid-template-columns: 300px 1fr; gap: 16px; }
+  .gen-grid { display: grid; grid-template-columns: 360px auto; gap: 18px; }
+  .gen-grid > div { min-width: 0; }
+  .gen-grid .setting-row > label { flex: 0 0 128px; }
+  .gen-grid .setting-row input[type=range] { min-width: 0; }
+  .gen-grid .setting-val { flex: 0 0 34px; }
   .drop { border: 2px dashed var(--line2); border-radius: 12px; padding: 12px; text-align: center; color: var(--mute); font-weight: 700; cursor: pointer; }
   .drop.over { border-color: var(--gold); color: var(--gold); background: #2a2208; }
   .drop img { display: block; max-width: 100%; max-height: 150px; margin: 0 auto 8px; border-radius: 8px;
@@ -423,7 +427,7 @@
         <div class="setting-row"><label for="g-colors">Số màu tối đa</label><input type="range" id="g-colors" min="2" max="12" step="1" /><span class="setting-val" id="g-colors-v"></span></div>
         <div class="setting-row"><label for="g-bg">Xoá nền (màu góc)</label><input type="range" id="g-bg" min="0" max="40" step="1" /><span class="setting-val" id="g-bg-v"></span></div>
         <div class="setting-row"><label for="g-smooth">Làm mịn vệt</label><input type="range" id="g-smooth" min="0" max="4" step="1" /><span class="setting-val" id="g-smooth-v"></span></div>
-        <div class="setting-row"><label for="g-outline">Viền tối</label><input type="checkbox" id="g-outline" /></div>
+        <div class="setting-row"><label for="g-outline">Thêm viền tối</label><input type="checkbox" id="g-outline" /></div>
         <div class="hint">Mỗi hạt cát lấy màu gần nhất (theo mắt người, CIELAB) trong bảng màu có sẵn. Quá số màu thì màu ít hạt nhất được gộp vào màu gần nó. Đốm cát rời quá nhỏ (tự rơi khi chơi) được bỏ.</div>
       </div>
       <div>
