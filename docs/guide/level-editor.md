@@ -47,7 +47,7 @@ How it works: every grain takes the nearest palette colour in CIELAB, so "near" 
   2. **Fixed orders**: `rows` (bottom-up) and `onion` (outside-in) with seeds 0–5, played by the test bot.
   3. If nothing wins, the same again with nests one step smaller.
 - The log shows each attempt; a failed one says whether it failed while recording or while replaying, what the front nests still needed and what was on the belt.
-- **Edit nests by hand**: click a nest to change its colour or size, move it up/down or to another column, or delete it; ＋ adds a nest to a column. Hand edits remove the ✓ and the recorded swipes.
+- **Edit nests by hand**: click a nest to change its colour or size, move it up/down or to another column, or delete it; ＋ adds a nest to a column. Drag a nest onto another nest to swap the two, or onto a column's ＋ to move it to the end of that column. Hand edits remove the ✓ and the recorded swipes.
 - **Advanced**: the fixed order and seed, and a button that drops recorded or hand-made nests.
 
 ## 4. Level Bank

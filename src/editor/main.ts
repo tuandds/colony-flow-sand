@@ -435,6 +435,13 @@ function renderNests() {
             b.textContent = String(need);
             b.title = `${NAME.get(k)} · ${need} khối`;
             b.onclick = () => { materializeNests(); selNest = [ci, ri]; renderNests(); renderSettings(); };
+            // drag onto another nest to swap the two
+            b.draggable = true;
+            b.ondragstart = (e) => { nestDrag = [ci, ri]; e.dataTransfer!.effectAllowed = 'move'; b.classList.add('dragging'); };
+            b.ondragend = () => { nestDrag = null; b.classList.remove('dragging'); };
+            b.ondragover = (e) => { if (nestDrag) { e.preventDefault(); b.classList.add('drop'); } };
+            b.ondragleave = () => b.classList.remove('drop');
+            b.ondrop = (e) => { e.preventDefault(); e.stopPropagation(); b.classList.remove('drop'); dropNest(ci, ri); };
             d.appendChild(b);
         });
         const add = document.createElement('button');
@@ -447,11 +454,36 @@ function renderNests() {
             selNest = [ci, ns[ci].length - 1];
             nestsChanged();
         };
+        // ...or onto ＋ (or the column's empty space) to move it to the end of that column
+        add.ondragover = d.ondragover = (e) => { if (nestDrag) { e.preventDefault(); add.classList.add('drop'); } };
+        add.ondragleave = () => add.classList.remove('drop');
+        add.ondrop = d.ondrop = (e) => { e.preventDefault(); add.classList.remove('drop'); dropNest(ci, -1); };
         d.appendChild(add);
         box.appendChild(d);
     });
     renderTep();
 }
+let nestDrag: [number, number] | null = null;
+/** Drop the dragged nest on nest (ci, ri): swap the two; ri = -1 moves it to the end of column ci. */
+function dropNest(ci: number, ri: number) {
+    const from = nestDrag;
+    nestDrag = null;
+    if (!from || (from[0] === ci && from[1] === ri)) return;
+    sandSnapshot();
+    const cols = materializeNests();
+    delete L().moves; // hand edits: the recorded winning strokes no longer match
+    const [fc, fr] = from;
+    if (ri < 0) {
+        const [n] = cols[fc].splice(fr, 1);
+        cols[ci].push(n);
+        selNest = [ci, cols[ci].length - 1];
+    } else {
+        [cols[fc][fr], cols[ci][ri]] = [cols[ci][ri], cols[fc][fr]];
+        selNest = [ci, ri];
+    }
+    nestsChanged();
+}
+
 function renderTep() {
     const l = L(), tep = $('tep');
     if (!selNest || !l.nests || !l.nests[selNest[0]]?.[selNest[1]]) { tep.hidden = true; selNest = null; return; }
