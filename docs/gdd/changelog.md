@@ -4,7 +4,8 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
-- No changes since v1.0.0.
+- **Levels:** 10 new original pictures (Cherries, Ice Cream, Goldfish, Cupcake, Little Owl, Hot Air Balloon, Cactus Pot, Garden Snail, Rocket, Penguin) with a dark outline and rising difficulty. Each one was cleared by a test bot; the old large levels 4 and 5 are gone.
+- **Nests:** the nests now use Colony Flow's lidded nest box (`Box_v2_T` + `Box_v2_B`), with the white outline hugging its shape.
 
 [Play latest](https://tuandds.github.io/colony-flow-sand/demo/)
 
