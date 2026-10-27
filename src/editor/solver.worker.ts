@@ -6,8 +6,9 @@ import { Sim } from '../game/sim';
 
 /** `record` set: first play the level while building its nests (recordPlay, that variant), then
  * replay the same strokes against those nests; otherwise the test bot plays the level as it is. */
-export interface SolveJob { id: number; def: LevelDef; runs: number; maxSec: number; record?: number }
-export interface SolveResult { id: number; wins: number; runs: number; last: string; ms: number; nests?: [string, number][][]; why?: string }
+export interface SolveJob { id: number; def: LevelDef; runs: number; maxSec: number; record?: number; moves?: Recording['moves'] }
+export interface SolveResult { id: number; wins: number; runs: number; last: string; ms: number; nests?: [string, number][][]; moves?: Recording['moves']; why?: string; stage?: 'record' | 'check' }
+/** `moves` set (and no `record`): check a level by replaying its saved winning strokes. */
 
 self.onmessage = (e: MessageEvent<SolveJob>) => {
     const { id, runs, maxSec, record } = e.data;
@@ -15,11 +16,11 @@ self.onmessage = (e: MessageEvent<SolveJob>) => {
     const t0 = performance.now();
     useLevels([def]);
     let sim = new Sim(0, () => {});
-    let rec: Recording | undefined;
+    let rec: Recording | undefined = e.data.moves ? { result: 'win', nests: [], moves: e.data.moves } : undefined;
     if (record != null) {
         rec = recordPlay(sim, record);
         if (rec.result !== 'win') {
-            post({ id, wins: 0, runs: 1, last: rec.result, ms: Math.round(performance.now() - t0), why: whyLost(sim) });
+            post({ id, wins: 0, runs: 1, last: rec.result, ms: Math.round(performance.now() - t0), why: whyLost(sim), stage: 'record' });
             return;
         }
         def = { ...def, nests: rec.nests };
@@ -34,7 +35,7 @@ self.onmessage = (e: MessageEvent<SolveJob>) => {
         if (last !== 'win') break; // every run has to win
         wins++;
     }
-    post({ id, wins, runs: played, last, ms: Math.round(performance.now() - t0), nests: rec?.nests, why: last === 'win' ? undefined : whyLost(sim) });
+    post({ id, wins, runs: played, last, ms: Math.round(performance.now() - t0), nests: record != null ? rec?.nests : undefined, moves: record != null ? rec?.moves : undefined, why: last === 'win' ? undefined : whyLost(sim), stage: 'check' });
 };
 
 const post = (r: SolveResult) => (self as unknown as Worker).postMessage(r);

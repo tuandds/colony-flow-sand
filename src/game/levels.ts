@@ -35,7 +35,14 @@ export interface LevelDef {
     /** Nests from a recorded play (level editor), each column front to back as [colour, blocks];
      * used instead of `order` when they hold exactly the picture's blocks. */
     nests?: [string, number][][];
+    /** Grain-level picture (level editor): one key per sand grain, see encodeSand. When set it
+     * replaces `rows` / `paint`, and its size must be n * SUB. */
+    sand?: Sand;
 }
+
+/** A sand picture at grain resolution: `size` grains per side, `data` run-length encoded
+ * row by row ('.' = empty, each key followed by its run length when longer than 1). */
+export interface Sand { size: number; data: string }
 
 export interface Level {
     name: string;
@@ -47,6 +54,7 @@ export interface Level {
     seed?: number;
     salt?: number;
     nests?: [string, number][][];
+    sand?: Sand;
 }
 
 function painter(g: Grid): Painter {
@@ -190,7 +198,7 @@ const LEVELS: LevelDef[] = [
         },
     },
     {
-        name: 'Rocket', n: 22, chunk: [6, 9], order: 'onion', // the window sits inside the hull
+        name: 'Rocket', n: 22, chunk: [6, 9], order: 'onion', seed: 1, // the window sits inside the hull
         colors: { w: '#eef1f6', s: '#c3ccd8', r: '#ef5350', b: '#5bc0f5', o: '#ff8c42', y: '#ffd54f', k: OUTLINE },
         paint(p) {
             p.tri(8.6, 15, 13.4, 15, 11, 21, 'o'); p.tri(9.8, 15, 12.2, 15, 11, 19.2, 'y');
@@ -226,8 +234,46 @@ const LEVELS: LevelDef[] = [
     },
 ];
 
-/** Every colour the built-in pictures use: the palette custom pictures are matched to. */
-export const PALETTE: string[] = [...new Set(LEVELS.flatMap((L) => Object.values(L.colors)))];
+/**
+ * The colours custom pictures are made of: the colours of the built-in pictures, with
+ * near-duplicates merged (CIELAB distance under 14). `key` is the one-letter key used in
+ * a picture's grain data; it never changes, so saved pictures keep their colours.
+ */
+export const SAND_PALETTE: { key: string; name: string; hex: string }[] = [
+    { key: 'a', name: 'white', hex: '#ffffff' }, { key: 'b', name: 'silver', hex: '#c3ccd8' },
+    { key: 'c', name: 'cream', hex: '#ffe0b8' }, { key: 'd', name: 'yellow', hex: '#ffe066' },
+    { key: 'e', name: 'gold', hex: '#ffc145' }, { key: 'f', name: 'orange', hex: '#ff8c42' },
+    { key: 'g', name: 'tan', hex: '#e7b06a' }, { key: 'h', name: 'caramel', hex: '#c88a46' },
+    { key: 'i', name: 'rust', hex: '#d9774a' }, { key: 'j', name: 'brown', hex: '#8b5a3c' },
+    { key: 'k', name: 'red', hex: '#e8344a' }, { key: 'l', name: 'blush', hex: '#ffd6dc' },
+    { key: 'm', name: 'pink', hex: '#f59ac2' }, { key: 'n', name: 'rose', hex: '#ff7eb3' },
+    { key: 'o', name: 'lime', hex: '#c8e06a' }, { key: 'p', name: 'green', hex: '#7cc957' },
+    { key: 'q', name: 'forest', hex: '#5a8f2e' }, { key: 'r', name: 'sky', hex: '#5bc0f5' },
+    { key: 's', name: 'blue', hex: '#4a8fe0' }, { key: 't', name: 'navy', hex: '#34405e' },
+    { key: 'u', name: 'ink', hex: OUTLINE },
+];
+
+/** Run-length encode one key per grain ('.' = empty). */
+export function encodeSand(size: number, keys: string[]): Sand {
+    let data = '';
+    for (let i = 0; i < keys.length;) {
+        let j = i + 1;
+        while (j < keys.length && keys[j] === keys[i]) j++;
+        data += keys[i] + (j - i > 1 ? j - i : '');
+        i = j;
+    }
+    return { size, data };
+}
+
+export function decodeSand(s: Sand): string[] {
+    const out: string[] = [];
+    for (const m of s.data.matchAll(/([^0-9])(\d*)/g)) {
+        const n = m[2] ? parseInt(m[2], 10) : 1;
+        for (let i = 0; i < n; i++) out.push(m[1]);
+    }
+    out.length = s.size * s.size;
+    return Array.from(out, (k) => k ?? '.');
+}
 
 /** Where the level editor keeps its levels; the game plays them with ?custom=1. */
 export const CUSTOM_KEY = 'cf_custom_levels';
@@ -244,7 +290,7 @@ export function levelCount() { return active.length; }
 export function loadCustomLevels(key: string): LevelDef[] {
     try {
         const list = JSON.parse(localStorage.getItem(key) || '[]');
-        return Array.isArray(list) ? list.filter((L) => L && Array.isArray(L.rows) && L.colors) : [];
+        return Array.isArray(list) ? list.filter((L) => L && (Array.isArray(L.rows) || L.sand) && L.colors) : [];
     } catch { return []; }
 }
 
@@ -252,7 +298,7 @@ export function buildLevel(i: number): Level {
     const L = active[i];
     const g: Grid = [];
     for (let y = 0; y < L.n; y++) g.push(new Array(L.n).fill(null));
-    if (L.rows) L.rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') g[y][x] = ch; }));
+    if (L.sand) { /* the sim reads the grains itself */ } else if (L.rows) L.rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') g[y][x] = ch; }));
     else L.paint?.(painter(g));
-    return { name: L.name, n: L.n, chunk: L.chunk, colors: L.colors, grid: g, order: L.order, seed: L.seed, salt: L.salt, nests: L.nests };
+    return { name: L.name, n: L.n, chunk: L.chunk, colors: L.colors, grid: g, order: L.order, seed: L.seed, salt: L.salt, nests: L.nests, sand: L.sand };
 }

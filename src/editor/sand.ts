@@ -1,0 +1,212 @@
+// Image -> grain-level sand picture, and drawing sand the way the game does. A picture is one
+// palette key per grain ('.' = empty), size = n * SUB grains per side (see Sand in levels.ts).
+import { SUB } from '../game/layout';
+import { SAND_PALETTE } from '../game/levels';
+import { hash, packColor } from '../game/util';
+
+export const HEX = new Map(SAND_PALETTE.map((c) => [c.key, c.hex]));
+export const NAME = new Map(SAND_PALETTE.map((c) => [c.key, c.name]));
+export const OUTLINE_KEY = SAND_PALETTE.find((c) => c.name === 'ink')!.key;
+/** Sand the game would shed at once: islands this small fall off by themselves (sim.ts). */
+const MIN_ISLAND = 64;
+/** Outline width in grains; thinner rims would count as debris in the game. */
+const RIM = 4;
+
+// ---------- colour maths (sRGB -> CIELAB; distance = how different two colours look) ----------
+export type Lab = [number, number, number];
+export function rgbLab(r: number, g: number, b: number): Lab {
+    const lin = (c: number) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+    const R = lin(r), G = lin(g), B = lin(b);
+    const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+    const x = f((R * 0.4124 + G * 0.3576 + B * 0.1805) / 0.95047), y = f(R * 0.2126 + G * 0.7152 + B * 0.0722), z = f((R * 0.0193 + G * 0.1192 + B * 0.9505) / 1.08883);
+    return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+export function hexLab(hex: string): Lab { const v = parseInt(hex.slice(1), 16); return rgbLab((v >> 16) & 255, (v >> 8) & 255, v & 255); }
+export const dist = (a: Lab, b: Lab) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+const PAL_LAB = new Map(SAND_PALETTE.map((c) => [c.key, hexLab(c.hex)]));
+export function nearestKey(lab: Lab, keys: string[]) {
+    let best = keys[0], bd = Infinity;
+    for (const k of keys) { const d = dist(lab, PAL_LAB.get(k)!); if (d < bd) { bd = d; best = k; } }
+    return best;
+}
+
+export interface ConvertOpts {
+    /** Picture size in cells; the sand is n * SUB grains per side. */
+    n: number;
+    /** Most colours to keep (the outline not counted). */
+    colors: number;
+    /** Background removal: CIELAB distance to the corner colour (0 = off). */
+    bg: number;
+    outline: boolean;
+    /** Passes of a 3 x 3 majority filter that clean up speckle. */
+    smooth: number;
+}
+
+/** Turn an image into sand: nearest palette colour per grain, few colours, no loose specks. */
+export function imageToSand(img: HTMLImageElement, o: ConvertOpts): string[] {
+    const PG = o.n * SUB, m = o.outline ? RIM : 0, inner = PG - 2 * m;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = inner;
+    const cx = cv.getContext('2d', { willReadFrequently: true })!;
+    const sc = Math.min(inner / img.naturalWidth, inner / img.naturalHeight);
+    const w = img.naturalWidth * sc, h = img.naturalHeight * sc;
+    cx.imageSmoothingQuality = 'high';
+    cx.drawImage(img, (inner - w) / 2, (inner - h) / 2, w, h);
+    const px = cx.getImageData(0, 0, inner, inner).data;
+    const bgLab = o.bg > 0 ? cornerColour(img) : null;
+
+    // every grain: its colour (as a 6-bit-per-channel id) or -1 for empty
+    const ids = new Int32Array(inner * inner), labOf = new Map<number, Lab>();
+    for (let i = 0; i < ids.length; i++) {
+        const r = px[i * 4], g = px[i * 4 + 1], b = px[i * 4 + 2];
+        if (px[i * 4 + 3] < 128) { ids[i] = -1; continue; }
+        const id = ((r >> 2) << 12) | ((g >> 2) << 6) | (b >> 2);
+        let lab = labOf.get(id);
+        if (!lab) { lab = rgbLab(r, g, b); labOf.set(id, lab); }
+        ids[i] = bgLab && dist(lab, bgLab) < o.bg ? -1 : id;
+    }
+    // nearest palette colour; while there are too many, drop the colour whose loss changes the
+    // picture least (total CIELAB error, so a small but distinct detail like a red roof stays)
+    // choose from a coarser histogram (4 bits per channel) so photos stay fast
+    const hist = new Map<number, number>();
+    for (const id of ids) if (id >= 0) { const c = ((id >> 14) << 8) | (((id >> 8) & 15) << 4) | ((id >> 2) & 15); hist.set(c, (hist.get(c) || 0) + 1); }
+    const coarse = [...hist.keys()], weight = coarse.map((c) => hist.get(c)!);
+    const labs = coarse.map((c) => rgbLab(((c >> 8) << 4) + 8, (((c >> 4) & 15) << 4) + 8, ((c & 15) << 4) + 8));
+    const PAL = new Map(SAND_PALETTE.map((c) => [c.key, hexLab(c.hex)]));
+    const best = (lab: Lab, keys: string[]) => {
+        let k = keys[0], d = Infinity;
+        for (const c of keys) { const e = dist(lab, PAL.get(c)!); if (e < d) { d = e; k = c; } }
+        return [k, d] as const;
+    };
+    let keep = SAND_PALETTE.map((c) => c.key).filter((k) => k !== OUTLINE_KEY || !o.outline);
+    keep = [...new Set(labs.map((lab) => best(lab, keep)[0]))];
+    while (keep.length > o.colors) {
+        let drop = keep[0], least = Infinity;
+        for (const k of keep) {
+            const rest = keep.filter((c) => c !== k);
+            let cost = 0;
+            for (let i = 0; i < labs.length && cost < least; i++) {
+                const [nk, nd] = best(labs[i], keep);
+                if (nk === k) cost += (best(labs[i], rest)[1] - nd) * weight[i];
+            }
+            if (cost < least) { least = cost; drop = k; }
+        }
+        keep = keep.filter((c) => c !== drop);
+    }
+    // every grain then takes its nearest kept colour (at full colour precision)
+    const pick = new Map<number, string>();
+    let keys = Array.from(ids, (id) => {
+        if (id < 0) return '.';
+        let k = pick.get(id);
+        if (!k) { k = best(labOf.get(id)!, keep)[0]; pick.set(id, k); }
+        return k;
+    });
+    for (let p = 0; p < o.smooth; p++) keys = majority(keys, inner);
+    keys = dropSpecks(keys, inner);
+
+    // place inside the outline margin, then draw the rim
+    const out = new Array<string>(PG * PG).fill('.');
+    for (let y = 0; y < inner; y++) for (let x = 0; x < inner; x++) out[(y + m) * PG + x + m] = keys[y * inner + x];
+    return o.outline ? addRim(out, PG) : out;
+}
+
+/** Average colour of the image's corners (the background guess), or null when they are transparent. */
+function cornerColour(img: HTMLImageElement): Lab | null {
+    const cv = document.createElement('canvas'), S = 32, c = 4;
+    cv.width = cv.height = S;
+    const cx = cv.getContext('2d', { willReadFrequently: true })!;
+    cx.drawImage(img, 0, 0, S, S);
+    const d = cx.getImageData(0, 0, S, S).data;
+    let r = 0, g = 0, b = 0, a = 0;
+    for (const [ox, oy] of [[0, 0], [S - c, 0], [0, S - c], [S - c, S - c]]) {
+        for (let y = oy; y < oy + c; y++) for (let x = ox; x < ox + c; x++) {
+            const i = (y * S + x) * 4, al = d[i + 3];
+            r += d[i] * al; g += d[i + 1] * al; b += d[i + 2] * al; a += al;
+        }
+    }
+    return a / (4 * c * c * 255) < 0.5 ? null : rgbLab(r / a, g / a, b / a);
+}
+
+/** Each grain takes the most common key of its 3 x 3 neighbourhood when that wins clearly. */
+function majority(keys: string[], n: number) {
+    const out = keys.slice(), count = new Map<string, number>();
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+        count.clear();
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            const xx = x + dx, yy = y + dy;
+            const k = xx < 0 || yy < 0 || xx >= n || yy >= n ? '.' : keys[yy * n + xx];
+            count.set(k, (count.get(k) || 0) + 1);
+        }
+        let best = keys[y * n + x], bn = count.get(best)!;
+        for (const [k, c] of count) if (c > bn) { best = k; bn = c; }
+        if (bn >= 5) out[y * n + x] = best;
+    }
+    return out;
+}
+
+/** Remove islands of sand too small to stay fixed in the game. */
+export function dropSpecks(keys: string[], n: number) {
+    const out = keys.slice(), seen = new Uint8Array(n * n), stack: number[] = [], comp: number[] = [];
+    for (let s = 0; s < out.length; s++) {
+        if (out[s] === '.' || seen[s]) continue;
+        seen[s] = 1; stack.push(s); comp.length = 0;
+        while (stack.length) {
+            const p = stack.pop()!, x = p % n, y = (p / n) | 0;
+            comp.push(p);
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                const xx = x + dx, yy = y + dy, q = yy * n + xx;
+                if (xx < 0 || yy < 0 || xx >= n || yy >= n || seen[q] || out[q] === '.') continue;
+                seen[q] = 1; stack.push(q);
+            }
+        }
+        if (comp.length < MIN_ISLAND) for (const p of comp) out[p] = '.';
+    }
+    return out;
+}
+
+/** Dark rim RIM grains wide around the picture, like the built-in pictures' outline. */
+export function addRim(keys: string[], n: number) {
+    const out = keys.slice(), d = new Int16Array(n * n).fill(-1), q: number[] = [];
+    for (let p = 0; p < keys.length; p++) if (keys[p] !== '.') { d[p] = 0; q.push(p); }
+    for (let h = 0; h < q.length; h++) {
+        const p = q[h], x = p % n, y = (p / n) | 0;
+        if (d[p] >= RIM) continue;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+            const xx = x + dx, yy = y + dy, r = yy * n + xx;
+            if (xx < 0 || yy < 0 || xx >= n || yy >= n || d[r] >= 0) continue;
+            d[r] = d[p] + 1; out[r] = OUTLINE_KEY; q.push(r);
+        }
+    }
+    return out;
+}
+
+/** Scale a cell-based picture (old editor levels, rows of keys) up to grains. */
+export function rowsToGrains(rows: string[], n: number, keyOf: (c: string) => string) {
+    const PG = n * SUB, out = new Array<string>(PG * PG).fill('.');
+    for (let y = 0; y < PG; y++) for (let x = 0; x < PG; x++) {
+        const c = rows[(y / SUB) | 0]?.[(x / SUB) | 0] ?? '.';
+        out[y * PG + x] = c === '.' ? '.' : keyOf(c);
+    }
+    return out;
+}
+
+/** Draw sand like the game does: one pixel per grain with a little brightness noise per grain. */
+export function drawSand(ctx: CanvasRenderingContext2D, keys: string[], size: number, x: number, y: number, w: number) {
+    const img = new ImageData(size, size), px = new Uint32Array(img.data.buffer);
+    for (let p = 0; p < keys.length; p++) {
+        const k = keys[p];
+        if (k !== '.') px[p] = packColor(HEX.get(k) ?? '#ff00ff', (hash(p % size, (p / size) | 0, 7) - 0.5) * 0.16);
+    }
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = size;
+    cv.getContext('2d')!.putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(cv, x, y, w, w);
+}
+
+/** Grains per key ('.' left out). */
+export function countKeys(keys: string[]) {
+    const c = new Map<string, number>();
+    for (const k of keys) if (k !== '.') c.set(k, (c.get(k) || 0) + 1);
+    return c;
+}

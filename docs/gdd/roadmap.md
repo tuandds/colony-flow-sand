@@ -5,7 +5,7 @@
 - Swipe-to-free sand pictures with falling-sand physics, funnel, hole and conveyor
 - Ant colonies with 3D Colony Flow nests, ants and blocks
 - 10 original levels with rising difficulty, all cleared by a test bot; settings with a level cheat, x2 speed
-- Level editor: image import, palette matching, auto-generated winnable nests, a level bank played with `?custom=1`
+- Level editor: image import to grain-level sand in the game's colours, nests from a recorded winning play, Level Bank and Organizer (chapter sets), played with `?custom=1`
 - Phaser 4 + TypeScript port of the original HTML prototype
 
 ## 4.2 Roadmap <Badge type="warning" text="Coming soon" />

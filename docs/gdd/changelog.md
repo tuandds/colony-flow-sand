@@ -5,7 +5,8 @@ Every published version stays playable at its own URL. The [landing page](https:
 ## latest (main) <Badge type="tip" text="Live" />
 
 - **Levels:** 10 new original pictures (Cherries, Ice Cream, Goldfish, Cupcake, Little Owl, Hot Air Balloon, Cactus Pot, Garden Snail, Rocket, Penguin) with a dark outline and rising difficulty. Each one was cleared by a test bot; the old large levels 4 and 5 are gone.
-- **Level Editor** (`/demo/editor.html`): import an image, match it to the game's colours, paint, and auto-generate nests the level can be won with (a recorded play builds the nests, a replay checks them). Levels are saved in the browser and played with `?custom=1`. See the [guide](/guide/level-editor).
+- **Level Editor** (`/demo/editor.html`), laid out like the team's level editor template, with Editor and Organizer modes. Import an image to get a sand picture made grain by grain in the game's 21 sand colours, closest by eye (CIELAB), keeping small distinct details. Paint with brush, fill and replace tools. Nests are generated from a recorded winning play and checked by replaying it; you can also edit them by hand. The Level Bank has search, filters, version history and backups; the Organizer handles chapter sets, play, Auto Play and checks for a whole set, and CSV/JSON export. Levels are saved in the browser and played with `?custom=1`. See the [guide](/guide/level-editor).
+- **Rules:** the sand, funnel and particle randomness now comes from a generator seeded per level, and ants walk from a nest's front slot rather than its sliding position, so the same swipes always play out the same. The built-in levels were re-checked with the test bot; Rocket now uses seed 1.
 - **Nests:** the nests now use Colony Flow's lidded nest box (`Box_v2_T` + `Box_v2_B`), with the white outline hugging its shape.
 
 [Play latest](https://tuandds.github.io/colony-flow-sand/demo/)

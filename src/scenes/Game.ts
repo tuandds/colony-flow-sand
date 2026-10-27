@@ -4,7 +4,7 @@ import {
     SLOTS, SPEED_BTN, TILE, TRAY_Y, W, beltPoint,
 } from '../game/layout';
 import { CUSTOM_KEY, PREVIEW_KEY, levelCount, loadCustomLevels, useLevels } from '../game/levels';
-import { playBot } from '../game/bot';
+import { type Recording, botStep, playBot, replayStep } from '../game/bot';
 import { Sfx, Sim, levelOverride } from '../game/sim';
 import { Item3D, ThreeLayer } from '../game/three-layer';
 import { abgrToRgb, shade, shadeCss } from '../game/util';
@@ -27,6 +27,15 @@ export class Game extends Phaser.Scene {
     private started = false;
     private paused = false;
     private speedUp = false;
+    /** Auto Play (level editor): the test bot plays in front of you; botT counts to its next move. */
+    private autoplay = false;
+    private botT = 0;
+    /** Recorded winning strokes to replay instead of the bot (level editor), and the next one. */
+    private moves: Recording['moves'] | null = null;
+    private moveAt = 0;
+    /** Replays run in fixed 1/60 s frames, like the recording, so they play out exactly the same. */
+    private replayAcc = 0;
+    private replayFrame = 0;
     private swiping = false;
     private music?: Phaser.Sound.BaseSound;
     private lastSfx: Record<string, number> = {};
@@ -129,7 +138,22 @@ export class Game extends Phaser.Scene {
 
     update(_time: number, delta: number) {
         const dt = Math.min(0.05, delta / 1000);
-        if (this.started && !this.paused && !(this.overlay === 'settings')) this.sim.update(this.speedUp ? dt * 2 : dt);
+        if (this.started && !this.paused && !(this.overlay === 'settings')) {
+            const step = this.speedUp ? dt * 2 : dt;
+            if (this.autoplay && this.moves) {
+                // strokes on the half second, then 30 frames of 1/60 s: the recorder's rhythm
+                this.replayAcc += step;
+                for (let k = 0; this.replayAcc >= 1 / 60 && k < 8; k++) {
+                    this.replayAcc -= 1 / 60;
+                    if (this.sim.state === 'play' && this.replayFrame % 30 === 0) this.moveAt = replayStep(this.sim, this.moves, this.moveAt, this.replayFrame / 60);
+                    this.sim.update(1 / 60);
+                    this.replayFrame++;
+                }
+            } else {
+                if (this.autoplay && this.sim.state === 'play' && (this.botT -= step) <= 0) { this.botT = 0.5; botStep(this.sim); }
+                this.sim.update(step);
+            }
+        }
         if (this.sim.state !== 'play' && this.overlay !== 'end' && this.sim.endT >= (this.sim.state === 'win' ? 0.9 : 0)) this.showEnd();
         for (const b of this.boosters) { b.bump = Math.max(0, b.bump - dt * 5); const s = 1 + b.bump * 0.12; b.base.setScale(b.base.getData('s') * s); b.img.setScale(b.img.getData('s') * s); }
         if (this.overlay === 'end' && this.overlayBox) {
@@ -466,6 +490,12 @@ export class Game extends Phaser.Scene {
             sim(sec: number) { for (let t = 0; t < sec; t += 1 / 60) scene.sim.update(1 / 60); scene.render(); },
             /** Let the test bot play the current level for up to `sec` game seconds. */
             bot(sec = 300) { scene.started = true; return playBot(scene.sim, sec); },
+            /** Play live with the test bot, or replay recorded winning strokes from the start, at `speed` (1 or 2). */
+            autoplay(on = true, speed = 2, moves?: Recording['moves']) {
+                scene.autoplay = on; scene.speedUp = speed > 1;
+                scene.moves = moves ?? null; scene.moveAt = 0; scene.replayAcc = 0; scene.replayFrame = 0;
+                if (on) { if (moves) scene.startLevel(scene.levelIndex); scene.started = true; scene.closeOverlay(); }
+            },
             swipeCells(pts: [number, number][]) {
                 const s = scene.sim;
                 s.endSwipe();

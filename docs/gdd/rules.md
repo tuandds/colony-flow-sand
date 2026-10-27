@@ -68,7 +68,7 @@ Ten original pictures. Difficulty rises through picture size, number of colours 
 | 6 | Hot Air Balloon | 20 | 6 | 5–8 | rows, seed 3 |
 | 7 | Cactus Pot | 20 | 6 | 5–8 | rows, seed 1 |
 | 8 | Garden Snail | 22 | 6 | 5–9 | rows |
-| 9 | Rocket | 22 | 7 | 6–9 | onion |
+| 9 | Rocket | 22 | 7 | 6–9 | onion, seed 1 |
 | 10 | Penguin | 22 | 10 | 6–9 | rows, seed 3 |
 
 - Every level was cleared by a test bot with the order and seed above.

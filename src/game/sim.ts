@@ -5,7 +5,7 @@ import {
     FUNNEL, FUNNEL_HZ, GRAINS_PER_PARTICLE, GRAINS_PER_UNIT, INNER, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS,
     SLOT_GAP, SUB, TILE, beltPoint, funnelHalf, nestPos,
 } from './layout';
-import { Level, buildLevel } from './levels';
+import { Level, buildLevel, decodeSand } from './levels';
 import { hash, mulberry32, packColor } from './util';
 
 export type Sfx = 'pop' | 'drop' | 'pick' | 'nest' | 'lose' | 'win' | 'click' | 'add';
@@ -51,6 +51,10 @@ export class Sim {
     cols: Nest[][] = []; ants: Ant[] = []; fx: Spark[] = [];
     simT = 0; simFlip = 0; sweepT = 0; stuckT = 0;
     state: 'play' | 'win' | 'lose' = 'play'; endT = 0; time = 0;
+    /** Random numbers for the rules (sand, funnel, particles), restarted with every level so the
+     * same swipes at the same moments always play out the same (the level editor's replays).
+     * Looks-only randomness (sparks, ant gait) uses Math.random. */
+    rand: () => number = Math.random;
     private lastBrush: [number, number] | null = null;
 
     constructor(levelIndex: number, private sfx: (name: Sfx, vol?: number) => void) {
@@ -70,9 +74,11 @@ export class Sim {
         const G = (this.G = PG + 2 * pad);
         const keys = (this.keys = [null, ...Object.keys(L.colors)]);
         const key = new Uint8Array(G * G), rgb = new Uint32Array(G * G);
+        // grain-level pictures (level editor) give every grain; the others one key per cell
+        const grains = L.sand && L.sand.size === PG ? decodeSand(L.sand) : null;
         for (let gy = 0; gy < PG; gy++) for (let gx = 0; gx < PG; gx++) {
-            const k = L.grid[(gy / SUB) | 0][(gx / SUB) | 0];
-            if (k) key[(gy + top) * G + gx + pad] = keys.indexOf(k);
+            const k = grains ? grains[gy * PG + gx] : L.grid[(gy / SUB) | 0][(gx / SUB) | 0];
+            if (k && k !== '.') key[(gy + top) * G + gx + pad] = Math.max(0, keys.indexOf(k));
         }
         fitWholeBlocks(key, G, keys.length);
         for (let p = 0; p < key.length; p++) {
@@ -97,6 +103,7 @@ export class Sim {
         this.ants = []; this.fx = [];
         this.simT = 0; this.simFlip = 0; this.sweepT = 0; this.stuckT = 0;
         this.state = 'play'; this.endT = 0; this.time = 0;
+        this.rand = mulberry32(0x5eed + i);
         this.lastBrush = null;
     }
 
@@ -204,7 +211,7 @@ export class Sim {
         const sx = this.ox + (x + 0.5) * this.gs, sy = Math.max(this.oy + (y + 0.5) * this.gs, BOARD.y + BOARD.h - 4);
         const half = funnelHalf(FUNNEL.top) - FUNNEL.cell;
         const ex = Math.max(MOUTH.x - half, Math.min(MOUTH.x + half, sx)), ey = FUNNEL.top + 2;
-        const dur = 0.12 + Math.random() * 0.06;
+        const dur = 0.12 + this.rand() * 0.06;
         this.particles.push({ k, n, c, sx, sy, mx: (sx + ex) / 2, my: (sy + ey) / 2, ex, ey, t: 0, dur });
     }
     private stepDrain(dt: number) {
@@ -258,7 +265,7 @@ export class Sim {
                 if (!key[p] || !loose[p] || dr[p]) continue;
                 vy[p] = Math.min(MAX_FALL, vy[p] + GRAVITY);
                 // whole cells to travel this step; the fraction is rounded at random so slow grains still creep
-                let steps = Math.floor(vy[p]) + (Math.random() < vy[p] % 1 ? 1 : 0);
+                let steps = Math.floor(vy[p]) + (this.rand() < vy[p] % 1 ? 1 : 0);
                 if (steps < 1) steps = 1;
                 for (let s = 0; s < steps; s++) {
                     const x = p % G, cy = (p / G) | 0;
@@ -268,11 +275,11 @@ export class Sim {
                     const l = x > 0 && !key[below - 1], r = x < G - 1 && !key[below + 1];
                     if (!l && !r) {
                         // landed: turn part of the fall into a sideways push for the next slide
-                        if (vy[p] > 1) vx[p] += (Math.random() < 0.5 ? -1 : 1) * vy[p] * 0.25;
+                        if (vy[p] > 1) vx[p] += (this.rand() < 0.5 ? -1 : 1) * vy[p] * 0.25;
                         vy[p] = 0;
                         // creep sideways toward a nearby drop (gentle slopes, stair steps), or keep
                         // sliding on momentum; friction bleeds the momentum off
-                        const pref = vx[p] > 0.05 ? 1 : vx[p] < -0.05 ? -1 : Math.random() < 0.5 ? -1 : 1;
+                        const pref = vx[p] > 0.05 ? 1 : vx[p] < -0.05 ? -1 : this.rand() < 0.5 ? -1 : 1;
                         let side = 0;
                         for (const d of [pref, -pref]) {
                             const sx = x + d;
@@ -286,7 +293,7 @@ export class Sim {
                         break;
                     }
                     let dir: number;
-                    if (l && r) dir = vx[p] > 0.05 ? 1 : vx[p] < -0.05 ? -1 : Math.random() < 0.5 ? -1 : 1;
+                    if (l && r) dir = vx[p] > 0.05 ? 1 : vx[p] < -0.05 ? -1 : this.rand() < 0.5 ? -1 : 1;
                     else dir = l ? -1 : 1;
                     const q = below + dir;
                     vx[p] = vx[p] * FRICTION + dir * 0.35;
@@ -386,7 +393,7 @@ export class Sim {
                 let t = q + W;
                 if (!FMASK[t] || fk[t]) {
                     const l = i > 0 && FMASK[t - 1] && !fk[t - 1], r = i < W - 1 && FMASK[t + 1] && !fk[t + 1];
-                    if (l && r) t += Math.random() < 0.5 ? -1 : 1;
+                    if (l && r) t += this.rand() < 0.5 ? -1 : 1;
                     else if (l) t -= 1;
                     else if (r) t += 1;
                     else {
@@ -394,7 +401,7 @@ export class Sim {
                         // sideways toward the hole instead of sticking
                         const toward = FUNNEL.x0 + (i + 0.5) * FUNNEL.cell < MOUTH.x ? 1 : -1;
                         const side = q + toward;
-                        if (Math.random() < 0.5 || i + toward < 0 || i + toward >= W || !FMASK[side] || fk[side]) continue;
+                        if (this.rand() < 0.5 || i + toward < 0 || i + toward >= W || !FMASK[side] || fk[side]) continue;
                         t = side;
                     }
                 }
@@ -451,8 +458,9 @@ export class Sim {
             }
             front.cool -= dt;
             if (front.got + front.inflight < front.need && front.cool <= 0) {
-                const [nx] = nestPos(ci, 0);
-                const ny = front.dy!;
+                // ants use the front slot, not the nest's sliding position, so the rules don't
+                // depend on the animation (recorded plays then replay exactly)
+                const [nx, ny] = nestPos(ci, 0);
                 let best = -1, bd = 1e9;
                 for (let i = 0; i < SLOTS; i++) {
                     const b = this.slots[i];
@@ -478,7 +486,7 @@ export class Sim {
             a.t += dt;
             let tx: number, ty: number;
             if (!a.carry) [tx, ty] = this.slotPos(a.slot);
-            else { tx = COL_X[a.col]; ty = a.nest.dy! - TILE / 2; }
+            else { tx = COL_X[a.col]; ty = nestPos(a.col, 0)[1] - TILE / 2; }
             const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy);
             const step = ANT_SPEED * dt;
             if (d > 1) {
