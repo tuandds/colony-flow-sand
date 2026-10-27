@@ -43,3 +43,9 @@ export function hash(x: number, y: number, i: number): number {
     h = (h ^ (h >>> 13)) * 1274126177;
     return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
+
+/** True for colours light enough that white text on them is hard to read. */
+export function isLight(hex: string): boolean {
+    const [r, g, b] = hexToRgb(hex);
+    return 0.299 * r + 0.587 * g + 0.114 * b > 205;
+}

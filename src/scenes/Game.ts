@@ -7,7 +7,7 @@ import { CUSTOM_KEY, PREVIEW_KEY, levelCount, loadCustomLevels, useLevels } from
 import { type Recording, botStep, playBot, replayStep } from '../game/bot';
 import { Sfx, Sim, levelOverride } from '../game/sim';
 import { Item3D, ThreeLayer } from '../game/three-layer';
-import { abgrToRgb, shade, shadeCss } from '../game/util';
+import { abgrToRgb, isLight, shade, shadeCss } from '../game/util';
 
 const FONT = '"Lilita One", "Arial Rounded MT Bold", sans-serif';
 
@@ -203,7 +203,10 @@ export class Game extends Phaser.Scene {
             const label = this.label(li++);
             label.setText(String(nest.need - nest.got)).setPosition(nest.dx, y + 2).setVisible(true);
             label.setFontSize(Math.round((front ? 50 : 46) * sc));
-            label.setStroke(front ? '#2e2433' : shadeCss(hex, 0.1), (front ? 9 : 7) * sc);
+            // front nests: white number with a dark stroke; queued nests: no stroke, white on the
+            // pale tile, or a darker shade of the nest colour when the tile is too light for white
+            if (front) label.setColor('#ffffff').setStroke('#2e2433', 9 * sc);
+            else label.setColor(isLight(shadeCss(hex, 0.42)) ? shadeCss(hex, -0.45) : '#ffffff').setStroke('#000000', 0);
             label.setAlpha(alpha * (front ? 1 : 0.85));
         }
         for (; li < this.labels.length; li++) this.labels[li].setVisible(false);
