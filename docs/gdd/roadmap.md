@@ -5,6 +5,7 @@
 - Swipe-to-free sand pictures with falling-sand physics, funnel, hole and conveyor
 - Ant colonies with 3D Colony Flow nests, ants and blocks
 - 10 original levels with rising difficulty, all cleared by a test bot; settings with a level cheat, x2 speed
+- Level editor: image import, palette matching, auto-generated winnable nests, a level bank played with `?custom=1`
 - Phaser 4 + TypeScript port of the original HTML prototype
 
 ## 4.2 Roadmap <Badge type="warning" text="Coming soon" />
@@ -24,7 +25,8 @@
 
 | Issue | Impact | Planned fix |
 |---|---|---|
-| Level solvability depends on the nest order and seed; changing a picture can make it unwinnable | A new picture needs a bot or human test before it ships | Generate nests from a simulated play instead of a fixed order |
+| Built-in level solvability depends on the nest order and seed; changing a picture can make it unwinnable | A new picture needs a bot or human test before it ships | Rebuild the built-in levels' nests with the editor's recorded play |
+| The editor's check is a bot that digs from the bottom; it is not a human playtest | A level can still feel hard or unfair to people | Playtest editor levels with people |
 | The 3D layer is copied into Phaser every frame | Extra GPU upload on low-end phones | Lower its resolution or move to a Phaser-native renderer later |
 | Boosters do nothing | Visual only | M2 |
 

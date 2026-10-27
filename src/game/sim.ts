@@ -108,7 +108,7 @@ export class Sim {
     private makeNests(i: number, L: Level, key: Uint8Array, keys: (string | null)[]): Nest[][] {
         const G = this.G;
         const orderMode = levelOverride.order || L.order || 'rows', seed = levelOverride.seed ?? L.seed ?? 0;
-        const rng = mulberry32(1234 + i * 977 + seed * 7919);
+        const rng = mulberry32(1234 + (L.salt ?? i) * 977 + seed * 7919);
         const blockSeq: string[] = [], acc = new Array(keys.length).fill(0), left: Record<string, number> = {};
         const order: number[] = [];
         if (orderMode === 'onion') {
@@ -129,6 +129,18 @@ export class Sim {
         for (const p of order) {
             const c = key[p];
             if (++acc[c] === BLOCK_GRAINS) { acc[c] = 0; blockSeq.push(keys[c]!); }
+        }
+        // nests from a recorded play (level editor) win when they hold exactly the same blocks
+        if (L.nests && L.nests.length === COLS) {
+            const want: Record<string, number> = {};
+            for (const k of blockSeq) want[k] = (want[k] || 0) + 1;
+            for (const col of L.nests) for (const [k, n] of col) want[k] = (want[k] || 0) - n;
+            if (Object.values(want).every((v) => v === 0)) {
+                return L.nests.map((col, ci) => col.map(([color, need], ri) => {
+                    const [dx, dy] = nestPos(ci, ri);
+                    return { color, need, got: 0, inflight: 0, cool: 0, pop: 0, dx, dy, bump: 0 };
+                }));
+            }
         }
         for (const k of blockSeq) left[k] = (left[k] || 0) + 1;
         const open: Record<string, { color: string; need: number; have: number; first: number } | null> = {};

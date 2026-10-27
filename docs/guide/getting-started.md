@@ -17,7 +17,7 @@ npm install
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Start the game dev server at http://localhost:8080 |
+| `npm run dev` | Start the game dev server at http://localhost:8080 (level editor at `/editor.html`) |
 | `npm run build` | Type-check and build the game into `dist/` |
 | `npm run preview` | Serve the built game locally |
 | `npm run docs:dev` | Start the docs dev server |

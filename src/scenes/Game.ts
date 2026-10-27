@@ -3,7 +3,8 @@ import {
     BELT, BELT_LEN, BLOCK, BOARD, BOOSTER_IMAGES, BOOSTER_POS, COLS, FMASK, FRAME, FUNNEL, H, MOUTH, PAUSE_BTN, PIC,
     SLOTS, SPEED_BTN, TILE, TRAY_Y, W, beltPoint,
 } from '../game/layout';
-import { LEVEL_COUNT } from '../game/levels';
+import { CUSTOM_KEY, PREVIEW_KEY, levelCount, loadCustomLevels, useLevels } from '../game/levels';
+import { playBot } from '../game/bot';
 import { Sfx, Sim, levelOverride } from '../game/sim';
 import { Item3D, ThreeLayer } from '../game/three-layer';
 import { abgrToRgb, shade, shadeCss } from '../game/util';
@@ -21,6 +22,8 @@ export class Game extends Phaser.Scene {
     private three!: ThreeLayer;
     private sim!: Sim;
     private levelIndex = 0;
+    /** Storage key for the last level reached ('' = don't remember). */
+    private levelKey = 'cf_level';
     private started = false;
     private paused = false;
     private speedUp = false;
@@ -56,10 +59,16 @@ export class Game extends Phaser.Scene {
     }
 
     create() {
+        // ?custom=1 plays the level editor's list, ?custom=preview the one level it is testing
+        const q = new URLSearchParams(location.search), custom = q.get('custom');
+        if (custom) {
+            useLevels(loadCustomLevels(custom === 'preview' ? PREVIEW_KEY : CUSTOM_KEY));
+            this.levelKey = custom === 'preview' ? '' : 'cf_level_custom';
+        }
         let level = 0;
-        try { level = Math.min(LEVEL_COUNT - 1, parseInt(localStorage.getItem('cf_level') || '0', 10) || 0); } catch { /* storage blocked */ }
-        const qp = new URLSearchParams(location.search).get('level');
-        if (qp) level = Math.max(0, Math.min(LEVEL_COUNT - 1, parseInt(qp, 10) - 1));
+        try { if (this.levelKey) level = Math.min(levelCount() - 1, parseInt(localStorage.getItem(this.levelKey) || '0', 10) || 0); } catch { /* storage blocked */ }
+        const qp = q.get('level');
+        if (qp) level = Math.max(0, Math.min(levelCount() - 1, parseInt(qp, 10) - 1));
 
         this.add.image(0, 0, 'bg').setOrigin(0).setDisplaySize(W, H).setDepth(D.bg);
         this.drawChute();
@@ -88,8 +97,8 @@ export class Game extends Phaser.Scene {
         const end = () => { this.swiping = false; this.sim?.endSwipe(); };
         this.input.on('pointerup', end);
         this.input.on('pointerupoutside', end);
-        this.input.keyboard?.on('keydown-N', () => this.startLevel((this.levelIndex + 1) % LEVEL_COUNT));
-        this.input.keyboard?.on('keydown-P', () => this.startLevel((this.levelIndex + LEVEL_COUNT - 1) % LEVEL_COUNT));
+        this.input.keyboard?.on('keydown-N', () => this.startLevel((this.levelIndex + 1) % levelCount()));
+        this.input.keyboard?.on('keydown-P', () => this.startLevel((this.levelIndex + levelCount() - 1) % levelCount()));
         this.input.keyboard?.on('keydown-R', () => this.startLevel(this.levelIndex));
 
         this.startLevel(level);
@@ -100,7 +109,7 @@ export class Game extends Phaser.Scene {
     // ---------- level ----------
     private startLevel(i: number) {
         this.levelIndex = i;
-        try { localStorage.setItem('cf_level', String(i)); } catch { /* storage blocked */ }
+        try { if (this.levelKey) localStorage.setItem(this.levelKey, String(i)); } catch { /* storage blocked */ }
         this.three.clear();
         if (this.sim) this.sim.start(i);
         else this.sim = new Sim(i, (name, vol) => this.sfx(name, vol));
@@ -394,14 +403,14 @@ export class Game extends Phaser.Scene {
         this.overlay = 'settings';
         this.paused = true;
         const perRow = 5, bw = 112, bh = 100, gap = 20, top = 1010;
-        const rows = Math.ceil(LEVEL_COUNT / perRow);
+        const rows = Math.ceil(levelCount() / perRow);
         const bottom = top + rows * (bh + gap) + 40;
         const box = this.panel(460, bottom, 'Settings', '#ffffff');
         box.add(this.button(360, 600, 360, 130, 'Resume', null, () => this.closeOverlay()));
         box.add(this.button(360, 750, 360, 130, 'Restart', 0xff9f43, () => this.startLevel(this.levelIndex)));
         box.add(this.text(540, 955, 'Cheat: go to level', 40, '#7a4a24', null));
         const rowW = perRow * bw + (perRow - 1) * gap;
-        for (let i = 0; i < LEVEL_COUNT; i++) {
+        for (let i = 0; i < levelCount(); i++) {
             const x = 540 - rowW / 2 + (i % perRow) * (bw + gap), y = top + Math.floor(i / perRow) * (bh + gap);
             const cur = i === this.levelIndex;
             const c = this.add.container(x + bw / 2, y + bh / 2);
@@ -419,12 +428,12 @@ export class Game extends Phaser.Scene {
         this.overlay = 'end';
         this.swiping = false;
         const win = this.sim.state === 'win';
-        const last = this.levelIndex >= LEVEL_COUNT - 1;
+        const last = this.levelIndex >= levelCount() - 1;
         const box = this.panel(610, 1310, win ? (last ? 'All Done!' : 'Level Complete!') : 'Conveyor full!', win ? '#ffd23f' : '#ff6b81');
         if (!win) box.add(this.text(540, 790, 'Too much sand on the belt', 36, '#7a4a24', null));
         box.add(this.add.image(540, win ? 916 : 956, 'mascot').setDisplaySize(win ? 300 : 240, win ? 292 : 233));
         box.add(win
-            ? this.button(360, 1130, 360, 150, last ? 'Replay' : 'Next', null, () => this.startLevel((this.levelIndex + 1) % LEVEL_COUNT))
+            ? this.button(360, 1130, 360, 150, last ? 'Replay' : 'Next', null, () => this.startLevel((this.levelIndex + 1) % levelCount()))
             : this.button(360, 1130, 360, 150, 'Retry', 0xff9f43, () => this.startLevel(this.levelIndex)));
         // scale in around the panel centre
         box.list.forEach((o) => { const t = o as unknown as Phaser.GameObjects.Components.Transform; t.x -= 540; t.y -= 900; });
@@ -455,6 +464,8 @@ export class Game extends Phaser.Scene {
             levelOverride,
             start(i: number) { scene.started = true; scene.startLevel(i); },
             sim(sec: number) { for (let t = 0; t < sec; t += 1 / 60) scene.sim.update(1 / 60); scene.render(); },
+            /** Let the test bot play the current level for up to `sec` game seconds. */
+            bot(sec = 300) { scene.started = true; return playBot(scene.sim, sec); },
             swipeCells(pts: [number, number][]) {
                 const s = scene.sim;
                 s.endSwipe();

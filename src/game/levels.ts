@@ -18,7 +18,7 @@ interface Painter {
     outline(k: string): void;
 }
 
-interface LevelDef {
+export interface LevelDef {
     name: string;
     n: number;
     /** Nest size range, in 5-unit blocks (scaled by NEST_SCALE). */
@@ -29,6 +29,12 @@ interface LevelDef {
     /** How the nest order is estimated; see Sim.start. */
     order?: 'rows' | 'onion';
     seed?: number;
+    /** Seeds the nest layout instead of the level number (custom levels, so their nests don't
+     * change when they move in the list). */
+    salt?: number;
+    /** Nests from a recorded play (level editor), each column front to back as [colour, blocks];
+     * used instead of `order` when they hold exactly the picture's blocks. */
+    nests?: [string, number][][];
 }
 
 export interface Level {
@@ -39,6 +45,8 @@ export interface Level {
     grid: Grid;
     order?: 'rows' | 'onion';
     seed?: number;
+    salt?: number;
+    nests?: [string, number][][];
 }
 
 function painter(g: Grid): Painter {
@@ -77,7 +85,7 @@ function painter(g: Grid): Painter {
 
 // Ten original pictures in the style of sand-sort puzzle levels: bold dark outline, few flat
 // colours, getting bigger and more layered (colours inside colours) as the levels go on.
-const OUTLINE = '#3a2a3a';
+export const OUTLINE = '#3a2a3a';
 const LEVELS: LevelDef[] = [
     {
         name: 'Cherries', n: 14, chunk: [3, 5],
@@ -218,13 +226,33 @@ const LEVELS: LevelDef[] = [
     },
 ];
 
-export const LEVEL_COUNT = LEVELS.length;
+/** Every colour the built-in pictures use: the palette custom pictures are matched to. */
+export const PALETTE: string[] = [...new Set(LEVELS.flatMap((L) => Object.values(L.colors)))];
+
+/** Where the level editor keeps its levels; the game plays them with ?custom=1. */
+export const CUSTOM_KEY = 'cf_custom_levels';
+/** The single level the editor's play button opens (?custom=preview). */
+export const PREVIEW_KEY = 'cf_custom_preview';
+
+let active: LevelDef[] = LEVELS;
+
+/** Play another list of levels (custom levels from the editor); an empty list keeps the built-in ones. */
+export function useLevels(defs: LevelDef[]) { active = defs.length ? defs : LEVELS; }
+export function levelCount() { return active.length; }
+
+/** The custom level list saved under a storage key, or [] when there is none. */
+export function loadCustomLevels(key: string): LevelDef[] {
+    try {
+        const list = JSON.parse(localStorage.getItem(key) || '[]');
+        return Array.isArray(list) ? list.filter((L) => L && Array.isArray(L.rows) && L.colors) : [];
+    } catch { return []; }
+}
 
 export function buildLevel(i: number): Level {
-    const L = LEVELS[i];
+    const L = active[i];
     const g: Grid = [];
     for (let y = 0; y < L.n; y++) g.push(new Array(L.n).fill(null));
     if (L.rows) L.rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') g[y][x] = ch; }));
     else L.paint?.(painter(g));
-    return { name: L.name, n: L.n, chunk: L.chunk, colors: L.colors, grid: g, order: L.order, seed: L.seed };
+    return { name: L.name, n: L.n, chunk: L.chunk, colors: L.colors, grid: g, order: L.order, seed: L.seed, salt: L.salt, nests: L.nests };
 }
