@@ -9,6 +9,7 @@ Every published version stays playable at its own URL. The [landing page](https:
 - **Editor pictures fill the frame:** custom pictures cover the frame's whole inside (wider than the built-in square pictures), and the Sand Editor shows exactly that area, so a picture that touches the edge in the editor touches the frame in the game. The generator can fit the image or fill the frame.
 - **Nest columns per level:** a level can have 2 to 6 nest columns (default 4, as in every built-in level); the Nest Editor has a picker for it.
 - **Rules:** the sand, funnel and particle randomness now comes from a generator seeded per level, and ants walk from a nest's front slot rather than its sliding position, so the same swipes always play out the same. The built-in levels were re-checked with the test bot; Rocket now uses seed 1.
+- **Nest numbers:** nests waiting behind the front row show their number without the dark stroke: white on darker tiles, a darker shade of the nest colour on light ones.
 - **Nests:** the nests now use Colony Flow's lidded nest box (`Box_v2_T` + `Box_v2_B`), with the white outline hugging its shape.
 
 [Play latest](https://tuandds.github.io/colony-flow-sand/demo/)
