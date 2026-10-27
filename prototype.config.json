@@ -1,0 +1,8 @@
+{
+  "title": "Colony Flow Sand",
+  "tagline": "A sand-swipe ant puzzle prototype",
+  "repo": "tuandds/colony-flow-sand",
+  "pagesUrl": "https://tuandds.github.io/colony-flow-sand",
+  "basePath": "/colony-flow-sand",
+  "devPort": 8080
+}
