@@ -10,13 +10,15 @@ const SOUNDS: Record<string, string> = {
 
 // Loads sprites, sounds, the web font and the 3D meshes, then starts the game.
 export class Boot extends Phaser.Scene {
+    private label!: Phaser.GameObjects.Text;
+
     constructor() {
         super('Boot');
     }
 
     preload() {
         const { width, height } = this.scale;
-        const label = this.add.text(width / 2, height / 2, 'Loading...', { fontFamily: 'Arial', fontSize: '48px', color: '#7a4a24' }).setOrigin(0.5);
+        const label = (this.label = this.add.text(width / 2, height / 2, 'Loading...', { fontFamily: 'Arial', fontSize: '48px', color: '#7a4a24', align: 'center', wordWrap: { width: width - 120 } }).setOrigin(0.5));
         this.load.on('progress', (v: number) => label.setText(`Loading... ${Math.round(v * 100)}%`));
         this.load.setPath('assets/');
         for (const n of IMAGES) this.load.image(n, `img/${n}.png`);
@@ -24,11 +26,19 @@ export class Boot extends Phaser.Scene {
     }
 
     async create() {
-        const three = new ThreeLayer();
-        await Promise.all([
-            three.load(''),
-            document.fonts.load('48px "Lilita One"').catch(() => undefined),
-        ]);
-        this.scene.start('Game', { three });
+        try {
+            const three = new ThreeLayer();
+            // the web font comes from Google Fonts; if it is slow or blocked, start with the fallback font
+            const font = Promise.race([
+                document.fonts.load('48px "Lilita One"').catch(() => undefined),
+                new Promise((res) => setTimeout(res, 2500)),
+            ]);
+            await Promise.all([three.load(''), font]);
+            this.scene.start('Game', { three });
+        } catch (e) {
+            // show why the game could not start instead of hanging on the loading screen
+            console.error(e);
+            this.label.setText(`Could not start the game:\n${e instanceof Error ? e.message : String(e)}`);
+        }
     }
 }

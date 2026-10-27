@@ -153,7 +153,9 @@ export class Sim {
             let ci = 0;
             for (let j = 1; j < COLS; j++) if (load[j] < load[ci]) ci = j;
             load[ci] += c.need;
-            cols[ci].push({ color: c.color, need: c.need, got: 0, inflight: 0, cool: 0, pop: 0, dx: null, dy: null, bump: 0 });
+            // nests start in place so they already show before the first update
+            const [dx, dy] = nestPos(ci, cols[ci].length);
+            cols[ci].push({ color: c.color, need: c.need, got: 0, inflight: 0, cool: 0, pop: 0, dx, dy, bump: 0 });
         }
         return cols;
     }
