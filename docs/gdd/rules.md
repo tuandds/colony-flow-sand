@@ -39,7 +39,7 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 
 ## 3.5 Nests and ants <Badge type="tip" text="Live" />
 
-- 4 columns of nests. Three rows show above the booster tray; the rest wait below it.
+- 4 columns of nests (levels from the level editor can have 2 to 6). Three rows show above the booster tray; the rest wait below it.
 - Only the front nest of each column is active. Nests never change column: when the front nest fills it pops and the column slides up.
 - Nest sizes and order are generated from the picture: the blocks are listed in the order the sand naturally comes out (bottom rows first, or outside-in for pictures with enclosed colours), cut into nests of `chunk × 2` blocks, and dealt to the column with the least sand still queued. Levels can pin a seed that a test player could solve.
 - An ant leaves an active nest every 0.12 s while that nest still needs blocks and a matching block is on the belt. Ants walk at 420 px/s, are 74 px long and carry 32 px cubes.

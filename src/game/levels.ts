@@ -38,6 +38,8 @@ export interface LevelDef {
     /** Grain-level picture (level editor): one key per sand grain, see encodeSand. When set it
      * replaces `rows` / `paint`, and its size must be n * SUB. */
     sand?: Sand;
+    /** Number of nest columns (default 4). */
+    cols?: number;
 }
 
 /** A sand picture at grain resolution: `size` grains per side, `data` run-length encoded
@@ -55,6 +57,7 @@ export interface Level {
     salt?: number;
     nests?: [string, number][][];
     sand?: Sand;
+    cols?: number;
 }
 
 function painter(g: Grid): Painter {
@@ -300,5 +303,5 @@ export function buildLevel(i: number): Level {
     for (let y = 0; y < L.n; y++) g.push(new Array(L.n).fill(null));
     if (L.sand) { /* the sim reads the grains itself */ } else if (L.rows) L.rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') g[y][x] = ch; }));
     else L.paint?.(painter(g));
-    return { name: L.name, n: L.n, chunk: L.chunk, colors: L.colors, grid: g, order: L.order, seed: L.seed, salt: L.salt, nests: L.nests, sand: L.sand };
+    return { name: L.name, n: L.n, chunk: L.chunk, colors: L.colors, grid: g, order: L.order, seed: L.seed, salt: L.salt, nests: L.nests, sand: L.sand, cols: L.cols };
 }

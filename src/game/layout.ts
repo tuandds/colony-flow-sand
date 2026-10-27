@@ -29,8 +29,12 @@ export const BELT_SPEED = 300;
 export const DROP_S = MOUTH.x - BELT.cxL;
 export const BLOCK = 50;
 
-export const COLS = 4;
-export const COL_X = [0, 1, 2, 3].map((i) => 540 + (i - 1.5) * 174);
+/** Nest columns: 4 by default; a level can ask for MIN_COLS to MAX_COLS (level editor). */
+export const COLS = 4, MIN_COLS = 2, MAX_COLS = 6;
+/** Centre x of column ci of n, spread around the screen centre (closer together past 4). */
+export function colX(ci: number, n = COLS) {
+    return 540 + (ci - (n - 1) / 2) * Math.min(174, 900 / n);
+}
 export const ROW_GAP = 146;
 export const ROW_TOP = 1368; // three rows show above the tray, the rest wait below it
 export const TILE = 126;
@@ -51,8 +55,8 @@ export const NEST_SCALE = 2 / UNITS_PER_BLOCK;
 export const BLOCK_GRAINS = UNITS_PER_BLOCK * GRAINS_PER_UNIT;
 export const SIM_HZ = 110; // falling-sand steps per second
 
-export function nestPos(ci: number, ri: number): [number, number] {
-    return [COL_X[ci], ROW_TOP + ROW_GAP * ri];
+export function nestPos(ci: number, ri: number, n = COLS): [number, number] {
+    return [colX(ci, n), ROW_TOP + ROW_GAP * ri];
 }
 
 export function beltPoint(s: number): [number, number] {

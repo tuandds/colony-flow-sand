@@ -4,7 +4,7 @@
 // colours (sand.ts); nests come from a recorded winning play (src/game/bot.ts, in web workers).
 // Levels are saved in the browser in the format the game reads with ?custom=1 (LevelDef).
 import type { Recording } from '../game/bot';
-import { NEST_SCALE, SUB } from '../game/layout';
+import { COLS, MAX_COLS, MIN_COLS, NEST_SCALE, SUB } from '../game/layout';
 import { CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, decodeSand, encodeSand, loadCustomLevels, useLevels } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
 import { type ConvertOpts, HEX, NAME, countKeys, drawSand, hexLab, imageToSand, nearestKey, rowsToGrains } from './sand';
@@ -15,6 +15,8 @@ type Result = 'win' | 'lose' | 'stuck';
 interface EdLevel {
     id: string; name: string; n: number; chunk: [number, number]; sand: Sand;
     order: 'rows' | 'onion'; seed: number; salt: number;
+    /** Number of nest columns. */
+    cols: number;
     /** Nests from a recorded play or edited by hand; without them the game uses order + seed. */
     nests?: [string, number][][];
     /** The recorded winning strokes for `nests` (Auto Play replays them). */
@@ -82,6 +84,7 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
     return {
         id: L.id || uid(), name: L.name || 'Màn mới', n, chunk: L.chunk || [4, 7], sand,
         order: L.order || 'rows', seed: L.seed ?? 0, salt: L.salt ?? randomSalt(),
+        cols: Math.max(MIN_COLS, Math.min(MAX_COLS, L.cols ?? COLS)),
         nests: L.nests?.map((col) => col.map(([k, v]) => [keyOf.get(k) ?? k, v] as [string, number])),
         // levels from the first editor version (cells, no grains) were checked under older rules
         moves: L.sand ? L.moves : undefined, verified: L.sand ? L.verified : undefined,
@@ -90,7 +93,7 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
 }
 function blankLevel(n: number): EdLevel {
     return { id: uid(), name: 'Màn mới', n, chunk: [4, 7], sand: encodeSand(n * SUB, new Array<string>((n * SUB) ** 2).fill('.')),
-        order: 'rows', seed: 0, salt: randomSalt(), status: 'WIP', comment: '', updated: Date.now() };
+        order: 'rows', seed: 0, salt: randomSalt(), cols: COLS, status: 'WIP', comment: '', updated: Date.now() };
 }
 
 const L = () => levels[cur];
@@ -141,12 +144,12 @@ function save() {
 interface Analysis { blocks: Map<string, number>; total: number; nests: Nest[][]; grains: number; fits: boolean }
 const analysisCache = new Map<string, Analysis>();
 function analyze(l: EdLevel): Analysis {
-    const key = JSON.stringify([l.sand.data, l.chunk, l.order, l.seed, l.salt, l.nests, l.n]);
+    const key = JSON.stringify([l.sand.data, l.chunk, l.order, l.seed, l.salt, l.nests, l.n, l.cols]);
     let a = analysisCache.get(key);
     if (a) return a;
     const def = toDef(l);
     const blocks = new Map<string, number>();
-    let nests: Nest[][] = [[], [], [], []], grainCount = 0, fits = true;
+    let nests: Nest[][] = Array.from({ length: l.cols }, () => []), grainCount = 0, fits = true;
     if (Object.keys(def.colors).length) {
         useLevels([def]);
         try {
@@ -173,7 +176,7 @@ function commitGrains() {
     L().sand = encodeSand(L().n * SUB, grains);
     L().updated = Date.now();
 }
-const sandState = () => JSON.stringify({ sand: L().sand, n: L().n, nests: L().nests, moves: L().moves, verified: L().verified, chunk: L().chunk, order: L().order, seed: L().seed });
+const sandState = () => JSON.stringify({ sand: L().sand, n: L().n, nests: L().nests, moves: L().moves, verified: L().verified, chunk: L().chunk, order: L().order, seed: L().seed, cols: L().cols });
 function sandSnapshot() {
     sandUndo.push(sandState());
     if (sandUndo.length > 60) sandUndo.shift();
@@ -181,7 +184,7 @@ function sandSnapshot() {
 }
 function restoreSand(json: string) {
     const s = JSON.parse(json), l = L();
-    l.sand = s.sand; l.n = s.n; l.nests = s.nests; l.moves = s.moves; l.verified = s.verified; l.chunk = s.chunk; l.order = s.order; l.seed = s.seed;
+    l.sand = s.sand; l.n = s.n; l.nests = s.nests; l.moves = s.moves; l.verified = s.verified; l.chunk = s.chunk; l.order = s.order; l.seed = s.seed; l.cols = s.cols ?? COLS;
     grains = decodeSand(l.sand);
     renderEditor();
 }
@@ -383,6 +386,7 @@ function renderSettings() {
     $('comment-count').textContent = `${l.comment.length}/500`;
     $<HTMLSelectElement>('s-order').value = l.nests ? 'play' : l.order;
     $<HTMLInputElement>('s-seed').value = String(l.seed);
+    $<HTMLSelectElement>('s-cols').value = String(l.cols);
 }
 
 // ---------- nest editor ----------
@@ -409,10 +413,12 @@ function renderNests() {
     }).join('');
     const box = $('nests');
     box.innerHTML = '';
+    box.style.setProperty('--cols', String(cols.length));
+    $('cols-label').textContent = `${cols.length} cột tổ`;
     cols.forEach((col, ci) => {
         const d = document.createElement('div');
         d.className = 'nest-col';
-        d.innerHTML = `<h4>CỘT ${ci + 1}</h4>`;
+        d.innerHTML = `<h4>${cols.length > 4 ? '' : 'CỘT '}${ci + 1}</h4>`;
         col.forEach(([k, need], ri) => {
             const b = document.createElement('button');
             const sel = !!selNest && selNest[0] === ci && selNest[1] === ri;
@@ -469,7 +475,7 @@ $('tep-up').onclick = () => editNest((c, ci, ri) => { if (!ri) return [ci, ri]; 
 $('tep-down').onclick = () => editNest((c, ci, ri) => { if (ri >= c[ci].length - 1) return [ci, ri]; [c[ci][ri + 1], c[ci][ri]] = [c[ci][ri], c[ci][ri + 1]]; return [ci, ri + 1]; });
 const moveCol = (d: number) => editNest((c, ci, ri) => {
     const to = ci + d;
-    if (to < 0 || to > 3) return [ci, ri];
+    if (to < 0 || to >= c.length) return [ci, ri];
     const [n] = c[ci].splice(ri, 1), at = Math.min(ri, c[to].length);
     c[to].splice(at, 0, n);
     return [to, at];
@@ -934,7 +940,7 @@ function renderOrganizer() {
         const ap = l.autoplay, issue = orgIssues.get(id);
         tr.innerHTML = `<td ${orgSelect ? '' : 'hidden'}><input type="checkbox" ${orgSelected.has(id) ? 'checked' : ''} /></td>` +
             `<td>${i + 1}</td><td><span class="org-link" title="Mở trong Editor">${esc(l.name)}</span></td><td></td>` +
-            `<td>${a.total}</td><td>${nests}</td><td>${chips}</td><td></td><td></td>` +
+            `<td>${a.total}</td><td>${nests} <span class="res-none">· ${l.cols} cột</span></td><td>${chips}</td><td></td><td></td>` +
             `<td>${l.verified ? '<span class="res-ok">✓</span>' : l.verified === false ? '<span class="res-bad">!</span>' : '<span class="res-none">–</span>'}</td>` +
             `<td>${ap ? `<span class="${ap === 'win' ? 'res-ok' : 'res-bad'}">${ap === 'win' ? 'Thắng' : ap === 'lose' ? 'Tràn' : 'Kẹt'}</span>` : '<span class="res-none">–</span>'}</td>` +
             `<td>${issue === undefined ? '<span class="res-none">–</span>' : issue ? `<span class="res-bad">${esc(issue)}</span>` : '<span class="res-ok">OK</span>'}</td>`;
@@ -1084,12 +1090,12 @@ function validateSet() {
     toast(bad ? `${bad} màn cần sửa` : 'Tất cả màn đều ổn');
 }
 function exportCsv() {
-    const rows = [['order', 'name', 'id', 'blocks', 'nests', 'colours', 'status', 'difficulty', 'nests_checked', 'autoplay', 'comment']];
+    const rows = [['order', 'name', 'id', 'blocks', 'columns', 'nests', 'colours', 'status', 'difficulty', 'nests_checked', 'autoplay', 'comment']];
     orgLevels().forEach((id, i) => {
         const l = levels.find((x) => x.id === id);
         if (!l) return;
         const a = analyze(l);
-        rows.push([String(i + 1), l.name, l.id, String(a.total), String((l.nests ?? a.nests).reduce((s, c) => s + c.length, 0)),
+        rows.push([String(i + 1), l.name, l.id, String(a.total), String(l.cols), String((l.nests ?? a.nests).reduce((s, c) => s + c.length, 0)),
             [...a.blocks.keys()].map((k) => NAME.get(k)).join(' '), l.status, diffOf(l).label, l.verified ? 'yes' : 'no', l.autoplay ?? '', l.comment]);
     });
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -1191,7 +1197,7 @@ function toast(msg: string) {
 /** TypeScript for LEVELS in src/game/levels.ts. */
 function levelTs(l: EdLevel) {
     const d = toDef(l), q = (v: unknown) => JSON.stringify(v).replace(/"/g, "'");
-    return `    {\n        name: ${q(l.name)}, n: ${l.n}, chunk: [${l.chunk.join(', ')}], order: '${l.order}', seed: ${l.seed}, salt: ${l.salt},\n` +
+    return `    {\n        name: ${q(l.name)}, n: ${l.n}, chunk: [${l.chunk.join(', ')}], order: '${l.order}', seed: ${l.seed}, salt: ${l.salt}${l.cols !== COLS ? `, cols: ${l.cols}` : ''},\n` +
         `        colors: ${q(d.colors).replace(/,/g, ', ')},\n        sand: { size: ${l.sand.size}, data: '${l.sand.data}' },\n` +
         (l.nests ? `        nests: ${q(l.nests).replace(/,/g, ', ')},\n` : '') + '    },';
 }
@@ -1238,6 +1244,11 @@ $<HTMLSelectElement>('s-order').onchange = (e) => {
     const v = (e.target as HTMLSelectElement).value;
     if (v === 'play') { renderSettings(); return; }
     sandSnapshot(); L().order = v as EdLevel['order']; delete L().nests; delete L().moves; nestsChanged();
+};
+$<HTMLSelectElement>('s-cols').onchange = (e) => {
+    // a different number of columns needs new nests
+    sandSnapshot(); L().cols = +(e.target as HTMLSelectElement).value; delete L().nests; delete L().moves; selNest = null; nestsChanged();
+    toast('Đã đổi số cột: chạy “Tự sinh tổ kiến” để có tổ giải được');
 };
 $<HTMLInputElement>('s-seed').onchange = (e) => { sandSnapshot(); L().seed = Math.max(0, Math.min(99, parseInt((e.target as HTMLInputElement).value, 10) || 0)); delete L().nests; delete L().moves; nestsChanged(); };
 $<HTMLInputElement>('brush').oninput = (e) => { brush = +(e.target as HTMLInputElement).value; $('brush-v').textContent = String(brush); };

@@ -120,7 +120,7 @@
     border: 1px solid var(--line); font-weight: 700; font-size: 11px; }
   .chip i { width: 12px; height: 12px; border-radius: 4px; }
   .chip.bad { border-color: #a16207; color: #fde68a; }
-  .nest-cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .nest-cols { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 6px; }
   .nest-col { background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 5px; min-width: 0; }
   .nest-col h4 { margin: 0 0 4px; font-size: 10px; color: var(--dim); letter-spacing: 1px; text-align: center; }
   .nest { width: 100%; height: 28px; border-radius: 7px; margin-bottom: 4px; display: grid; place-items: center; font-weight: 900; font-size: 13px; border: 0;
@@ -311,12 +311,14 @@
   <div class="edit-panel" id="panel-nest">
     <div class="panel-title">🐜 Nest Editor<span class="spacer"></span><button class="panel-min-btn" title="Thu gọn">–</button></div>
     <div class="edit-validation ok" id="nest-validation"></div>
+    <div class="setting-row"><label for="s-cols">Số cột tổ</label><select id="s-cols">
+      <option value="2">2 cột</option><option value="3">3 cột</option><option value="4">4 cột (mặc định)</option><option value="5">5 cột</option><option value="6">6 cột</option></select></div>
     <div class="elabel">Khối trong tổ / khối trong tranh</div>
     <div class="balance" id="balance"></div>
     <button class="btn primary btn-gen" id="btn-solve">🤖 Tự sinh tổ kiến (giải được)</button>
     <progress id="solve-progress" max="1" value="0"></progress>
     <div class="log" id="log">Bấm “Tự sinh tổ kiến”: bot chơi tranh này từ dưới lên, mở tổ mới cho màu đang trên băng chuyền mỗi khi một cột trống, rồi chơi lại đúng các nét vuốt đó để kiểm tra. Nếu chưa được thì thử thứ tự rows / onion × seed. Cách đầu tiên thắng 2 lần liền được giữ lại.</div>
-    <div class="elabel">4 cột tổ <span style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--dim)">· trên cùng = tổ đang mở · bấm tổ để sửa</span></div>
+    <div class="elabel"><span id="cols-label">4 cột tổ</span> <span style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--dim)">· trên cùng = tổ đang mở · bấm tổ để sửa</span></div>
     <div class="nest-cols" id="nests"></div>
     <div class="tep" id="tep" hidden>
       <div class="tep-title">Sửa tổ <span id="tep-id"></span><span class="spacer"></span><button class="lb-act" id="tep-close" title="Đóng">✕</button></div>

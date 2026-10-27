@@ -1,6 +1,6 @@
 import * as Phaser from 'phaser';
 import {
-    BELT, BELT_LEN, BLOCK, BOARD, BOOSTER_IMAGES, BOOSTER_POS, COLS, FMASK, FRAME, FUNNEL, H, MOUTH, PAUSE_BTN, PIC,
+    BELT, BELT_LEN, BLOCK, BOARD, BOOSTER_IMAGES, BOOSTER_POS, FMASK, FRAME, FUNNEL, H, MOUTH, PAUSE_BTN, PIC,
     SLOTS, SPEED_BTN, TILE, TRAY_Y, W, beltPoint,
 } from '../game/layout';
 import { CUSTOM_KEY, PREVIEW_KEY, levelCount, loadCustomLevels, useLevels } from '../game/levels';
@@ -186,7 +186,7 @@ export class Game extends Phaser.Scene {
         // nest tiles: the front row (the nests ants work for) is full height with a white
         // outline; nests queued behind are lower and paler
         let li = 0;
-        for (let ri = 5; ri >= 0; ri--) for (let ci = 0; ci < COLS; ci++) {
+        for (let ri = 5; ri >= 0; ri--) for (let ci = 0; ci < s.cols.length; ci++) {
             const nest = s.cols[ci][ri];
             if (!nest || nest.dy === null || nest.dx === null) continue;
             const y = nest.dy;

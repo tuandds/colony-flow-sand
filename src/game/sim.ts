@@ -1,9 +1,9 @@
 // The whole game state and rules, independent of Phaser: sand picture, funnel, conveyor,
 // nests and ants. The scene calls update() every frame and reads the fields to draw them.
 import {
-    ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, BOARD, COLS, COL_X, DRAIN_RATE, DROP_S, FMASK, FMASK_COUNT,
+    ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, BOARD, COLS, DRAIN_RATE, DROP_S, FMASK, FMASK_COUNT,
     FUNNEL, FUNNEL_HZ, GRAINS_PER_PARTICLE, GRAINS_PER_UNIT, INNER, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS,
-    SLOT_GAP, SUB, TILE, beltPoint, funnelHalf, nestPos,
+    MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colX, funnelHalf, nestPos,
 } from './layout';
 import { Level, buildLevel, decodeSand } from './levels';
 import { hash, mulberry32, packColor } from './util';
@@ -49,6 +49,8 @@ export class Sim {
     pipe: string[] = []; dropping: Block[] = [];
     slots: (Block | null)[] = []; beltOff = 0;
     cols: Nest[][] = []; ants: Ant[] = []; fx: Spark[] = [];
+    /** Number of nest columns in this level. */
+    ncols = COLS;
     simT = 0; simFlip = 0; sweepT = 0; stuckT = 0;
     state: 'play' | 'win' | 'lose' = 'play'; endT = 0; time = 0;
     /** Random numbers for the rules (sand, funnel, particles), restarted with every level so the
@@ -99,6 +101,7 @@ export class Sim {
         this.fFree = FMASK_COUNT; this.fT = 0; this.fExit = 0; this.fFlip = 0;
         this.hopper = {}; this.pipe = []; this.dropping = [];
         this.slots = new Array(SLOTS).fill(null); this.beltOff = 0;
+        this.ncols = Math.max(MIN_COLS, Math.min(MAX_COLS, L.cols ?? COLS));
         this.cols = this.makeNests(i, L, key, keys);
         this.ants = []; this.fx = [];
         this.simT = 0; this.simFlip = 0; this.sweepT = 0; this.stuckT = 0;
@@ -138,13 +141,14 @@ export class Sim {
             if (++acc[c] === BLOCK_GRAINS) { acc[c] = 0; blockSeq.push(keys[c]!); }
         }
         // nests from a recorded play (level editor) win when they hold exactly the same blocks
-        if (L.nests && L.nests.length === COLS) {
+        const n = this.ncols;
+        if (L.nests && L.nests.length === n) {
             const want: Record<string, number> = {};
             for (const k of blockSeq) want[k] = (want[k] || 0) + 1;
             for (const col of L.nests) for (const [k, n] of col) want[k] = (want[k] || 0) - n;
             if (Object.values(want).every((v) => v === 0)) {
                 return L.nests.map((col, ci) => col.map(([color, need], ri) => {
-                    const [dx, dy] = nestPos(ci, ri);
+                    const [dx, dy] = nestPos(ci, ri, n);
                     return { color, need, got: 0, inflight: 0, cool: 0, pop: 0, dx, dy, bump: 0 };
                 }));
             }
@@ -166,14 +170,14 @@ export class Sim {
         chunks.sort((a, b) => a.first - b.first);
         // Nests never change column, so deal each one (in release order) to the column with the
         // least sand still queued; the columns then drain evenly instead of one running long.
-        const cols: Nest[][] = Array.from({ length: COLS }, () => []);
-        const load = new Array(COLS).fill(0);
+        const cols: Nest[][] = Array.from({ length: n }, () => []);
+        const load = new Array(n).fill(0);
         for (const c of chunks) {
             let ci = 0;
-            for (let j = 1; j < COLS; j++) if (load[j] < load[ci]) ci = j;
+            for (let j = 1; j < n; j++) if (load[j] < load[ci]) ci = j;
             load[ci] += c.need;
             // nests start in place so they already show before the first update
-            const [dx, dy] = nestPos(ci, cols[ci].length);
+            const [dx, dy] = nestPos(ci, cols[ci].length, n);
             cols[ci].push({ color: c.color, need: c.need, got: 0, inflight: 0, cool: 0, pop: 0, dx, dy, bump: 0 });
         }
         return cols;
@@ -439,10 +443,10 @@ export class Sim {
 
     // ---------- nests and ants ----------
     private stepNests(dt: number) {
-        for (let ci = 0; ci < COLS; ci++) {
+        for (let ci = 0; ci < this.ncols; ci++) {
             const col = this.cols[ci];
             col.forEach((nest, ri) => {
-                const [tx, ty] = nestPos(ci, ri);
+                const [tx, ty] = nestPos(ci, ri, this.ncols);
                 if (nest.dy === null) nest.dy = ty;
                 if (nest.dx === null) nest.dx = tx;
                 nest.dy += (ty - nest.dy) * Math.min(1, dt * 10);
@@ -460,7 +464,7 @@ export class Sim {
             if (front.got + front.inflight < front.need && front.cool <= 0) {
                 // ants use the front slot, not the nest's sliding position, so the rules don't
                 // depend on the animation (recorded plays then replay exactly)
-                const [nx, ny] = nestPos(ci, 0);
+                const [nx, ny] = nestPos(ci, 0, this.ncols);
                 let best = -1, bd = 1e9;
                 for (let i = 0; i < SLOTS; i++) {
                     const b = this.slots[i];
@@ -486,7 +490,7 @@ export class Sim {
             a.t += dt;
             let tx: number, ty: number;
             if (!a.carry) [tx, ty] = this.slotPos(a.slot);
-            else { tx = COL_X[a.col]; ty = nestPos(a.col, 0)[1] - TILE / 2; }
+            else { [tx, ty] = nestPos(a.col, 0, this.ncols); ty -= TILE / 2; }
             const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy);
             const step = ANT_SPEED * dt;
             if (d > 1) {
@@ -507,7 +511,7 @@ export class Sim {
                     if (nest.got >= nest.need) {
                         nest.pop = 0.001;
                         this.sfx('nest', 0.8);
-                        this.burst(COL_X[a.col], nest.dy!, this.colors[nest.color]);
+                        this.burst(colX(a.col, this.ncols), nest.dy!, this.colors[nest.color]);
                     } else this.sfx('add', 0.35);
                 }
             } else {
