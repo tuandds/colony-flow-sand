@@ -42,9 +42,10 @@ export interface LevelDef {
     cols?: number;
 }
 
-/** A sand picture at grain resolution: `size` grains per side, `data` run-length encoded
- * row by row ('.' = empty, each key followed by its run length when longer than 1). */
-export interface Sand { size: number; data: string }
+/** A sand picture at grain resolution: `size` grains tall and `w` wide (default `size`; the
+ * level editor uses the whole frame, see frameGrains), `data` run-length encoded row by row
+ * ('.' = empty, each key followed by its run length when longer than 1). */
+export interface Sand { size: number; w?: number; data: string }
 
 export interface Level {
     name: string;
@@ -256,8 +257,8 @@ export const SAND_PALETTE: { key: string; name: string; hex: string }[] = [
     { key: 'u', name: 'ink', hex: OUTLINE },
 ];
 
-/** Run-length encode one key per grain ('.' = empty). */
-export function encodeSand(size: number, keys: string[]): Sand {
+/** Run-length encode one key per grain ('.' = empty), `size` rows of `w` grains. */
+export function encodeSand(size: number, keys: string[], w = size): Sand {
     let data = '';
     for (let i = 0; i < keys.length;) {
         let j = i + 1;
@@ -265,7 +266,7 @@ export function encodeSand(size: number, keys: string[]): Sand {
         data += keys[i] + (j - i > 1 ? j - i : '');
         i = j;
     }
-    return { size, data };
+    return w === size ? { size, data } : { size, w, data };
 }
 
 export function decodeSand(s: Sand): string[] {
@@ -274,7 +275,7 @@ export function decodeSand(s: Sand): string[] {
         const n = m[2] ? parseInt(m[2], 10) : 1;
         for (let i = 0; i < n; i++) out.push(m[1]);
     }
-    out.length = s.size * s.size;
+    out.length = s.size * (s.w ?? s.size);
     return Array.from(out, (k) => k ?? '.');
 }
 

@@ -55,6 +55,16 @@ export const NEST_SCALE = 2 / UNITS_PER_BLOCK;
 export const BLOCK_GRAINS = UNITS_PER_BLOCK * GRAINS_PER_UNIT;
 export const SIM_HZ = 110; // falling-sand steps per second
 
+/**
+ * The sand area of an n-cell picture, in grains: the picture is n * SUB grains tall and the
+ * simulated area reaches the frame on both sides (`pad` grains beyond the picture square), so
+ * a level editor picture that is `w` grains wide fills the frame from side to side.
+ */
+export function frameGrains(n: number) {
+    const h = n * SUB, gs = PIC.size / h, pad = Math.floor((PIC.x - INNER.x) / gs);
+    return { w: h + 2 * pad, h, pad, gs };
+}
+
 export function nestPos(ci: number, ri: number, n = COLS): [number, number] {
     return [colX(ci, n), ROW_TOP + ROW_GAP * ri];
 }

@@ -4,10 +4,10 @@
 // colours (sand.ts); nests come from a recorded winning play (src/game/bot.ts, in web workers).
 // Levels are saved in the browser in the format the game reads with ?custom=1 (LevelDef).
 import type { Recording } from '../game/bot';
-import { COLS, MAX_COLS, MIN_COLS, NEST_SCALE, SUB } from '../game/layout';
+import { COLS, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
 import { CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, decodeSand, encodeSand, loadCustomLevels, useLevels } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
-import { type ConvertOpts, HEX, NAME, countKeys, drawSand, hexLab, imageToSand, nearestKey, rowsToGrains } from './sand';
+import { type ConvertOpts, HEX, NAME, countKeys, drawSand, hexLab, imageToSand, nearestKey, rowsToGrains, squareToFrame } from './sand';
 import type { SolveJob, SolveResult } from './solver.worker';
 
 type Status = 'WIP' | 'REVIEW' | 'LIVE';
@@ -78,8 +78,11 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
     }
     const n = L.n || 20;
     let sand: Sand;
-    if (L.sand && L.sand.size === n * SUB) sand = L.sand;
-    else sand = encodeSand(n * SUB, rowsToGrains(L.rows || [], n, (c) => keyOf.get(c) ?? SAND_PALETTE[0].key));
+    // pictures cover the game's whole frame; older square ones are widened where they sat
+    const { w: FW, h: FH } = frameGrains(n);
+    if (L.sand && L.sand.size === FH && (L.sand.w ?? FH) === FW) sand = L.sand;
+    else if (L.sand && L.sand.size === FH && !L.sand.w) sand = encodeSand(FH, squareToFrame(decodeSand(L.sand), n), FW);
+    else sand = encodeSand(FH, rowsToGrains(L.rows || [], n, (c) => keyOf.get(c) ?? SAND_PALETTE[0].key), FW);
     if (L.sand) for (const c of SAND_PALETTE) keyOf.set(c.key, c.key);
     return {
         id: L.id || uid(), name: L.name || 'Màn mới', n, chunk: L.chunk || [4, 7], sand,
@@ -92,11 +95,14 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
     };
 }
 function blankLevel(n: number): EdLevel {
-    return { id: uid(), name: 'Màn mới', n, chunk: [4, 7], sand: encodeSand(n * SUB, new Array<string>((n * SUB) ** 2).fill('.')),
+    const { w, h } = frameGrains(n);
+    return { id: uid(), name: 'Màn mới', n, chunk: [4, 7], sand: encodeSand(h, new Array<string>(w * h).fill('.'), w),
         order: 'rows', seed: 0, salt: randomSalt(), cols: COLS, status: 'WIP', comment: '', updated: Date.now() };
 }
 
 const L = () => levels[cur];
+/** Picture size in grains: the game's frame, w wide and h tall. */
+const dims = (l: EdLevel = L()) => ({ w: l.sand.w ?? l.sand.size, h: l.sand.size });
 
 /** The level as the game reads it (plus the editor's own fields, which the game ignores). */
 function toDef(l: EdLevel): LevelDef & Omit<EdLevel, 'autoplay'> {
@@ -173,7 +179,8 @@ function analyze(l: EdLevel): Analysis {
 
 // ---------- editing the picture ----------
 function commitGrains() {
-    L().sand = encodeSand(L().n * SUB, grains);
+    const { w, h } = frameGrains(L().n);
+    L().sand = encodeSand(h, grains, w);
     L().updated = Date.now();
 }
 const sandState = () => JSON.stringify({ sand: L().sand, n: L().n, nests: L().nests, moves: L().moves, verified: L().verified, chunk: L().chunk, order: L().order, seed: L().seed, cols: L().cols });
@@ -211,47 +218,48 @@ const sandCv = $<HTMLCanvasElement>('sand');
 const sandArt = document.createElement('canvas');
 let hover: [number, number] | null = null, painting: 'paint' | 'erase' | null = null;
 
+// The canvas is exactly the game's frame interior: a picture that touches its edge here touches
+// the frame in the game.
 function renderSand() {
-    const PG = L().n * SUB, wrap = sandCv.parentElement!;
-    const px = Math.max(1.5, Math.min(4, (Math.min(wrap.clientWidth || 600, 640) - 18) / PG));
-    const w = Math.round(PG * px), dpr = window.devicePixelRatio || 1;
-    sandArt.width = sandArt.height = PG;
-    drawSand(sandArt.getContext('2d')!, grains, PG, 0, 0, PG);
-    sandCv.width = sandCv.height = Math.round(w * dpr);
-    sandCv.style.width = sandCv.style.height = w + 'px';
+    const { w, h } = dims(), wrap = sandCv.parentElement!;
+    const px = Math.max(1.2, Math.min(4, (Math.min(wrap.clientWidth || 600, 780) - 24) / w));
+    const cw = Math.round(w * px), ch = Math.round(h * px), dpr = window.devicePixelRatio || 1;
+    sandArt.width = w; sandArt.height = h;
+    drawSand(sandArt.getContext('2d')!, grains, w, h, 0, 0, w, h);
+    sandCv.width = Math.round(cw * dpr); sandCv.height = Math.round(ch * dpr);
+    sandCv.style.width = cw + 'px'; sandCv.style.height = ch + 'px';
     drawSandCanvas();
 }
 function drawSandCanvas() {
-    const g = sandCv.getContext('2d')!, w = sandCv.width;
+    const g = sandCv.getContext('2d')!, cw = sandCv.width, ch = sandCv.height, { w } = dims(), s = cw / w;
     g.setTransform(1, 0, 0, 1, 0, 0);
-    g.fillStyle = '#f0dcb4'; g.fillRect(0, 0, w, w);
+    g.fillStyle = '#f0dcb4'; g.fillRect(0, 0, cw, ch);
     // faint cell grid: one cell = 8 x 8 grains
-    const n = L().n, cs = w / n;
     g.strokeStyle = 'rgba(122,74,36,.10)';
     g.beginPath();
-    for (let i = 1; i < n; i++) { g.moveTo(i * cs, 0); g.lineTo(i * cs, w); g.moveTo(0, i * cs); g.lineTo(w, i * cs); }
+    for (let x = SUB; x < w; x += SUB) { g.moveTo(x * s, 0); g.lineTo(x * s, ch); }
+    for (let y = SUB; y * s < ch; y += SUB) { g.moveTo(0, y * s); g.lineTo(cw, y * s); }
     g.stroke();
     g.imageSmoothingEnabled = false;
-    g.drawImage(sandArt, 0, 0, w, w);
+    g.drawImage(sandArt, 0, 0, cw, ch);
     if (hover && (tool === 'paint' || tool === 'erase')) {
-        const s = w / (n * SUB);
         g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 1.5;
         g.beginPath(); g.arc((hover[0] + 0.5) * s, (hover[1] + 0.5) * s, brush * s, 0, Math.PI * 2); g.stroke();
     }
 }
 function grainAt(e: PointerEvent): [number, number] | null {
-    const r = sandCv.getBoundingClientRect(), PG = L().n * SUB;
-    const x = Math.floor(((e.clientX - r.left) / r.width) * PG), y = Math.floor(((e.clientY - r.top) / r.height) * PG);
-    return x >= 0 && y >= 0 && x < PG && y < PG ? [x, y] : null;
+    const r = sandCv.getBoundingClientRect(), { w, h } = dims();
+    const x = Math.floor(((e.clientX - r.left) / r.width) * w), y = Math.floor(((e.clientY - r.top) / r.height) * h);
+    return x >= 0 && y >= 0 && x < w && y < h ? [x, y] : null;
 }
 function stamp(x: number, y: number, k: string) {
-    const PG = L().n * SUB;
+    const { w, h } = dims();
     let changed = false;
     for (let dy = -brush; dy <= brush; dy++) for (let dx = -brush; dx <= brush; dx++) {
         if (dx * dx + dy * dy > brush * brush) continue;
         const xx = x + dx, yy = y + dy;
-        if (xx < 0 || yy < 0 || xx >= PG || yy >= PG) continue;
-        const p = yy * PG + xx;
+        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        const p = yy * w + xx;
         if (grains[p] !== k) { grains[p] = k; changed = true; }
     }
     return changed;
@@ -265,18 +273,18 @@ function strokeTo(x: number, y: number, k: string) {
     return changed;
 }
 function flood(x: number, y: number, k: string) {
-    const PG = L().n * SUB, from = grains[y * PG + x];
+    const { w, h } = dims(), from = grains[y * w + x];
     if (from === k) return;
-    const stack = [y * PG + x];
+    const stack = [y * w + x];
     while (stack.length) {
         const p = stack.pop()!;
         if (grains[p] !== from) continue;
         grains[p] = k;
-        const px = p % PG;
+        const px = p % w;
         if (px > 0) stack.push(p - 1);
-        if (px < PG - 1) stack.push(p + 1);
-        if (p >= PG) stack.push(p - PG);
-        if (p < PG * (PG - 1)) stack.push(p + PG);
+        if (px < w - 1) stack.push(p + 1);
+        if (p >= w) stack.push(p - w);
+        if (p < w * (h - 1)) stack.push(p + w);
     }
 }
 
@@ -284,7 +292,7 @@ sandCv.addEventListener('contextmenu', (e) => e.preventDefault());
 sandCv.addEventListener('pointerdown', (e) => {
     const c = grainAt(e);
     if (!c) return;
-    const [x, y] = c, PG = L().n * SUB, here = grains[y * PG + x];
+    const [x, y] = c, here = grains[y * dims().w + x];
     if (tool === 'pick' && e.button !== 2) { if (here !== '.') { colour = here; tool = 'paint'; renderColourBank(); renderTools(); } return; }
     if (tool === 'replace' && e.button !== 2 && (here === '.' || here === colour)) return;
     sandSnapshot();
@@ -566,14 +574,14 @@ function thumb(l: EdLevel) {
     let c = thumbCache.get(l.sand.data);
     if (!c) {
         c = document.createElement('canvas');
-        const PG = l.sand.size;
-        c.width = c.height = PG;
-        drawSand(c.getContext('2d')!, decodeSand(l.sand), PG, 0, 0, PG);
+        const { w, h } = dims(l);
+        c.width = w; c.height = h;
+        drawSand(c.getContext('2d')!, decodeSand(l.sand), w, h, 0, 0, w, h);
         if (thumbCache.size > 300) thumbCache.clear();
         thumbCache.set(l.sand.data, c);
     }
     const out = document.createElement('canvas');
-    out.width = out.height = c.width;
+    out.width = c.width; out.height = c.height;
     out.getContext('2d')!.drawImage(c, 0, 0);
     return out;
 }
@@ -740,7 +748,7 @@ function showHistory(l: EdLevel) {
             const row = document.createElement('div');
             row.className = 'hist-item';
             const t = thumb(normalize(h.level));
-            t.style.cssText = 'width:34px;height:34px;border-radius:6px;background:#f0dcb4';
+            t.style.cssText = 'width:42px;height:auto;border-radius:6px;background:#f0dcb4';
             const s = document.createElement('span');
             s.textContent = `${new Date(h.t).toLocaleString('vi-VN')} · ${h.level.name}`;
             const load = document.createElement('button');
@@ -788,7 +796,7 @@ function showBackups() {
 }
 
 // ---------- generate from an image ----------
-const gen: ConvertOpts = { n: 20, colors: 6, bg: 12, outline: false, smooth: 1 };
+const gen: ConvertOpts = { n: 20, colors: 6, bg: 12, outline: false, smooth: 1, fit: 'contain' };
 let genImage: HTMLImageElement | null = null, genName = '', genResult: string[] | null = null, genTimer = 0;
 
 function openGen() {
@@ -798,23 +806,25 @@ function openGen() {
         $(id + '-v').textContent = String(gen[key]);
     }
     $<HTMLInputElement>('g-outline').checked = gen.outline;
+    $<HTMLSelectElement>('g-fit').value = gen.fit;
     runGen();
 }
 function runGen() {
     clearTimeout(genTimer);
     genTimer = window.setTimeout(() => {
-        const cv = $<HTMLCanvasElement>('gen-preview'), PG = gen.n * SUB, dpr = window.devicePixelRatio || 1;
-        const w = cv.clientWidth || 400;
-        cv.width = cv.height = Math.round(w * dpr);
+        const cv = $<HTMLCanvasElement>('gen-preview'), { w: FW, h: FH } = frameGrains(gen.n), dpr = window.devicePixelRatio || 1;
+        cv.style.aspectRatio = `${FW} / ${FH}`;
+        const w = cv.clientWidth || 480;
+        cv.width = Math.round(w * dpr); cv.height = Math.round((w * FH / FW) * dpr);
         const g = cv.getContext('2d')!;
         g.fillStyle = '#f0dcb4'; g.fillRect(0, 0, cv.width, cv.height);
         if (!genImage) { $('gen-summary').innerHTML = '<span class="hint">Chọn một ảnh để xem trước.</span>'; $<HTMLButtonElement>('gen-apply').disabled = true; return; }
         genResult = imageToSand(genImage, gen);
-        drawSand(g, genResult, PG, 0, 0, cv.width);
+        drawSand(g, genResult, FW, FH, 0, 0, cv.width, cv.height);
         const c = [...countKeys(genResult)].sort((a, b) => b[1] - a[1]);
         const total = c.reduce((s, [, n]) => s + Math.floor(n / 64), 0);
         $('gen-summary').innerHTML = c.map(([k, n]) => `<span class="chip" title="${NAME.get(k)}"><i style="background:${HEX.get(k)}"></i>${Math.floor(n / 64)}</span>`).join('') +
-            `<span class="chip">≈ ${total} khối · ${PG}×${PG} hạt</span>`;
+            `<span class="chip">≈ ${total} khối · ${FW}×${FH} hạt</span>`;
         $<HTMLButtonElement>('gen-apply').disabled = false;
     }, 80);
 }
@@ -851,6 +861,7 @@ for (const [id, key] of [['g-size', 'n'], ['g-colors', 'colors'], ['g-bg', 'bg']
     $<HTMLInputElement>(id).oninput = (e) => { gen[key] = +(e.target as HTMLInputElement).value; $(id + '-v').textContent = String(gen[key]); runGen(); };
 }
 $<HTMLInputElement>('g-outline').onchange = (e) => { gen.outline = (e.target as HTMLInputElement).checked; runGen(); };
+$<HTMLSelectElement>('g-fit').onchange = (e) => { gen.fit = (e.target as HTMLSelectElement).value as ConvertOpts['fit']; runGen(); };
 $('gen-cancel').onclick = () => $('gen-modal').classList.remove('on');
 $('gen-apply').onclick = applyGen;
 $('btn-gen-sand').onclick = openGen;
@@ -1025,7 +1036,7 @@ function addLevelsDialog() {
         cb.type = 'checkbox';
         cb.onchange = () => { if (cb.checked) picks.add(l.id); else picks.delete(l.id); };
         const t = thumb(l);
-        t.style.cssText = 'width:34px;height:34px;border-radius:6px;background:#f0dcb4';
+        t.style.cssText = 'width:42px;height:auto;border-radius:6px;background:#f0dcb4';
         const s = document.createElement('span');
         s.textContent = `${levels.indexOf(l) + 1}. ${l.name} · ${l.status}`;
         row.append(cb, t, s);
@@ -1198,7 +1209,7 @@ function toast(msg: string) {
 function levelTs(l: EdLevel) {
     const d = toDef(l), q = (v: unknown) => JSON.stringify(v).replace(/"/g, "'");
     return `    {\n        name: ${q(l.name)}, n: ${l.n}, chunk: [${l.chunk.join(', ')}], order: '${l.order}', seed: ${l.seed}, salt: ${l.salt}${l.cols !== COLS ? `, cols: ${l.cols}` : ''},\n` +
-        `        colors: ${q(d.colors).replace(/,/g, ', ')},\n        sand: { size: ${l.sand.size}, data: '${l.sand.data}' },\n` +
+        `        colors: ${q(d.colors).replace(/,/g, ', ')},\n        sand: { size: ${l.sand.size}, w: ${dims(l).w}, data: '${l.sand.data}' },\n` +
         (l.nests ? `        nests: ${q(l.nests).replace(/,/g, ', ')},\n` : '') + '    },';
 }
 async function importJson(file: File, asSet: boolean) {

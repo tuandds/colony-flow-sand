@@ -2,8 +2,8 @@
 // nests and ants. The scene calls update() every frame and reads the fields to draw them.
 import {
     ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, BOARD, COLS, DRAIN_RATE, DROP_S, FMASK, FMASK_COUNT,
-    FUNNEL, FUNNEL_HZ, GRAINS_PER_PARTICLE, GRAINS_PER_UNIT, INNER, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS,
-    MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colX, funnelHalf, nestPos,
+    FUNNEL, FUNNEL_HZ, GRAINS_PER_PARTICLE, GRAINS_PER_UNIT, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS,
+    MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colX, frameGrains, funnelHalf, nestPos,
 } from './layout';
 import { Level, buildLevel, decodeSand } from './levels';
 import { hash, mulberry32, packColor } from './util';
@@ -71,16 +71,17 @@ export class Sim {
         // Each picture cell is split into SUB x SUB sand grains that are simulated one by one.
         // The simulated area reaches the board's inner frame on both sides (and is padded above),
         // so loose sand on the picture's edges can still slide off and fall until the frame stops it.
-        const PG = n * SUB, gs = PIC.size / PG;
-        const pad = Math.floor((PIC.x - INNER.x) / gs), top = 2 * pad;
+        const { h: PG, gs, pad } = frameGrains(n), top = 2 * pad;
         const G = (this.G = PG + 2 * pad);
         const keys = (this.keys = [null, ...Object.keys(L.colors)]);
         const key = new Uint8Array(G * G), rgb = new Uint32Array(G * G);
-        // grain-level pictures (level editor) give every grain; the others one key per cell
+        // grain-level pictures (level editor) give every grain, as wide as the frame (or a
+        // centred square); the others one key per cell in the centred picture square
         const grains = L.sand && L.sand.size === PG ? decodeSand(L.sand) : null;
-        for (let gy = 0; gy < PG; gy++) for (let gx = 0; gx < PG; gx++) {
-            const k = grains ? grains[gy * PG + gx] : L.grid[(gy / SUB) | 0][(gx / SUB) | 0];
-            if (k && k !== '.') key[(gy + top) * G + gx + pad] = Math.max(0, keys.indexOf(k));
+        const SW = grains ? L.sand!.w ?? PG : PG, x0 = Math.floor((G - SW) / 2);
+        for (let gy = 0; gy < PG; gy++) for (let gx = 0; gx < SW; gx++) {
+            const k = grains ? grains[gy * SW + gx] : L.grid[(gy / SUB) | 0][(gx / SUB) | 0];
+            if (k && k !== '.' && gx + x0 >= 0 && gx + x0 < G) key[(gy + top) * G + gx + x0] = Math.max(0, keys.indexOf(k));
         }
         fitWholeBlocks(key, G, keys.length);
         for (let p = 0; p < key.length; p++) {
