@@ -430,7 +430,7 @@ export class Sim {
                     const b: Block = { k: this.pipe.shift()!, claimed: null, drop: 0 };
                     this.slots[i] = b;
                     this.dropping.push(b);
-                    this.sfx('drop', 0.5);
+                    this.sfx('drop', 0.7); // a new block lands on the belt: short, soft cube sound
                     break;
                 }
             }

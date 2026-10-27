@@ -3,7 +3,7 @@ import { ThreeLayer } from '../game/three-layer';
 
 const IMAGES = ['bg', 'board', 'btn_green', 'mascot', 'btn_blue_sq', 'pause', 'circle_cream', 'bst_add', 'bst_shuffle', 'bst_claw', 'bst_flower'];
 const SOUNDS: Record<string, string> = {
-    pop: 'pop.ogg', drop: 'box_drop_in.ogg', pick: 'SFX_INGAME_COIN_PICK.ogg', nest: 'count_reach.ogg',
+    pop: 'pop.ogg', drop: 'cube_break_1.ogg', pick: 'SFX_INGAME_COIN_PICK.ogg', nest: 'count_reach.ogg',
     lose: 'sfx-Lose.wav', win: 'QuestRewardGet.ogg', click: 'ui_button_click.ogg', add: 'SFX_INGAME_ADD.ogg',
     music: 'music_gameplay.ogg',
 };
