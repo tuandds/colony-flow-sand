@@ -4,6 +4,7 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
+- Game ported from the HTML prototype to Phaser 4 + TypeScript (same gameplay and assets).
 - Project scaffold.
 
 [Play latest](https://tuandds.github.io/colony-flow-sand/demo/)

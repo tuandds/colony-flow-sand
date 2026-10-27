@@ -1,19 +1,21 @@
 import * as Phaser from 'phaser';
+import { Boot } from './scenes/Boot';
 import { Game } from './scenes/Game';
+import { H, W } from './game/layout';
 
-// Portrait phone: 390x844 points rendered at 2x for crisp text.
+// Portrait phone layout at 1080 x 1920, scaled to fit the window.
 const config: Phaser.Types.Core.GameConfig = {
-    type: Phaser.AUTO,
+    type: Phaser.WEBGL,
     title: 'Colony Flow Sand',
-    backgroundColor: '#1b1b24',
+    backgroundColor: '#f6c48e',
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
         parent: 'game-container',
-        width: 780,
-        height: 1688
+        width: W,
+        height: H
     },
-    scene: [Game]
+    scene: [Boot, Game]
 };
 
 const game = new Phaser.Game(config);

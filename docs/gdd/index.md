@@ -13,7 +13,7 @@ Each feature carries a status:
 | <Badge type="tip" text="Live" /> | In the current build and playable at [the demo](https://tuandds.github.io/colony-flow-sand/demo/). |
 | <Badge type="warning" text="Coming soon" /> | Designed or planned, **not in the game yet**. Details may change before it ships. |
 
-Coordinates and sizes are in **world pixels** on the 780 × 1688 game canvas (2× a 390 × 844 pt phone screen).
+Coordinates and sizes are in **world pixels** on the 1080 × 1920 portrait game canvas, scaled to fit the screen.
 
 ## Contents
 
@@ -25,4 +25,4 @@ Coordinates and sizes are in **world pixels** on the 780 × 1688 game canvas (2�
 
 ## One-paragraph summary
 
-A sand-swipe ant puzzle prototype
+A picture made of coloured sand sits in a frame. The player swipes the sand to set it free; it falls, runs down a funnel into a hole and is pressed into small coloured blocks that ride a conveyor. Ant colonies below wait for blocks of their own colour: their ants walk out, grab a matching block and carry it home. Fill every nest to clear the level; let the conveyor overflow and the level is lost.
