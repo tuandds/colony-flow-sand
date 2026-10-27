@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Colony Flow Sand · Level Editor</title>
+<style>
+  :root {
+    --bg: #0b1020; --head: #131c38; --panel: #111827; --panel2: #0d1420; --line: #1f2a44; --line2: #1e3a5f;
+    --text: #e2e8f0; --mute: #94a3b8; --dim: #64748b; --gold: #fbbf24; --green: #6ef0ad; --red: #f87171; --blue: #3b82f6;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  input, select, textarea { font: inherit; color: var(--text); background: var(--panel2); border: 1.5px solid var(--line2);
+    border-radius: 6px; padding: 4px 6px; outline: none; }
+  input:focus, select:focus, textarea:focus { border-color: var(--blue); }
+  code { color: var(--mute); }
+  [hidden] { display: none !important; }
+
+  /* ---------- header ---------- */
+  .edit-header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; flex: 0 0 auto;
+    background: linear-gradient(180deg, #1a2550, var(--head)); border-bottom: 2px solid #1d4ed8;
+    box-shadow: 0 2px 18px rgba(29, 78, 216, .35); }
+  .logo { font-weight: 900; font-size: 22px; line-height: .95; letter-spacing: .5px; text-transform: uppercase;
+    background: linear-gradient(180deg, #fde68a, #f59e0b 55%, #ea580c); -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 2px 0 #7c2d12) drop-shadow(0 0 6px rgba(251, 191, 36, .35)); margin-right: 8px; }
+  .logo small { display: block; font-size: 13px; letter-spacing: 3px; }
+  .mode-switch { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: #0b1226; border: 1px solid var(--line); }
+  .mode-tab { border: 0; background: transparent; padding: 6px 14px; border-radius: 8px; font-weight: 700; color: var(--mute); }
+  .mode-tab.active { background: var(--gold); color: #1f1300; }
+  .lvl-label { margin-left: 8px; color: var(--mute); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lvl-label b { color: var(--text); }
+  .dirty { color: var(--gold); font-weight: 700; margin-left: 6px; display: none; }
+  .dirty.on { display: inline; }
+  .spacer { flex: 1; }
+  .ehbtn { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--line2);
+    background: #13203a; color: #cbd5e1; position: relative; flex: 0 0 auto; }
+  .ehbtn:hover { background: #1b2c4f; color: #fff; }
+  .ehbtn.play { background: #14532d; border-color: #16a34a; color: #bbf7d0; }
+  .ehbtn.auto { background: #3b2a06; border-color: #a16207; color: #fde68a; }
+  .ehbtn.save { background: #1e3a8a; border-color: #3b82f6; color: #dbeafe; }
+  .ehbtn[data-tip]:hover::after { content: attr(data-tip); position: absolute; top: 42px; right: 0; white-space: nowrap; z-index: 50;
+    background: #020617; border: 1px solid var(--line2); padding: 4px 8px; border-radius: 6px; font-size: 11px; color: var(--text); }
+
+  /* ---------- panels ---------- */
+  .edit-panels { flex: 1; display: flex; padding: 10px; min-height: 0; }
+  .edit-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px; overflow: auto; min-width: 0; }
+  .edit-panel.min { flex: 0 0 46px !important; overflow: hidden; padding: 12px 6px; }
+  .edit-panel.min > :not(.panel-title):not(.lb-sticky) { display: none !important; }
+  .edit-panel.min .lb-sticky > :not(.panel-title) { display: none !important; }
+  .edit-panel.min .panel-title { writing-mode: vertical-rl; border: 0; justify-content: flex-start; gap: 10px; }
+  #panel-colour { flex: 0 0 190px; }
+  #panel-sand { flex: 1 1 440px; }
+  #panel-nest { flex: 0 0 340px; }
+  #panel-bank { flex: 0 0 330px; display: flex; flex-direction: column; }
+  .panel-resizer { flex: 0 0 10px; display: grid; place-items: center; cursor: col-resize; }
+  .panel-resizer::after { content: ''; width: 2px; height: 34px; border-radius: 2px; background: #334155; }
+  .panel-title { display: flex; align-items: center; gap: 6px; padding-bottom: 8px; margin-bottom: 10px;
+    border-bottom: 1px solid var(--line); color: var(--gold); font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; font-size: 11px; }
+  .panel-title .spacer { flex: 1; }
+  .panel-min-btn { border: 1px solid var(--line2); background: transparent; color: var(--mute); width: 20px; height: 20px; border-radius: 5px; line-height: 1; padding: 0; }
+  .elabel { font-weight: 800; font-size: 10px; color: var(--mute); letter-spacing: 1.2px; text-transform: uppercase; margin: 14px 0 6px; display: flex; align-items: center; gap: 6px; }
+  .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .hint { color: var(--dim); font-size: 10.5px; margin-top: 6px; }
+
+  .btn { border: 1px solid var(--line2); background: #13203a; color: #cbd5e1; border-radius: 7px; padding: 5px 9px; font-weight: 700; font-size: 11px; }
+  .btn:hover { background: #1b2c4f; color: #fff; }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn.primary { background: linear-gradient(180deg, #6ef0ad, #22b573); color: #04231a; border-color: #22b573; }
+  .btn.danger { color: #fecaca; border-color: #7f1d1d; background: #2a1215; }
+  .btn.on { background: var(--gold); color: #1f1300; border-color: var(--gold); }
+  .btn-gen { width: 100%; margin-top: 8px; padding: 9px; font-size: 12px; }
+
+  /* colour bank */
+  .active-pal { min-height: 48px; padding: 4px; border: 1.5px dashed #1e293b; border-radius: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .pal-btn { width: 30px; height: 30px; border-radius: 7px; border: 2px solid transparent; padding: 0;
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,.2), inset 0 3px 0 rgba(255,255,255,.25); }
+  .pal-btn.on { border-color: var(--gold); outline: 2px solid #000; outline-offset: -4px; }
+  .pal-btn.eraser { background: repeating-conic-gradient(#334155 0 25%, #1e293b 0 50%) 0 0 / 10px 10px; display: grid; place-items: center; font-size: 14px; }
+  .bank-colours { display: flex; flex-direction: column; gap: 6px; }
+  .bank-colour { display: flex; align-items: center; gap: 10px; padding: 2px; border-radius: 8px; border: 1.5px solid transparent; background: none; text-align: left; }
+  .bank-colour i { width: 30px; height: 30px; border-radius: 7px; flex: 0 0 auto; box-shadow: inset 0 -3px 0 rgba(0,0,0,.2), inset 0 3px 0 rgba(255,255,255,.25); }
+  .bank-colour span { font-weight: 700; flex: 1; }
+  .bank-colour.on { border-color: var(--gold); background: #2a2208; }
+  .bank-colour.used span::after { content: ' •'; color: var(--green); }
+
+  /* sand editor */
+  .edit-validation { border-radius: 9px; padding: 8px 10px; font-weight: 800; letter-spacing: .6px; border: 1px solid; text-transform: uppercase; font-size: 11px; }
+  .edit-validation.ok { background: #052e1a; border-color: #166534; color: #bbf7d0; }
+  .edit-validation.warn { background: #2a2208; border-color: #a16207; color: #fde68a; }
+  .edit-validation.err { background: #2a1215; border-color: #991b1b; color: #fecaca; }
+  .notes { margin-top: 6px; display: flex; flex-direction: column; gap: 3px; }
+  .notes div { font-size: 11px; color: #fde68a; } .notes div.err { color: #fecaca; } .notes div.ok { color: #bbf7d0; }
+  .cs-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+  .cs-dot { width: 14px; height: 14px; border-radius: 4px; flex: 0 0 auto; }
+  .cs-n { color: var(--mute); font-weight: 700; font-size: 11px; min-width: 36px; }
+  .cs-label { font-weight: 700; flex: 1; }
+  .cs-grains { color: var(--dim); font-size: 11px; }
+  .tools { display: flex; gap: 4px; }
+  .tool { width: 34px; height: 32px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--panel2); font-size: 15px; }
+  .tool.on { border-color: var(--gold); background: #2a2208; }
+  /* the game's frame around the sand: the canvas is exactly the frame's inside */
+  .sand-wrap { margin-top: 8px; display: grid; place-items: center; }
+  .sand-frame { padding: 10px; border-radius: 22px; background: linear-gradient(180deg, #c98d55, #9c6634); box-shadow: inset 0 2px 0 rgba(255,255,255,.35), 0 4px 0 #6b4220; }
+  .sand-frame canvas { border-radius: 10px; }
+  #sand { display: block; touch-action: none; user-select: none; cursor: crosshair; image-rendering: pixelated; }
+  .setting-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+  .setting-row > label { flex: 0 0 120px; font-weight: 600; color: #cbd5e1; }
+  .setting-row > input:not([type=checkbox]):not([type=range]), .setting-row > select { flex: 1; min-width: 0; }
+  .setting-row input[type=range] { flex: 1; }
+  .setting-val { min-width: 34px; font-weight: 800; color: var(--gold); text-align: right; }
+  #comment { width: 100%; min-height: 60px; resize: vertical; }
+  .wip-head { display: flex; align-items: center; gap: 6px; margin-top: 14px; }
+  .wip-head label { font-weight: 700; color: #cbd5e1; }
+  .wip-pill { font-size: 9px; font-weight: 900; padding: 1px 6px; border-radius: 99px; background: #a16207; color: #1f1300; }
+
+  /* nest editor */
+  .balance { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 4px; border-radius: 99px; background: var(--panel2);
+    border: 1px solid var(--line); font-weight: 700; font-size: 11px; }
+  .chip i { width: 12px; height: 12px; border-radius: 4px; }
+  .chip.bad { border-color: #a16207; color: #fde68a; }
+  .nest-cols { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 6px; }
+  .nest-col { background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 5px; min-width: 0; }
+  .nest-col h4 { margin: 0 0 4px; font-size: 10px; color: var(--dim); letter-spacing: 1px; text-align: center; }
+  .nest { width: 100%; height: 28px; border-radius: 7px; margin-bottom: 4px; display: grid; place-items: center; font-weight: 900; font-size: 13px; border: 0;
+    color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.7); box-shadow: inset 0 -4px 0 rgba(0,0,0,.22), inset 0 3px 0 rgba(255,255,255,.25); }
+  .nest.front { outline: 2px solid #fff; outline-offset: -2px; }
+  .nest.sel { outline: 3px solid var(--gold); outline-offset: -1px; }
+  .nest-add { width: 100%; border: 1.5px dashed var(--line2); background: none; color: var(--dim); border-radius: 7px; height: 22px; }
+  .tep { margin-top: 8px; background: #0b1226; border: 1px solid var(--line2); border-radius: 10px; padding: 8px 10px; }
+  .tep-title { display: flex; align-items: center; gap: 6px; font-weight: 800; color: var(--gold); margin-bottom: 6px; }
+  .tep-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  .tep-row > label { flex: 0 0 70px; color: var(--mute); font-weight: 700; font-size: 11px; }
+  .tep-btns { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .tep-btn { border: 1px solid var(--line2); background: #13203a; border-radius: 6px; padding: 3px 8px; font-weight: 700; font-size: 11px; }
+  .tep-sw { width: 22px; height: 22px; border-radius: 6px; border: 2px solid transparent; padding: 0; }
+  .tep-sw.active { border-color: #fff; }
+  .log { margin-top: 8px; background: #070b16; border: 1px solid var(--line); border-radius: 9px; padding: 6px 8px; max-height: 170px; overflow: auto;
+    font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--mute); white-space: pre-wrap; }
+  .log b { color: var(--green); } .log s { text-decoration: none; color: var(--red); }
+  progress { width: 100%; height: 8px; accent-color: var(--green); margin-top: 6px; }
+  details summary { cursor: pointer; color: var(--mute); font-weight: 700; margin-top: 10px; }
+
+  /* level bank */
+  .lb-sticky { position: sticky; top: -12px; background: var(--panel); z-index: 2; padding-bottom: 6px; margin-top: -12px; padding-top: 12px; }
+  .lb-layouts { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+  .lb-lay-chip { border: 1.5px solid var(--line); background: var(--panel2); border-radius: 99px; padding: 2px 9px; font-weight: 800; font-size: 10.5px; color: var(--mute); }
+  .lb-lay-chip.active { border-color: var(--gold); color: var(--gold); background: #2a2208; }
+  .lb-lay-chip small { color: var(--dim); margin-left: 4px; }
+  .lb-search-bar { display: flex; gap: 4px; margin-top: 6px; }
+  .lb-search-bar input { flex: 1; min-width: 0; }
+  .lb-filter-panel { margin-top: 6px; background: #0b1226; border: 1px solid var(--line2); border-radius: 9px; padding: 6px 8px; }
+  .lb-filter-opts { display: flex; flex-wrap: wrap; gap: 4px; }
+  .lb-filter-opt { border: 1px solid var(--line2); background: #13203a; border-radius: 6px; padding: 2px 7px; font-weight: 700; font-size: 10.5px; }
+  .lb-filter-opt.active { background: var(--gold); color: #1f1300; }
+  .bank-list { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; flex: 1; }
+  .lb-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 9px; border: 1.5px solid var(--line); background: var(--panel2); cursor: pointer; }
+  .lb-row.on { border-color: var(--gold); background: #2a2208; }
+  .lb-row.drop-before { box-shadow: 0 -3px 0 var(--gold); }
+  .lb-id { color: var(--dim); font-weight: 800; font-size: 10px; min-width: 18px; text-align: right; }
+  .lb-grip { color: var(--dim); cursor: grab; font-size: 12px; }
+  .lb-row canvas { width: 42px; height: auto; border-radius: 6px; background: #f0dcb4; flex: 0 0 auto; }
+  .lb-name { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lb-name em { display: block; font-style: normal; color: var(--dim); font-size: 10px; font-weight: 600; }
+  .lb-status { font-size: 9px; font-weight: 900; padding: 1px 5px; border-radius: 99px; }
+  .st-WIP { background: #a16207; color: #1f1300; } .st-REVIEW { background: #1d4ed8; color: #dbeafe; } .st-LIVE { background: #16a34a; color: #04231a; }
+  .lb-diff-select { width: 64px; padding: 2px; font-size: 10.5px; }
+  .lb-act { border: 0; background: none; color: var(--mute); padding: 2px; font-size: 13px; }
+  .lb-act:hover { color: #fff; }
+  .store { margin-top: 8px; }
+  .store .btn { flex: 1; }
+  .saved-at { color: var(--dim); font-size: 10.5px; margin: 4px 0 8px; }
+
+  /* organizer */
+  #organizer { flex: 1; display: none; min-height: 0; padding: 10px; gap: 10px; }
+  body.org #organizer { display: flex; }
+  body.org .edit-panels { display: none; }
+  .org-side { flex: 0 0 280px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; overflow: auto; }
+  .org-main { flex: 1; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; overflow: auto; min-width: 0; }
+  .eyebrow { color: var(--gold); font-weight: 900; letter-spacing: 2px; text-transform: uppercase; font-size: 10px; }
+  .org-side h2, .org-main h1 { margin: 2px 0 4px; }
+  .muted { color: var(--dim); margin: 0 0 10px; }
+  .org-chapter { padding: 8px 10px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--panel2); margin-bottom: 6px; cursor: pointer; }
+  .org-chapter.active { border-color: var(--gold); background: #2a2208; }
+  .org-chapter b { display: block; } .org-chapter small { color: var(--dim); }
+  .org-chapter .row { margin-top: 4px; }
+  .org-tools { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+  .unsaved { color: var(--gold); font-weight: 700; font-size: 12px; margin-left: 8px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; color: var(--mute); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; padding: 6px; border-bottom: 1px solid var(--line); position: sticky; top: -14px; background: var(--panel); }
+  td { padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr.drop-before td { box-shadow: 0 3px 0 var(--gold) inset; }
+  td canvas { width: 58px; height: auto; border-radius: 7px; background: #f0dcb4; display: block; }
+  .org-link { color: #93c5fd; font-weight: 700; cursor: pointer; }
+  .org-color-chip { display: inline-block; width: 13px; height: 13px; border-radius: 4px; margin-right: 2px; vertical-align: middle; }
+  .org-more { color: var(--dim); font-weight: 700; font-size: 10px; }
+  .res-ok { color: var(--green); font-weight: 800; } .res-bad { color: var(--red); font-weight: 800; } .res-none { color: var(--dim); }
+
+  /* dialogs */
+  .modal { position: fixed; inset: 0; background: rgba(2, 6, 23, .78); display: none; align-items: center; justify-content: center; z-index: 120; }
+  .modal.on { display: flex; }
+  .dialog { background: var(--panel); border: 1px solid var(--line2); border-radius: 16px; padding: 16px; max-height: 92vh; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+  .gen-grid { display: grid; grid-template-columns: 360px auto; gap: 18px; }
+  .gen-grid > div { min-width: 0; }
+  .gen-grid .setting-row > label { flex: 0 0 128px; }
+  .gen-grid .setting-row input[type=range] { min-width: 0; }
+  .gen-grid .setting-val { flex: 0 0 34px; }
+  .drop { border: 2px dashed var(--line2); border-radius: 12px; padding: 12px; text-align: center; color: var(--mute); font-weight: 700; cursor: pointer; }
+  .drop.over { border-color: var(--gold); color: var(--gold); background: #2a2208; }
+  .drop img { display: block; max-width: 100%; max-height: 150px; margin: 0 auto 8px; border-radius: 8px;
+    background: repeating-conic-gradient(#1e293b 0 25%, #0f172a 0 50%) 0 0 / 16px 16px; }
+  #gen-preview { display: block; width: min(64vh, 560px); height: auto; background: #f0dcb4; border-radius: 12px; image-rendering: pixelated; border: 10px solid #b07a46; }
+  .gen-summary { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .dialog-bar { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  .hist-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 9px; margin-bottom: 5px; }
+  .hist-item span { flex: 1; }
+
+  /* playtest */
+  #play-wrap { position: fixed; right: 24px; top: 70px; width: 360px; z-index: 110; background: #020617; border: 2px solid #334155; border-radius: 22px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.6); display: none; flex-direction: column; overflow: hidden; }
+  #play-wrap.on { display: flex; }
+  #play-drag { display: flex; align-items: center; gap: 6px; padding: 6px 10px; cursor: move; background: #0f172a; font-weight: 800; color: var(--mute); user-select: none; }
+  #play-drag button { border: 0; background: none; color: var(--mute); font-size: 14px; }
+  #play-drag button:hover { color: #fff; }
+  #play-host { aspect-ratio: 9 / 16; }
+  #play-host iframe { width: 100%; height: 100%; border: 0; display: block; }
+  #play-resize { position: absolute; right: 0; bottom: 0; width: 18px; height: 18px; cursor: nwse-resize;
+    background: linear-gradient(135deg, transparent 50%, #475569 50%); }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #020617; border: 1px solid var(--line2);
+    padding: 8px 14px; border-radius: 9px; font-weight: 700; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 200; }
+  #toast.on { opacity: 1; }
+
+  @media (max-width: 1280px) {
+    body { overflow: auto; }
+    .edit-panels { flex-wrap: wrap; min-height: auto; gap: 10px; }
+    .panel-resizer { display: none; }
+    .edit-panel { overflow: visible; }
+    #panel-colour, #panel-nest, #panel-bank { flex: 1 1 260px; }
+    #panel-sand { flex: 1 1 100%; order: -1; }
+    .gen-grid { grid-template-columns: 1fr; }
+    #organizer { flex-wrap: wrap; }
+    .org-side { flex: 1 1 100%; }
+  }
+</style>
+  <script type="module" crossorigin src="./assets/editor-C4p5YWmo.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/sim-BfkFNKXR.js">
+</head>
+<body>
+<div class="edit-header">
+  <div class="logo">Colony Flow<small>Sand Editor</small></div>
+  <div class="mode-switch">
+    <button class="mode-tab active" id="mode-editor">Editor</button>
+    <button class="mode-tab" id="mode-organizer">Organizer</button>
+  </div>
+  <div class="lvl-label">Màn <b id="lvl-num">1</b> · <b id="lvl-name"></b><span class="dirty" id="dirty">● Chưa lưu</span></div>
+  <div class="spacer"></div>
+  <button class="ehbtn" id="btn-home" data-tip="Về game"><svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3L12 3Z"/></svg></button>
+  <button class="ehbtn play" id="btn-play" data-tip="Chơi thử màn này"><svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><path d="M7 5v14l12-7z"/></svg></button>
+  <button class="ehbtn auto" id="btn-auto" data-tip="Auto Play (bot chơi)"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></button>
+  <button class="ehbtn save" id="btn-save" data-tip="Lưu (Ctrl+S)"><svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4Zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm3-10H5V5h10v4Z"/></svg></button>
+  <button class="ehbtn" id="btn-upload" data-tip="Nhập JSON"><svg viewBox="0 0 24 24" width="19" height="19"><path d="M12 21V9m0 0 4 4m-4-4-4 4M5 3h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></button>
+  <button class="ehbtn" id="btn-download" data-tip="Tải JSON màn này"><svg viewBox="0 0 24 24" width="19" height="19"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></button>
+  <button class="ehbtn" id="btn-backups" data-tip="Bản sao lưu Level Bank"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg></button>
+  <input type="file" id="upload-input" accept="application/json,.json" hidden />
+</div>
+
+<div class="edit-panels" id="editor">
+  <!-- 1: colour bank -->
+  <div class="edit-panel" id="panel-colour">
+    <div class="panel-title">🎨 Colour Bank<span class="spacer"></span><button class="panel-min-btn" title="Thu gọn">–</button></div>
+    <div class="elabel" style="margin-top:0">Active Palette</div>
+    <div class="active-pal" id="active-pal"></div>
+    <div class="elabel">Bank</div>
+    <div class="hint" style="margin:-2px 0 6px">màu có sẵn của game · bấm để vẽ</div>
+    <div class="bank-colours" id="bank-colours"></div>
+  </div>
+  <div class="panel-resizer" data-target="panel-colour" data-sign="1" title="Kéo để đổi cỡ · nháy đúp để đặt lại"></div>
+
+  <!-- 2: sand editor -->
+  <div class="edit-panel" id="panel-sand">
+    <div class="panel-title">⏳ Sand Editor<span class="spacer"></span><button class="panel-min-btn" title="Thu gọn">–</button></div>
+    <div class="edit-validation ok" id="sand-validation"></div>
+    <div class="notes" id="sand-notes"></div>
+    <div class="elabel">Counts</div>
+    <div id="color-summary"></div>
+    <button class="btn primary btn-gen" id="btn-gen-sand">🖼️ Tạo tranh cát từ ảnh…</button>
+    <div class="elabel">Tranh cát
+      <span class="spacer"></span>
+      <button class="btn" id="btn-undo" title="Hoàn tác (Ctrl+Z)">↶</button>
+      <button class="btn" id="btn-redo" title="Làm lại (Ctrl+Shift+Z)">↷</button>
+    </div>
+    <div class="row">
+      <div class="tools" id="tools"></div>
+      <label class="hint" style="margin:0;display:flex;align-items:center;gap:6px">Cọ <input type="range" id="brush" min="2" max="24" step="1" style="width:110px" /><b id="brush-v" class="setting-val"></b></label>
+    </div>
+    <div class="sand-wrap"><div class="sand-frame"><canvas id="sand"></canvas></div></div>
+    <div class="hint">✏️ B vẽ · 🧽 E tẩy · 🪣 G đổ màu vùng · 🔁 R thay cả màu · 💧 I hút màu · chuột phải = tẩy · [ ] đổi cỡ cọ. Mỗi 64 hạt cùng màu thành 1 khối; khi chơi, mỗi màu được cắt cho vừa khít số khối.</div>
+
+    <div class="elabel">Settings</div>
+    <div class="setting-row"><label for="s-name">Tên màn</label><input id="s-name" maxlength="40" /></div>
+    <div class="setting-row"><label for="s-diff">Độ khó (cỡ tổ)</label><select id="s-diff">
+      <option value="3,5">Rất dễ · 6–10 khối</option><option value="4,6">Dễ · 8–12</option><option value="4,7">Vừa · 8–14</option>
+      <option value="5,8">Khó · 10–16</option><option value="6,9">Rất khó · 12–18</option></select></div>
+    <div class="setting-row"><label for="s-status">Trạng thái</label><select id="s-status"><option>WIP</option><option>REVIEW</option><option>LIVE</option></select></div>
+    <div class="wip-head"><label for="comment">WIP Comment</label><span class="wip-pill">WIP</span><span class="spacer"></span><span class="hint" style="margin:0" id="comment-count">0/500</span></div>
+    <textarea id="comment" maxlength="500" placeholder="Ghi chú cho màn đang làm: góp ý, việc cần làm, cần chỉnh gì trước khi LIVE…"></textarea>
+    <div class="hint">Lưu cùng màn.</div>
+  </div>
+  <div class="panel-resizer" data-target="panel-nest" data-sign="-1" title="Kéo để đổi cỡ · nháy đúp để đặt lại"></div>
+
+  <!-- 3: nest editor -->
+  <div class="edit-panel" id="panel-nest">
+    <div class="panel-title">🐜 Nest Editor<span class="spacer"></span><button class="panel-min-btn" title="Thu gọn">–</button></div>
+    <div class="edit-validation ok" id="nest-validation"></div>
+    <div class="setting-row"><label for="s-cols">Số cột tổ</label><select id="s-cols">
+      <option value="2">2 cột</option><option value="3">3 cột</option><option value="4">4 cột (mặc định)</option><option value="5">5 cột</option><option value="6">6 cột</option></select></div>
+    <div class="elabel">Khối trong tổ / khối trong tranh</div>
+    <div class="balance" id="balance"></div>
+    <button class="btn primary btn-gen" id="btn-solve">🤖 Tự sinh tổ kiến (giải được)</button>
+    <progress id="solve-progress" max="1" value="0"></progress>
+    <div class="log" id="log">Bấm “Tự sinh tổ kiến”: bot chơi tranh này từ dưới lên, mở tổ mới cho màu đang trên băng chuyền mỗi khi một cột trống, rồi chơi lại đúng các nét vuốt đó để kiểm tra. Nếu chưa được thì thử thứ tự rows / onion × seed. Cách đầu tiên thắng 2 lần liền được giữ lại.</div>
+    <div class="elabel"><span id="cols-label">4 cột tổ</span> <span style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--dim)">· trên cùng = tổ đang mở · bấm tổ để sửa</span></div>
+    <div class="nest-cols" id="nests"></div>
+    <div class="tep" id="tep" hidden>
+      <div class="tep-title">Sửa tổ <span id="tep-id"></span><span class="spacer"></span><button class="lb-act" id="tep-close" title="Đóng">✕</button></div>
+      <div class="tep-row"><label>Màu</label><div class="tep-btns" id="tep-colors"></div></div>
+      <div class="tep-row"><label>Số khối</label><div class="tep-btns"><button class="tep-btn" id="tep-minus">−</button><input id="tep-size" type="number" min="1" max="99" style="width:56px" /><button class="tep-btn" id="tep-plus">+</button></div></div>
+      <div class="tep-row"><label>Di chuyển</label><div class="tep-btns"><button class="tep-btn" id="tep-up" title="Lên trước">↑</button><button class="tep-btn" id="tep-down" title="Xuống sau">↓</button><button class="tep-btn" id="tep-left" title="Sang cột trái">←</button><button class="tep-btn" id="tep-right" title="Sang cột phải">→</button></div></div>
+      <div class="row" style="margin-top:6px"><button class="btn danger" id="tep-del">🗑 Xoá tổ</button></div>
+    </div>
+    <details>
+      <summary>Nâng cao: thứ tự / seed</summary>
+      <div class="setting-row"><label for="s-order">Thứ tự</label><select id="s-order"><option value="play">ghi lại / sửa tay</option><option value="rows">rows (dưới lên)</option><option value="onion">onion (ngoài vào)</option></select></div>
+      <div class="setting-row"><label for="s-seed">Seed</label><input id="s-seed" type="number" min="0" max="99" /></div>
+      <button class="btn" id="btn-reset-nests">↺ Bỏ tổ ghi lại / sửa tay</button>
+    </details>
+    <div class="hint">Sửa tổ bằng tay, đổi tranh hay độ khó sẽ bỏ dấu ✓. Tổ không bao giờ đổi cột khi chơi.</div>
+  </div>
+  <div class="panel-resizer" data-target="panel-bank" data-sign="-1" title="Kéo để đổi cỡ · nháy đúp để đặt lại"></div>
+
+  <!-- 4: level bank -->
+  <div class="edit-panel" id="panel-bank">
+    <div class="lb-sticky">
+      <div class="panel-title">🗂️ Level Bank<span class="spacer"></span><button class="panel-min-btn" title="Thu gọn">–</button></div>
+      <div class="lb-layouts" id="lb-layouts"></div>
+      <div class="row">
+        <button class="btn primary" id="lb-new" style="flex:1">＋ New Level</button>
+        <button class="btn" id="lb-new-chapter" title="Tạo chapter set mới (mở Organizer)">＋ Chapter Set</button>
+      </div>
+      <div class="lb-search-bar">
+        <input id="lb-search" placeholder="Tìm màn…" />
+        <button class="btn" id="lb-filter-btn" title="Lọc">⚲</button>
+        <button class="btn" id="lb-undo" title="Hoàn tác thao tác Level Bank">↶</button>
+      </div>
+      <div class="lb-filter-panel" id="lb-filter-panel" hidden>
+        <div class="elabel" style="margin-top:2px">Trạng thái</div><div class="lb-filter-opts" id="f-status"></div>
+        <div class="elabel">Độ khó</div><div class="lb-filter-opts" id="f-diff"></div>
+        <div class="elabel">Kiểm tra</div><div class="lb-filter-opts" id="f-check"></div>
+        <button class="btn" id="f-reset" style="margin-top:8px">Bỏ lọc</button>
+      </div>
+    </div>
+    <div class="bank-list" id="lb-list"></div>
+    <div class="store">
+      <div class="elabel">Lưu trữ</div>
+      <button class="btn primary" id="bank-save" style="width:100%">💾 Lưu vào trình duyệt (Ctrl+S)</button>
+      <div class="saved-at" id="saved-at"></div>
+      <div class="row" style="margin-bottom:6px;">
+        <button class="btn" id="bank-export">⬇ Xuất file</button>
+        <button class="btn" id="bank-import">⬆ Nhập file</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="bank-copy-ts">⧉ Copy TS</button>
+        <button class="btn" id="bank-play-all">▶ Chơi cả bank</button>
+      </div>
+      <div class="hint">Trình duyệt giữ danh sách này trên máy bạn; game chơi nó khi mở với <code>?custom=1</code>. Copy TS để đưa màn vào bản build (dán vào <code>LEVELS</code> trong <code>src/game/levels.ts</code>).</div>
+    </div>
+  </div>
+</div>
+
+<!-- ORGANIZER -->
+<div id="organizer">
+  <div class="org-side">
+    <div class="eyebrow">Library</div>
+    <h2>Chapter Sets</h2>
+    <p class="muted">Tạo một set rồi xếp các màn thuộc chapter đó.</p>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn primary" id="org-new-chapter" style="flex:1">＋ New Chapter Set</button>
+      <button class="btn" id="org-upload" title="Nhập set (.json): tạo lại các màn và nhóm">⬆</button>
+    </div>
+    <div id="org-chapter-list"></div>
+  </div>
+  <div class="org-main">
+    <div class="eyebrow">Chapter Builder</div>
+    <h1><span id="org-title"></span><span class="unsaved" id="org-unsaved" hidden>● Chưa lưu</span></h1>
+    <p class="muted" id="org-subtitle"></p>
+    <div class="org-tools">
+      <button class="btn" id="org-select-mode">Chọn màn</button>
+      <button class="btn" id="org-select-all">Chọn tất cả</button>
+      <button class="btn danger" id="org-delete-selected">Xoá mục đã chọn</button>
+      <button class="btn primary" id="org-add-levels">＋ Thêm màn</button>
+      <button class="btn" id="org-undo">↶ Undo</button>
+      <button class="btn primary" id="org-save">💾 Lưu</button>
+      <button class="btn" id="org-play">▶ Chơi chapter</button>
+      <button class="btn" id="org-autoplay">🤖 Auto Play cả set</button>
+      <button class="btn" id="org-validate">✓ Kiểm tra set</button>
+      <button class="btn" id="org-export-csv">Xuất CSV</button>
+      <button class="btn" id="org-export-json">Xuất JSON</button>
+      <button class="btn" id="org-edit-set">Sửa set</button>
+      <button class="btn danger" id="org-delete-set">Xoá set</button>
+    </div>
+    <progress id="org-progress" max="1" value="0" hidden></progress>
+    <table>
+      <thead><tr><th class="org-sel-col"></th><th>#</th><th>Màn</th><th>Xem trước</th><th>Khối</th><th>Tổ</th><th>Màu</th><th>Trạng thái</th><th>Độ khó</th><th>Tổ ✓</th><th>Auto Play</th><th>Kiểm tra</th></tr></thead>
+      <tbody id="org-body"></tbody>
+    </table>
+    <div class="hint">Kéo hàng để đổi thứ tự. Bấm tên màn để mở trong Editor. “Chơi chapter” mở game với đúng các màn của set theo thứ tự này.</div>
+  </div>
+</div>
+
+<!-- generate sand from an image -->
+<div class="modal" id="gen-modal">
+  <div class="dialog">
+    <div class="panel-title">🖼️ Tạo tranh cát từ ảnh</div>
+    <div class="gen-grid">
+      <div>
+        <div class="drop" id="drop"><img id="src-img" alt="" hidden /><span id="drop-text">Kéo thả ảnh vào đây<br />hoặc bấm để chọn (PNG, JPG…), hoặc dán (Ctrl+V)</span></div>
+        <input type="file" id="img-input" accept="image/*" hidden />
+        <div class="elabel">Tuỳ chỉnh</div>
+        <div class="setting-row"><label for="g-size">Kích thước tranh</label><input type="range" id="g-size" min="12" max="24" step="1" /><span class="setting-val" id="g-size-v"></span></div>
+        <div class="setting-row"><label for="g-colors">Số màu tối đa</label><input type="range" id="g-colors" min="2" max="12" step="1" /><span class="setting-val" id="g-colors-v"></span></div>
+        <div class="setting-row"><label for="g-bg">Xoá nền (màu góc)</label><input type="range" id="g-bg" min="0" max="40" step="1" /><span class="setting-val" id="g-bg-v"></span></div>
+        <div class="setting-row"><label for="g-smooth">Làm mịn vệt</label><input type="range" id="g-smooth" min="0" max="4" step="1" /><span class="setting-val" id="g-smooth-v"></span></div>
+        <div class="setting-row"><label for="g-fit">Đặt ảnh vào khung</label><select id="g-fit"><option value="contain">Vừa khung (giữ cả ảnh)</option><option value="cover">Lấp đầy khung (cắt bớt)</option></select></div>
+        <div class="setting-row"><label for="g-outline">Thêm viền tối</label><input type="checkbox" id="g-outline" /></div>
+        <div class="hint">Mỗi hạt cát lấy màu gần nhất (theo mắt người, CIELAB) trong bảng màu có sẵn. Quá số màu thì màu ít hạt nhất được gộp vào màu gần nó. Đốm cát rời quá nhỏ (tự rơi khi chơi) được bỏ.</div>
+      </div>
+      <div>
+        <canvas id="gen-preview"></canvas>
+        <div class="gen-summary" id="gen-summary"></div>
+      </div>
+    </div>
+    <div class="dialog-bar">
+      <button class="btn" id="gen-cancel">Huỷ</button>
+      <button class="btn primary" id="gen-apply" disabled>✓ Dùng tranh này</button>
+    </div>
+  </div>
+</div>
+
+<!-- add levels to a chapter set / history / backups -->
+<div class="modal" id="list-modal">
+  <div class="dialog" style="width:min(560px, 94vw)">
+    <div class="panel-title" id="list-title"></div>
+    <div id="list-body"></div>
+    <div class="dialog-bar" id="list-bar"></div>
+  </div>
+</div>
+
+<!-- playtest -->
+<div id="play-wrap">
+  <div id="play-drag">📱 iPhone playtest<span class="spacer"></span>
+    <button id="play-reload" title="Chơi lại">↻</button>
+    <button id="play-popout" title="Mở cửa sổ riêng">⧉</button>
+    <button id="play-close" title="Đóng (Esc)">✕</button>
+  </div>
+  <div id="play-host"><iframe id="play-frame" title="Chơi thử"></iframe></div>
+  <div id="play-resize" title="Kéo để đổi cỡ"></div>
+</div>
+<div id="toast"></div>
+</body>
+</html>
