@@ -51,6 +51,8 @@ export class Game extends Phaser.Scene {
     private shadowGfx!: Phaser.GameObjects.Graphics;
     private fxGfx!: Phaser.GameObjects.Graphics;
     private fullText!: Phaser.GameObjects.Text;
+    /** The fullness bar's fill: above the white bar track (drawBeltBase), below the % text. */
+    private fullGfx!: Phaser.GameObjects.Graphics;
     private levelText!: Phaser.GameObjects.Text;
     private speedBtn!: Phaser.GameObjects.Image;
     private boosters: { img: Phaser.GameObjects.Image; base: Phaser.GameObjects.Image; badge: Phaser.GameObjects.Container; bump: number }[] = [];
@@ -86,6 +88,7 @@ export class Game extends Phaser.Scene {
         this.sandImage = this.add.image(0, 0, '__WHITE').setOrigin(0).setDepth(D.sand);
         this.drawBeltBase();
         this.beltGfx = this.add.graphics().setDepth(D.belt);
+        this.fullGfx = this.add.graphics().setDepth(D.belt + 0.2);
         this.fullText = this.text(540, BELT.cy + 1, '0%', 30, '#5a3a20', null).setDepth(D.belt + 0.5);
         this.shadowGfx = this.add.graphics().setDepth(D.shadows);
         // Phaser canvas textures need a 2D canvas, so each frame the WebGL output of the 3D
@@ -309,10 +312,11 @@ export class Game extends Phaser.Scene {
         }
         // how full the conveyor is; it turns yellow then red as it nears overflow
         const used = s.slots.filter(Boolean).length, pct = Math.round((100 * used) / SLOTS);
+        const fg = this.fullGfx.clear();
         if (pct > 0) {
             const bx = BELT.cxL - 6, bw = BELT.cxR - BELT.cxL + 12, by = BELT.cy - 16;
-            g.fillStyle(pct >= 85 ? 0xef4b4b : pct >= 60 ? 0xf5b82e : 0x6cc53b);
-            g.fillRoundedRect(bx + 4, by + 4, Math.max(24, ((bw - 8) * pct) / 100), 24, 12);
+            fg.fillStyle(pct >= 85 ? 0xef4b4b : pct >= 60 ? 0xf5b82e : 0x6cc53b);
+            fg.fillRoundedRect(bx + 4, by + 4, Math.max(24, ((bw - 8) * pct) / 100), 24, 12);
         }
         this.fullText.setText(pct + '%');
     }
