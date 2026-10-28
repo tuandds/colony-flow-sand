@@ -57,8 +57,18 @@ How it works: every grain takes the nearest palette colour in CIELAB, so "near" 
 - Chips filter the list by chapter set (ALL = the whole bank).
 - **＋ New Level**, **＋ Chapter Set**, search by name, filters (status, difficulty, check) and undo for bank actions.
 - Each row: number, drag handle (drag to reorder), preview, name, status, colours, blocks, check (✓ checked, ! changed since, – not checked), difficulty, version history (the last 10 saved versions of that level), duplicate, delete.
-- **Save** keeps everything in the browser (`localStorage`: `cf_custom_levels`, `cf_custom_chapters`, plus history and backups). **Play all** opens the game with `?custom=1`, which plays the bank instead of the built-in levels.
+- **Save** keeps everything in the browser (`localStorage`: `cf_custom_levels`, `cf_custom_chapters`, plus history and backups); changed game levels also go to the game (see [Game levels](#game-levels)). **Play all** opens the game with `?custom=1`, which plays the bank instead of the built-in levels.
 - **Export / Import** JSON; **Copy TS** copies the current level as a `LevelDef` to paste into `LEVELS` in `src/game/levels.ts`.
+
+## Game levels
+
+The game's 10 built-in levels are in the Level Bank too (ids `builtin-0` to `builtin-9`, chapter set **Game**, status LIVE). They are added at the top the first time the editor opens, and saved with the bank on the next **Save**. A level you delete from the bank afterwards is not added again.
+
+- They are converted from the cell pictures in `src/game/levels.ts` (`builtinDefs`): the same grains and the same nests (`salt` is the level's number, as in the game). Colours match the Colour Bank by hex; the built-in shades the Bank lacks are kept as hidden sand colours (sky2, brown2 and so on), and five that look the same as a Bank colour (CIELAB distance under 6) use that colour.
+- **Edits reach the game.** The game (`index.html`, without `?custom`) plays, for each built-in level, the newest saved copy: this browser's Level Bank, or `src/game/level-edits.json`. It reads them each time a level starts, so the game updates on its next level or restart.
+- **On the dev server**, every Save also writes the built-in levels that play differently from the original (picture, nests, difficulty, order, seed, columns or name) to `src/game/level-edits.json`, one level per line. Commit that file and publish to put the changes in the online game. A level in the file that is newer than this browser's copy replaces it when the editor opens (after a `git pull`, say).
+- On the published site the editor cannot write files: changes there reach only the game in the same browser.
+- To bring a level back to the original, delete it from the bank and save (or use its version history).
 
 ## Organizer
 

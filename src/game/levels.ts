@@ -1,6 +1,8 @@
 // Sand pictures for the levels. Each level is an N x N grid of colour keys, given either as
 // rows of characters ('.' = empty) or painted with simple shapes. Empty cells hold no sand,
 // so pictures can have any outline.
+import { SUB, frameGrains } from './layout';
+import EDITS from './level-edits.json';
 
 type Grid = (string | null)[][];
 type Test = (x: number, y: number) => boolean;
@@ -19,6 +21,10 @@ interface Painter {
 }
 
 export interface LevelDef {
+    /** Level editor id; the built-in levels are `builtin-<index>` (see gameLevels). */
+    id?: string;
+    /** Last save in the level editor (ms). */
+    updated?: number;
     name: string;
     n: number;
     /** Nest size range, in 5-unit blocks (scaled by NEST_SCALE). */
@@ -262,7 +268,21 @@ export const SAND_PALETTE: { key: string; name: string; hex: string; retired?: t
     { key: 'z', name: 'royal', hex: '#3657f9' }, { key: 'A', name: 'purple', hex: '#aa44f6' },
     { key: 'C', name: 'emerald', hex: '#44f245' }, { key: 'E', name: 'aqua', hex: '#75fefd' },
     { key: 'F', name: 'orchid', hex: '#db7afa' },
+    // the built-in pictures' own shades, so the level editor's copies of them look and play the
+    // same (see builtinDefs); not in the Colour Bank
+    { key: 'B', name: 'sky2', hex: '#6fb6ff', retired: true }, { key: 'D', name: 'green2', hex: '#7ad36b', retired: true },
+    { key: 'G', name: 'gold2', hex: '#ffb238', retired: true }, { key: 'H', name: 'red2', hex: '#ef5350', retired: true },
+    { key: 'I', name: 'yellow2', hex: '#ffd54f', retired: true }, { key: 'J', name: 'brown2', hex: '#9c6b3c', retired: true },
+    { key: 'K', name: 'brown3', hex: '#7a4f2a', retired: true }, { key: 'L', name: 'forest2', hex: '#4f9e3a', retired: true },
+    { key: 'M', name: 'green3', hex: '#8fd36a', retired: true }, { key: 'N', name: 'rust2', hex: '#b9552e', retired: true },
+    { key: 'O', name: 'caramel2', hex: '#e39b4a', retired: true }, { key: 'P', name: 'rust3', hex: '#b8662a', retired: true },
+    { key: 'Q', name: 'green4', hex: '#62b84a', retired: true }, { key: 'R', name: 'blue2', hex: '#4a78c8', retired: true },
+    { key: 'S', name: 'silver2', hex: '#d9ecff', retired: true }, { key: 'T', name: 'gold3', hex: '#ffd04a', retired: true },
+    { key: 'U', name: 'orange2', hex: '#ff9f2e', retired: true }, { key: 'V', name: 'red3', hex: '#e5484d', retired: true },
 ];
+
+// built-in shades that look the same as a sand colour (CIELAB distance under 6) use that colour
+const SAME_AS: Record<string, string> = { '#ff9ec9': 'm', '#f1d6b0': 'c', '#5c9ded': 's', '#eef1f6': 'a', '#ffd1dc': 'l' };
 
 /** The Colour Bank's default colours: the sand colours that are not retired. */
 export const BANK_COLOURS = SAND_PALETTE.filter((c) => !c.retired).map(({ key, name, hex }) => ({ key, name, hex }));
@@ -294,6 +314,43 @@ export const CUSTOM_KEY = 'cf_custom_levels';
 /** The single level the editor's play button opens (?custom=preview). */
 export const PREVIEW_KEY = 'cf_custom_preview';
 
+/** Id of the level editor's copy of built-in level i. */
+export const builtinId = (i: number) => 'builtin-' + i;
+
+/**
+ * The built-in levels as the level editor keeps them: grain pictures in the Colour Bank's keys
+ * (matched by colour), as wide as the frame, with `salt` set to the level's number so the game
+ * makes the same nests as for the original.
+ */
+export function builtinDefs(): LevelDef[] {
+    return LEVELS.map((L, i) => {
+        const { w, h, pad } = frameGrains(L.n), keys = new Array<string>(w * h).fill('.');
+        const g = buildDef(L).grid;
+        const keyOf = (c: string) => { const hex = L.colors[c].toLowerCase(); return SAME_AS[hex] ?? SAND_PALETTE.find((p) => p.hex.toLowerCase() === hex)?.key ?? c; };
+        for (let y = 0; y < h; y++) for (let x = 0; x < h; x++) {
+            const c = g[(y / SUB) | 0][(x / SUB) | 0];
+            if (c) keys[y * w + x + pad] = keyOf(c);
+        }
+        const colors: Record<string, string> = {};
+        for (const k of new Set(keys)) if (k !== '.') colors[k] = SAND_PALETTE.find((p) => p.key === k)?.hex ?? L.colors[k];
+        const { paint: _p, rows: _r, ...rest } = L;
+        return { ...rest, id: builtinId(i), colors, sand: encodeSand(h, keys, w), salt: L.salt ?? i };
+    });
+}
+
+/**
+ * The game's levels: each built-in level, unless the level editor has a saved copy of it
+ * (`builtin-<i>`). Copies come from this browser's Level Bank and from src/game/level-edits.json
+ * (which the editor writes on the dev server); the newer one wins.
+ */
+export function gameLevels(): LevelDef[] {
+    const saved = loadCustomLevels(CUSTOM_KEY), file = EDITS as LevelDef[];
+    return LEVELS.map((L, i) => {
+        const id = builtinId(i), a = saved.find((x) => x.id === id), b = file.find((x) => x.id === id);
+        return (a && b ? ((a.updated ?? 0) >= (b.updated ?? 0) ? a : b) : a ?? b) ?? L;
+    });
+}
+
 let active: LevelDef[] = LEVELS;
 
 /** Play another list of levels (custom levels from the editor); an empty list keeps the built-in ones. */
@@ -308,8 +365,9 @@ export function loadCustomLevels(key: string): LevelDef[] {
     } catch { return []; }
 }
 
-export function buildLevel(i: number): Level {
-    const L = active[i];
+export function buildLevel(i: number): Level { return buildDef(active[i]); }
+
+function buildDef(L: LevelDef): Level {
     const g: Grid = [];
     for (let y = 0; y < L.n; y++) g.push(new Array(L.n).fill(null));
     if (L.sand) { /* the sim reads the grains itself */ } else if (L.rows) L.rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') g[y][x] = ch; }));

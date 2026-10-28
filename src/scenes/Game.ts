@@ -3,7 +3,7 @@ import {
     BELT, BELT_LEN, BLOCK, BOARD, BOOSTER_IMAGES, BOOSTER_POS, FMASK, FRAME, FUNNEL, H, MOUTH, PAUSE_BTN, PIC,
     SLOTS, SPEED_BTN, TILE, TRAY_Y, W, beltPoint,
 } from '../game/layout';
-import { CUSTOM_KEY, PREVIEW_KEY, levelCount, loadCustomLevels, useLevels } from '../game/levels';
+import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useLevels } from '../game/levels';
 import { type Recording, botStep, playBot, replayStep } from '../game/bot';
 import { Sfx, Sim, levelOverride } from '../game/sim';
 import { Item3D, ThreeLayer } from '../game/three-layer';
@@ -77,7 +77,7 @@ export class Game extends Phaser.Scene {
         if (custom) {
             useLevels(loadCustomLevels(custom === 'preview' ? PREVIEW_KEY : CUSTOM_KEY));
             this.levelKey = custom === 'preview' ? '' : 'cf_level_custom';
-        }
+        } else useLevels(gameLevels());
         let level = 0;
         try { if (this.levelKey) level = Math.min(levelCount() - 1, parseInt(localStorage.getItem(this.levelKey) || '0', 10) || 0); } catch { /* storage blocked */ }
         const qp = q.get('level');
@@ -122,6 +122,8 @@ export class Game extends Phaser.Scene {
 
     // ---------- level ----------
     private startLevel(i: number) {
+        // the level editor may have saved changes to the built-in levels since
+        if (!new URLSearchParams(location.search).get('custom')) useLevels(gameLevels());
         this.levelIndex = i;
         try { if (this.levelKey) localStorage.setItem(this.levelKey, String(i)); } catch { /* storage blocked */ }
         this.three.clear();

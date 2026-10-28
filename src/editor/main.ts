@@ -3,9 +3,12 @@
 // (chapter sets). Pictures are sand at grain level made from imported images in the game's own
 // colours (sand.ts); nests come from a recorded winning play (src/game/bot.ts, in web workers).
 // Levels are saved in the browser in the format the game reads with ?custom=1 (LevelDef).
+// The game's built-in levels are in the Level Bank too (ids builtin-<i>); the game plays the
+// saved copies, and on the dev server saving also writes them to src/game/level-edits.json.
 import type { Recording } from '../game/bot';
 import { COLS, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
-import { BANK_COLOURS, CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, decodeSand, encodeSand, loadCustomLevels, useLevels } from '../game/levels';
+import EDITS from '../game/level-edits.json';
+import { BANK_COLOURS, CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, builtinDefs, decodeSand, encodeSand, loadCustomLevels, useLevels } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
 import { BANK, type BankColour, type ConvertOpts, HEX, NAME, countKeys, drawSand, fitToFrame, hexLab, imageToSand, nearestKey, rowsToGrains, setBank } from './sand';
 import type { SolveJob, SolveResult } from './solver.worker';
@@ -42,6 +45,8 @@ const BANK_KEY = 'cf_editor_bank';
 // version of the default colours a saved Bank was last brought up to (see loadBank)
 const BANK_VER_KEY = 'cf_editor_bank_v', BANK_VER = 2;
 const MAX_BACKUPS = 15, MAX_HISTORY = 10;
+/** Set once the built-in levels have been added to a saved Level Bank (see loadLevels). */
+const BUILTIN_KEY = 'cf_editor_builtin_v', BUILTIN_CHAPTER = 'builtin';
 const DIFFS: { key: string; label: string; short: string; chunk: [number, number] }[] = [
     { key: '3,5', label: 'Rất dễ', short: 'Rất dễ', chunk: [3, 5] }, { key: '4,6', label: 'Dễ', short: 'Dễ', chunk: [4, 6] },
     { key: '4,7', label: 'Vừa', short: 'Vừa', chunk: [4, 7] }, { key: '5,8', label: 'Khó', short: 'Khó', chunk: [5, 8] },
@@ -54,8 +59,8 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 
 // ---------- state ----------
 setBank(loadBank());
-let levels: EdLevel[] = loadLevels();
 let chapters: Chapter[] = loadJson<Chapter[]>(CHAPTER_KEY, []);
+let levels: EdLevel[] = loadLevels();
 let savedAll = snapshotAll();
 let cur = 0;
 let grains: string[] = decodeSand(levels[0].sand);
@@ -91,8 +96,31 @@ function loadBank(): BankColour[] {
     return saved;
 }
 function loadLevels(): EdLevel[] {
-    const list = loadCustomLevels(CUSTOM_KEY).map(normalize);
-    return list.length ? list : [blankLevel(20)];
+    const saved = loadCustomLevels(CUSTOM_KEY), file = EDITS as LevelDef[];
+    // the game's levels: the copy in src/game/level-edits.json when there is one, else the original
+    const game = builtinDefs().map((d) => file.find((x) => x.id === d.id) ?? d);
+    // a copy saved in the repo after this browser's copy (another computer, git pull) replaces it
+    const list = saved.map((l) => { const f = file.find((x) => x.id === l.id); return f && (f.updated ?? 0) > (l.updated ?? 0) ? f : l; });
+    // the first time, the built-in levels are added at the top, with a chapter set of their own;
+    // one deleted later stays deleted (the game then plays the original)
+    if (!loadJson<number>(BUILTIN_KEY, 0)) {
+        list.unshift(...game.filter((d) => !list.some((x) => x.id === d.id)).map((d) => ({ status: 'LIVE' as Status, ...d })));
+        if (!chapters.some((c) => c.id === BUILTIN_CHAPTER)) chapters.unshift({ id: BUILTIN_CHAPTER, name: 'Game', description: 'Các màn có sẵn trong game', levels: game.map((d) => d.id!) });
+    }
+    const out = list.map(normalize);
+    return out.length ? out : [blankLevel(20)];
+}
+/** Whether a built-in level's copy plays differently from the original (or is renamed). */
+const ORIGINALS = new Map(builtinDefs().map((d) => [d.id!, d]));
+const playSig = (d: LevelDef) => JSON.stringify([d.name, d.n, d.sand?.data, d.sand?.w, d.chunk, d.order || 'rows', d.seed ?? 0, d.salt, d.cols ?? COLS, d.nests ?? null]);
+const isEdited = (l: EdLevel) => { const o = ORIGINALS.get(l.id); return !!o && playSig(toDef(l)) !== playSig(o); };
+/** On the dev server, write the changed built-in levels to src/game/level-edits.json (vite.config.ts). */
+function saveEdits() {
+    if (!import.meta.env.DEV) return;
+    const body = JSON.stringify(levels.filter(isEdited).map(toDef));
+    fetch('/__level-edits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body })
+        .then((r) => r.json()).then((r: { written?: boolean; count: number }) => { if (r.written) toast(`Đã ghi ${r.count} màn game đã sửa vào src/game/level-edits.json`); })
+        .catch(() => toast('Không ghi được src/game/level-edits.json'));
 }
 
 /** Bring a saved level (this editor's or the first cell-based one) to the current format. */
@@ -154,10 +182,14 @@ const isDirty = () => snapshotAll() !== savedAll;
 function save() {
     try {
         const prev = loadJson<(LevelDef & Partial<EdLevel>)[]>(CUSTOM_KEY, []);
+        // a level changed since the last save gets a new time (the game plays the newest copy)
+        const same = (l: EdLevel, p?: LevelDef) => !!p && JSON.stringify({ ...p, updated: 0 }) === JSON.stringify({ ...toDef(l), updated: 0 });
+        for (const l of levels) if (!same(l, prev.find((p) => p.id === l.id))) l.updated = Date.now();
         const json = JSON.stringify(levels.map(toDef));
         localStorage.setItem(CUSTOM_KEY, json);
         localStorage.setItem(CHAPTER_KEY, JSON.stringify(chapters));
         localStorage.setItem(CUSTOM_KEY + '_at', String(Date.now()));
+        localStorage.setItem(BUILTIN_KEY, '1');
         // version history per level: keep what changed
         const hist = loadJson<Record<string, { t: number; level: unknown }[]>>(HISTORY_KEY, {});
         for (const l of levels) {
@@ -176,6 +208,7 @@ function save() {
         savedAll = snapshotAll();
         renderDirty(); renderBankStore(); renderOrganizer();
         toast(`Đã lưu ${levels.length} màn`);
+        saveEdits();
         return true;
     } catch {
         toast('Không lưu được: trình duyệt chặn bộ nhớ hoặc đã đầy');
