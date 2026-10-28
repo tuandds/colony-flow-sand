@@ -181,10 +181,11 @@ export class Game extends Phaser.Scene {
             if (!b) continue;
             let [x, y] = s.slotPos(i);
             if (b.drop < 1) { const t = b.drop; x = MOUTH.x + (x - MOUTH.x) * t; y = MOUTH.y + 10 + (y - MOUTH.y - 10) * t; }
-            g.fillEllipse(x, y + 26, 56, 18);
+            // a soft contact shadow tucked under the cube, sized with it
+            g.fillEllipse(x, y + BLOCK * 0.55, BLOCK * 1.05, BLOCK * 0.32);
             items.push({ ref: b, kind: 'cube', x, y: y + BLOCK * 0.36, color: s.colors[b.k], size: BLOCK });
         }
-        if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: MOUTH.x, y: MOUTH.y + 14, color: s.colors[s.pipe[0]], size: 21 });
+        if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: MOUTH.x, y: MOUTH.y + 16, color: s.colors[s.pipe[0]], size: 25 });
 
         // nest tiles: the front row (the nests ants work for) is full height with a white
         // outline; nests queued behind are lower and paler

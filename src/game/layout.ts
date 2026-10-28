@@ -32,7 +32,7 @@ export const SLOTS = 30;
 export const SLOT_GAP = BELT_LEN / SLOTS;
 export const BELT_SPEED = 300;
 export const DROP_S = MOUTH.x - BELT.cxL;
-export const BLOCK = 27; // block cubes on the conveyor, px
+export const BLOCK = 32; // block cubes on the conveyor, px
 
 /** Nest columns: 4 by default; a level can ask for MIN_COLS to MAX_COLS (level editor). */
 export const COLS = 4, MIN_COLS = 2, MAX_COLS = 6;

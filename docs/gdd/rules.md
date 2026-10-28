@@ -36,7 +36,7 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 |---|---|
 | Slots | 30 |
 | Speed | 300 px/s, stadium loop around (300–780, 1192), radius 62 px |
-| Blocks | 27 px cubes |
+| Blocks | 32 px cubes |
 | Bar in the middle | Fullness: green, yellow from 60 %, red from 85 % |
 
 ## 3.5 Nests and ants <Badge type="tip" text="Live" />
