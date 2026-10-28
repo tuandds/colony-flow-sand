@@ -27,6 +27,8 @@ export class Game extends Phaser.Scene {
     private started = false;
     private paused = false;
     private speedUp = false;
+    /** The win screen animates itself (the lose panel scales in from update). */
+    private winScreen = false;
     /** Auto Play (level editor): the test bot plays in front of you; botT counts to its next move. */
     private autoplay = false;
     private botT = 0;
@@ -159,7 +161,7 @@ export class Game extends Phaser.Scene {
         }
         if (this.sim.state !== 'play' && this.overlay !== 'end' && this.sim.endT >= (this.sim.state === 'win' ? 0.9 : 0)) this.showEnd();
         for (const b of this.boosters) { b.bump = Math.max(0, b.bump - dt * 5); const s = 1 + b.bump * 0.12; b.base.setScale(b.base.getData('s') * s); b.img.setScale(b.img.getData('s') * s); }
-        if (this.overlay === 'end' && this.overlayBox) {
+        if (this.overlay === 'end' && this.overlayBox && !this.winScreen) {
             this.endAt += dt;
             this.overlayBox.setScale(0.8 + 0.2 * Math.min(1, this.endAt * 4));
         }
@@ -383,6 +385,68 @@ export class Game extends Phaser.Scene {
         this.text(sp.x + sp.w - 50, gy + 2, 'x2', 50, '#ffffff', '#2e6b12', 8).setDepth(D.hud + 0.1);
     }
 
+    /** A region of the win atlases, cut out upright when the game loaded (Boot.cutWinFrames). */
+    private winImage(x: number, y: number, atlas: 'win_text', frame: string) {
+        return this.add.image(x, y, `${atlas}:${frame}`);
+    }
+
+    /** Colony Flow's win screen: glow and turning rays, "VICTORY!" popping in letter by letter
+     * and a big green Next button (the Spine animation rebuilt with tweens). */
+    private showWin() {
+        const last = this.levelIndex >= levelCount() - 1;
+        const box = this.add.container(0, 0).setDepth(D.overlay);
+        this.winScreen = true;
+        box.add(this.add.rectangle(0, 0, W, H, 0x1c0f08, 0.72).setOrigin(0).setInteractive());
+        const glow = this.add.image(540, 640, 'glow').setScale(2.6).setTint(0xffd58a).setAlpha(0);
+        const rays = this.add.image(540, 640, 'glow_rays').setScale(6.5).setTint(0xfff1c2).setAlpha(0);
+        box.add([glow, rays]);
+        this.tweens.add({ targets: glow, alpha: 0.85, duration: 400 });
+        this.tweens.add({ targets: rays, alpha: 0.32, duration: 500 });
+        this.tweens.add({ targets: rays, angle: 360, duration: 24000, repeat: -1 });
+
+        // VICTORY!: each letter is its drop shadow, the orange body and the cream face on top
+        const word = ['V', 'I', 'C', 'T', 'O', 'R', 'Y', '!'];
+        const fw = (f: string) => this.textures.getFrame(`win_text:${f}`);
+        const scale = 1.05, gap = -10;
+        const widths = word.map((c) => fw(`text/Outline_${c}`).realWidth * scale);
+        // the "!" sits closer to the word than the letters sit to each other
+        const gaps = word.map((_c, i) => (i === word.length - 1 ? 0 : word[i + 1] === '!' ? gap - 22 : gap));
+        let x = 540 - (widths.reduce((a, b) => a + b, 0) + gaps.reduce((a, b) => a + b, 0)) / 2;
+        word.forEach((c, i) => {
+            const lx = x + widths[i] / 2;
+            x += widths[i] + gaps[i];
+            const letter = this.add.container(lx, 560);
+            letter.add([
+                this.winImage(6, 14, 'win_text', `text/DropShadow_${c}`).setScale(scale * 0.86).setAlpha(0.35).setTint(0x000000),
+                this.winImage(0, 0, 'win_text', `text/Outline_${c}`).setScale(scale),
+                this.winImage(0, -8 * scale, 'win_text', `text/${c}`).setScale(scale),
+            ]);
+            letter.setScale(0);
+            box.add(letter);
+            this.tweens.add({ targets: letter, scale: 1, duration: 380, delay: 180 + i * 70, ease: 'Back.Out' });
+            this.tweens.add({ targets: letter, y: 548, duration: 700, delay: 900 + i * 90, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+        });
+        const shine = this.winImage(800, 470, 'win_text', 'shine').setScale(0).setBlendMode(Phaser.BlendModes.ADD);
+        box.add(shine);
+        this.tweens.add({ targets: shine, scale: 0.7, angle: 90, duration: 500, delay: 800, yoyo: true, repeat: -1, repeatDelay: 900 });
+
+        const sub = this.text(540, 700, `Level ${this.levelIndex + 1} complete`, 52, '#fff6e0', '#5a3a20', 9).setAlpha(0);
+        box.add(sub);
+        this.tweens.add({ targets: sub, alpha: 1, duration: 300, delay: 700 });
+
+        const btn = this.add.container(540, 1400);
+        btn.add([this.add.image(0, 0, 'btn_next').setDisplaySize(290, 202), this.text(0, -10, last ? 'Replay' : 'Next', 56, '#ffffff', '#2e6b12', 10)]);
+        btn.setSize(276, 174).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+            this.sfx('click');
+            this.startLevel((this.levelIndex + 1) % levelCount());
+        });
+        btn.setScale(0);
+        box.add(btn);
+        this.tweens.add({ targets: btn, scale: 1, duration: 350, delay: 1000, ease: 'Back.Out',
+            onComplete: () => this.tweens.add({ targets: btn, scale: 1.06, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.InOut' }) });
+        this.overlayBox = box;
+    }
+
     private button(x: number, y: number, w: number, h: number, label: string, color: number | null, onTap: () => void) {
         const c = this.add.container(x + w / 2, y + h / 2);
         if (color === null) {
@@ -410,6 +474,9 @@ export class Game extends Phaser.Scene {
     }
 
     private closeOverlay() {
+        if (this.overlayBox) this.tweens.killTweensOf(this.overlayBox.getAll());
+        this.overlayBox?.each((o: Phaser.GameObjects.GameObject) => { if (o instanceof Phaser.GameObjects.Container) this.tweens.killTweensOf(o.getAll()); });
+        this.winScreen = false;
         this.overlayBox?.destroy();
         this.overlayBox = undefined;
         this.overlay = null;
@@ -460,6 +527,7 @@ export class Game extends Phaser.Scene {
         this.overlay = 'end';
         this.swiping = false;
         const win = this.sim.state === 'win';
+        if (win) { this.showWin(); return; }
         const last = this.levelIndex >= levelCount() - 1;
         const box = this.panel(610, 1310, win ? (last ? 'All Done!' : 'Level Complete!') : 'Conveyor full!', win ? '#ffd23f' : '#ff6b81');
         if (!win) box.add(this.text(540, 790, 'No block on the belt fits a nest', 36, '#7a4a24', null));
@@ -497,6 +565,8 @@ export class Game extends Phaser.Scene {
             start(i: number) { scene.started = true; scene.startLevel(i); },
             sim(sec: number) { for (let t = 0; t < sec; t += 1 / 60) scene.sim.update(1 / 60); scene.render(); },
             /** Let the test bot play the current level for up to `sec` game seconds. */
+            /** Show the win screen now (layout checks). */
+            win() { scene.sim.state = 'win'; scene.sim.endT = 1; },
             bot(sec = 300) { scene.started = true; return playBot(scene.sim, sec); },
             /** Play live with the test bot, or replay recorded winning strokes from the start, at `speed` (1 or 2). */
             autoplay(on = true, speed = 2, moves?: Recording['moves']) {
