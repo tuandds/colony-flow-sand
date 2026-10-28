@@ -54,7 +54,7 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 | Input | Action |
 |---|---|
 | Swipe on the picture | Free the sand under the finger |
-| Pause button | Settings: Resume, Restart, cheat to jump to any level |
+| Pause button | Pause panel: close (✕, resume), music / sound / vibration switches (kept in the browser), Restart, Home (the site's landing page; level 1's start screen elsewhere), cheat to jump to any level. Vibration buzzes when a nest fills, on a win and on a loss (phones that support it) |
 | ▶▶ x2 | Toggle double speed |
 | Boosters | Visual only for now (they bounce) |
 | Keys N / P / R | Next / previous level, restart (desktop testing) |

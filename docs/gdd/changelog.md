@@ -4,6 +4,7 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
+- **Pause panel:** the pause button opens a panel after the team's reference: blue header with a red close button, music, sound and vibration switches (remembered), green Restart and red Home buttons, and the level cheat underneath. Vibration buzzes on a filled nest, a win and a loss.
 - **Blue frame and conveyor:** after the team's reference screen, the picture frame and the funnel have a white rim around a periwinkle inside, and the conveyor is slate blue with white rims (they were tan and brown). The page background is unchanged.
 - **Same sand scale in every level:** the frame is always 22 cells tall, so sand cells and grains are the same size in every level; smaller pictures (Cherries, Ice Cream and others) now sit centred in the frame instead of being blown up. In the Level Editor, picture size (12–22) sets how big the picture is in the frame. Recorded editor wins need to be made again; the bot still clears the same levels as before.
 
