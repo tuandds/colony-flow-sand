@@ -60,20 +60,20 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 
 ## 3.7 Levels <Badge type="tip" text="Live" />
 
-Ten original pictures. Difficulty rises through picture size, number of colours and nest size (`chunk`, in blocks before the ×2 nest scale).
+Ten original pictures. Difficulty rises through picture size, number of colours and nest size (`chunk`, in blocks before the ×2 nest scale). Nine of them were changed in the Level Editor (pictures, and nests for three); the game plays those copies from `src/game/level-edits.json`. Bot result: the test bot (`playBot`) on this build.
 
-| # | Picture | Grid | Colours (with outline) | Chunk | Nest order |
-|---|---|---|---|---|---|
-| 1 | Cherries | 14 | 5 | 3–5 | rows |
-| 2 | Ice Cream | 16 | 5 | 3–6 | rows |
-| 3 | Goldfish | 18 | 6 | 4–6 | onion |
-| 4 | Cupcake | 18 | 7 | 4–7 | rows |
-| 5 | Little Owl | 20 | 6 | 5–8 | rows, seed 6 |
-| 6 | Hot Air Balloon | 20 | 6 | 5–8 | rows, seed 3 |
-| 7 | Cactus Pot | 20 | 6 | 5–8 | rows, seed 1 |
-| 8 | Garden Snail | 22 | 6 | 5–9 | rows |
-| 9 | Rocket | 22 | 7 | 6–9 | onion, seed 1 |
-| 10 | Penguin | 22 | 10 | 6–9 | rows, seed 6 |
+| # | Picture | Grid | Colours (with outline) | Chunk | Nests | Edited | Bot |
+|---|---|---|---|---|---|---|---|
+| 1 | Cherries | 14 | 5 | 3–5 | set in the editor | yes | win |
+| 2 | Ice Cream | 16 | 5 | 3–6 | rows | yes | win |
+| 3 | Goldfish | 18 | 5 | 4–6 | onion | yes | win |
+| 4 | Cupcake | 18 | 7 | 4–7 | rows | yes | win |
+| 5 | Little Owl | 20 | 5 | 5–8 | rows, seed 5 | no | win |
+| 6 | Hot Air Balloon | 20 | 5 | 5–8 | rows, seed 3 | yes | win |
+| 7 | Cactus Pot | 20 | 6 | 5–8 | rows, seed 1 | yes | win |
+| 8 | Garden Snail | 22 | 7 | 5–9 | rows | yes | stuck |
+| 9 | Rocket | 22 | 5 | 6–9 | set in the editor | yes | stuck |
+| 10 | Penguin | 22 | 7 | 6–9 | set in the editor | yes | stuck |
 
 - Every level was cleared by a test bot with the order and seed above.
 - **Design rule:** keep each colour in one area of the picture. A colour that runs from top to bottom (for example one body colour around the whole picture) makes nests that cannot fill until the very end, and the conveyor overflows.

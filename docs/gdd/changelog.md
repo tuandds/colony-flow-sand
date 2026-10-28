@@ -4,7 +4,14 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
-- **Levels:** 10 new original pictures (Cherries, Ice Cream, Goldfish, Cupcake, Little Owl, Hot Air Balloon, Cactus Pot, Garden Snail, Rocket, Penguin) with a dark outline and rising difficulty. Each one was cleared by a test bot; the old large levels 4 and 5 are gone.
+- No changes since v1.0.1.
+
+[Play latest](https://tuandds.github.io/colony-flow-sand/demo/)
+
+## v1.0.1
+
+- **Edited levels:** nine built-in levels were changed in the Level Editor (pictures; Cherries, Rocket and Penguin also got nests set by hand). Garden Snail, Rocket and Penguin have no recorded win yet, and the test bot gets stuck on them. The eyes of Goldfish, Little Owl, Garden Snail and Penguin use the outline colour (Little Owl: nest seed 5).
+- **Levels:** 10 new original pictures (Cherries, Ice Cream, Goldfish, Cupcake, Little Owl, Hot Air Balloon, Cactus Pot, Garden Snail, Rocket, Penguin) with a dark outline and rising difficulty. Each one was cleared by a test bot when it was added; the old large levels 4 and 5 are gone.
 - **Level Editor** (`/demo/editor.html`), laid out like the team's level editor template, with Editor and Organizer modes. Import an image to get a sand picture made grain by grain in the editor's sand colours, closest by eye (CIELAB), keeping small distinct details. Paint with brush, fill and replace tools. Nests are generated from a recorded winning play and checked by replaying it; you can also edit them by hand. The Level Bank has search, filters, version history and backups; the Organizer handles chapter sets, play, Auto Play and checks for a whole set, and CSV/JSON export. Levels are saved in the browser and played with `?custom=1`. See the [guide](/guide/level-editor).
 - **Editor pictures fill the frame:** custom pictures cover the frame's whole inside (wider than the built-in square pictures), and the Sand Editor shows exactly that area, so a picture that touches the edge in the editor touches the frame in the game. The generator can fit the image or fill the frame.
 - **Win screen like Colony Flow:** "Victory!" pops in letter by letter over glow and turning rays, and a big green Next button pulses (Colony Flow's win art, animated with tweens).
@@ -24,7 +31,7 @@ Every published version stays playable at its own URL. The [landing page](https:
 - **Nest numbers:** nests waiting behind the front row show their number without the dark stroke: white on darker tiles, a darker shade of the nest colour on light ones.
 - **Nests:** the nests now use Colony Flow's lidded nest box (`Box_v2_T` + `Box_v2_B`), with the white outline hugging its shape.
 
-[Play latest](https://tuandds.github.io/colony-flow-sand/demo/)
+[Play v1.0.1](https://tuandds.github.io/colony-flow-sand/v1.0.1/demo/) · [Docs v1.0.1](https://tuandds.github.io/colony-flow-sand/v1.0.1/docs/)
 
 ## v1.0.0
 
@@ -45,3 +52,4 @@ Every published version stays playable at its own URL. The [landing page](https:
 |---|---|
 | 2026-10-27 | GDD created |
 | 2026-10-27 | Released v1.0.0 |
+| 2026-10-28 | Released v1.0.1 |
