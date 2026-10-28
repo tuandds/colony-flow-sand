@@ -6,7 +6,7 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { H, W } from './layout';
 
 const TILE_ELEV = 0.95, TILE_SQUASH = 1; // camera elevation for nests, height scale of the nest box (1 = as modelled)
-const ANT_ELEV = 1.15, ANT_LEN = 74, CARRY_CUBE = 32;
+const ANT_ELEV = 1.15, ANT_LEN = 74, CARRY_CUBE = 26;
 const CUBE_ELEV = 0.95;
 const OUTLINE_PX = 9;
 /** The 3D layer renders below full resolution; it is uploaded to Phaser every frame. */

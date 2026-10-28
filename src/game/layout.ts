@@ -1,17 +1,21 @@
 // Screen layout and tuning, in game pixels (the game is 1080 x 1920, scaled to fit).
 
 export const W = 1080, H = 1920;
+/** Bumped when the board, funnel or conveyor move: recorded swipes (screen positions) from an
+ * older layout no longer replay, so the level editor asks for new ones. */
+export const LAYOUT_VERSION = 2;
 
-export const BOARD = { x: 105, y: 172, w: 870, h: 723 };
+export const BOARD = { x: 105, y: 172, w: 870, h: 798 };
 /** Inner edge of the board frame; sand never goes outside it. */
-export const INNER = { x: 128, y: 197, w: 824, h: 669 };
-export const PIC = { x: 210, y: 200, size: 660 };
-export const FRAME = { x: 300, y: 880, w: 480, bottom: 900 };
-export const MOUTH = { x: 540, y: 990, half: 46 };
+export const INNER = { x: 128, y: 197, w: 824, h: 744 };
+/** Built-in pictures: a square as tall as the frame's inside, centred across it. */
+export const PIC = { x: 171, y: 200, size: 738 };
+export const FRAME = { x: 300, y: 955, w: 480, bottom: 975 };
+export const MOUTH = { x: 540, y: 1065, half: 46 };
 
 // Sand that has left the board piles up in the funnel and trickles into the hole at MOUTH_RATE.
 // Each funnel cell holds one falling clump (up to GRAINS_PER_PARTICLE grains).
-export const FUNNEL = { x0: 300, top: 898, cell: 6, cols: 80, rows: 16 };
+export const FUNNEL = { x0: 300, top: 973, cell: 6, cols: 80, rows: 16 };
 export const FUNNEL_HZ = 40, MOUTH_RATE = 90; // sim steps per second, clumps into the hole per second
 export const funnelHalf = (y: number) => 240 + ((MOUTH.half - 240) * (y - FRAME.y)) / (MOUTH.y - FRAME.y);
 export const FMASK = new Uint8Array(FUNNEL.cols * FUNNEL.rows);
@@ -21,13 +25,13 @@ for (let j = 0; j < FUNNEL.rows; j++) for (let i = 0; i < FUNNEL.cols; i++) {
 }
 export const FMASK_COUNT = FMASK.reduce((a, b) => a + b, 0);
 
-export const BELT = { cxL: 300, cxR: 780, cy: 1135, r: 80, band: 96 };
+export const BELT = { cxL: 300, cxR: 780, cy: 1192, r: 62, band: 76 };
 export const BELT_LEN = 2 * (BELT.cxR - BELT.cxL) + 2 * Math.PI * BELT.r;
 export const SLOTS = 24;
 export const SLOT_GAP = BELT_LEN / SLOTS;
 export const BELT_SPEED = 300;
 export const DROP_S = MOUTH.x - BELT.cxL;
-export const BLOCK = 50;
+export const BLOCK = 40;
 
 /** Nest columns: 4 by default; a level can ask for MIN_COLS to MAX_COLS (level editor). */
 export const COLS = 4, MIN_COLS = 2, MAX_COLS = 6;
@@ -36,7 +40,7 @@ export function colX(ci: number, n = COLS) {
     return 540 + (ci - (n - 1) / 2) * Math.min(174, 900 / n);
 }
 export const ROW_GAP = 146;
-export const ROW_TOP = 1368; // three rows show above the tray, the rest wait below it
+export const ROW_TOP = 1389; // two rows show above the tray, the third about two thirds, the rest wait below
 export const TILE = 126;
 export const TRAY_Y = 1712;
 export const BOOSTER_IMAGES = ['bst_add', 'bst_shuffle', 'bst_claw', 'bst_flower'];

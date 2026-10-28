@@ -89,7 +89,7 @@ export class Game extends Phaser.Scene {
         this.drawBeltBase();
         this.beltGfx = this.add.graphics().setDepth(D.belt);
         this.fullGfx = this.add.graphics().setDepth(D.belt + 0.2);
-        this.fullText = this.text(540, BELT.cy + 1, '0%', 30, '#5a3a20', null).setDepth(D.belt + 0.5);
+        this.fullText = this.text(540, BELT.cy + 1, '0%', 24, '#5a3a20', null).setDepth(D.belt + 0.5);
         this.shadowGfx = this.add.graphics().setDepth(D.shadows);
         // Phaser canvas textures need a 2D canvas, so each frame the WebGL output of the 3D
         // layer is copied into one
@@ -182,9 +182,9 @@ export class Game extends Phaser.Scene {
             let [x, y] = s.slotPos(i);
             if (b.drop < 1) { const t = b.drop; x = MOUTH.x + (x - MOUTH.x) * t; y = MOUTH.y + 10 + (y - MOUTH.y - 10) * t; }
             g.fillEllipse(x, y + 26, 56, 18);
-            items.push({ ref: b, kind: 'cube', x, y: y + 18, color: s.colors[b.k], size: BLOCK });
+            items.push({ ref: b, kind: 'cube', x, y: y + BLOCK * 0.36, color: s.colors[b.k], size: BLOCK });
         }
-        if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: MOUTH.x, y: MOUTH.y + 20, color: s.colors[s.pipe[0]], size: 38 });
+        if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: MOUTH.x, y: MOUTH.y + 18, color: s.colors[s.pipe[0]], size: 32 });
 
         // nest tiles: the front row (the nests ants work for) is full height with a white
         // outline; nests queued behind are lower and paler
@@ -294,29 +294,29 @@ export class Game extends Phaser.Scene {
         const inner = this.add.graphics().setDepth(D.belt + 0.1);
         this.stadium(inner, BELT.r - BELT.band / 2 + 4, 0xf7ead8);
         this.stadium(inner, BELT.r - BELT.band / 2 - 4, 0xefdcc2);
-        inner.fillStyle(0xffffff).fillRoundedRect(BELT.cxL - 6, BELT.cy - 16, BELT.cxR - BELT.cxL + 12, 32, 16);
+        inner.fillStyle(0xffffff).fillRoundedRect(BELT.cxL - 6, BELT.cy - 13, BELT.cxR - BELT.cxL + 12, 26, 13);
     }
 
     private drawBelt() {
         const s = this.sim, g = this.beltGfx;
         g.clear();
         // moving chevrons along the track
-        g.lineStyle(8, 0xfff5e6, 0.45);
+        g.lineStyle(6, 0xfff5e6, 0.45);
         const gap = 44;
         for (let d = s.beltOff % gap; d < BELT_LEN; d += gap) {
             const [x, y] = beltPoint(d), [x2, y2] = beltPoint((d + 1) % BELT_LEN);
             const a = Math.atan2(y2 - y, x2 - x), c = Math.cos(a), sn = Math.sin(a);
             const pt = (u: number, v: number) => [x + u * c - v * sn, y + u * sn + v * c];
-            const [ax, ay] = pt(-7, -12), [bx, by] = pt(5, 0), [cx, cy] = pt(-7, 12);
+            const [ax, ay] = pt(-6, -10), [bx, by] = pt(4, 0), [cx, cy] = pt(-6, 10);
             g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.lineTo(cx, cy); g.strokePath();
         }
         // how full the conveyor is; it turns yellow then red as it nears overflow
         const used = s.slots.filter(Boolean).length, pct = Math.round((100 * used) / SLOTS);
         const fg = this.fullGfx.clear();
         if (pct > 0) {
-            const bx = BELT.cxL - 6, bw = BELT.cxR - BELT.cxL + 12, by = BELT.cy - 16;
+            const bx = BELT.cxL - 6, bw = BELT.cxR - BELT.cxL + 12, by = BELT.cy - 13;
             fg.fillStyle(pct >= 85 ? 0xef4b4b : pct >= 60 ? 0xf5b82e : 0x6cc53b);
-            fg.fillRoundedRect(bx + 4, by + 4, Math.max(24, ((bw - 8) * pct) / 100), 24, 12);
+            fg.fillRoundedRect(bx + 3, by + 3, Math.max(20, ((bw - 6) * pct) / 100), 20, 10);
         }
         this.fullText.setText(pct + '%');
     }
@@ -461,7 +461,7 @@ export class Game extends Phaser.Scene {
         const win = this.sim.state === 'win';
         const last = this.levelIndex >= levelCount() - 1;
         const box = this.panel(610, 1310, win ? (last ? 'All Done!' : 'Level Complete!') : 'Conveyor full!', win ? '#ffd23f' : '#ff6b81');
-        if (!win) box.add(this.text(540, 790, 'Too much sand on the belt', 36, '#7a4a24', null));
+        if (!win) box.add(this.text(540, 790, 'No block on the belt fits a nest', 36, '#7a4a24', null));
         box.add(this.add.image(540, win ? 916 : 956, 'mascot').setDisplaySize(win ? 300 : 240, win ? 292 : 233));
         box.add(win
             ? this.button(360, 1130, 360, 150, last ? 'Replay' : 'Next', null, () => this.startLevel((this.levelIndex + 1) % levelCount()))

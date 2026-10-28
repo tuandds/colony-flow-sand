@@ -535,9 +535,15 @@ export class Sim {
             ['#ffd23f', '#ff6b81', '#4fc3f7', '#7cc957'].forEach((c, i) => this.burst(240 + i * 200, 700, c));
             return;
         }
-        // Overflow: every slot on the conveyor is taken and another block is waiting at the pipe.
-        // A short grace lets an ant that is just grabbing a block free its slot.
-        if (this.slots.every(Boolean) && this.pipe.length) {
+        // Lose: the conveyor is full and no block on it can go into a nest any more. That is, no
+        // ant is on its way, no nest is popping (the one behind it might want a block), and no
+        // front nest still wants a colour that is on the belt. A short grace covers the moment
+        // between one nest filling and the next being found.
+        const fits = this.slots.some((b) => b && this.cols.some((c) => {
+            const n = c[0];
+            return !!n && !n.pop && n.color === b.k && n.got + n.inflight < n.need;
+        }));
+        if (this.slots.every(Boolean) && !this.ants.length && !this.cols.some((c) => c[0]?.pop) && !fits) {
             this.stuckT += dt;
             if (this.stuckT > 0.35) { this.state = 'lose'; this.endT = 0; this.sfx('lose', 0.8); }
         } else this.stuckT = 0;

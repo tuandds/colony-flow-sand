@@ -5,7 +5,7 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 ## 3.1 Win and lose <Badge type="tip" text="Live" />
 
 - **Win:** every nest in every column has received all its blocks.
-- **Lose:** all 24 conveyor slots hold a block while another finished block waits in the hole, for more than 0.35 s (the grace lets an ant that is just grabbing a block free its slot).
+- **Lose:** all 24 conveyor slots hold a block and none of them can go into a nest any more: no front nest still wants a colour on the belt, no ant is on its way and no nest is popping. This lasts more than 0.35 s (the grace covers the moment one nest fills and the next takes its place). A full belt alone is not a loss as long as ants can still take blocks off it.
 
 ## 3.2 Sand picture <Badge type="tip" text="Live" />
 
@@ -13,7 +13,8 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 |---|---|
 | Grains per picture cell | 8 × 8 = 64 (one *unit*) |
 | Block size | 1 unit = 64 grains of one colour |
-| Picture area | 660 × 660 px at (210, 200), inside the board frame |
+| Board frame | inside 824 × 744 px at (128, 197) |
+| Picture area | built-in pictures: 738 × 738 px at (171, 200); level editor pictures: the whole frame |
 | Swipe radius | max(1.1 × cell size, 34 px) |
 
 - Sand is **fixed** until swiped. Swiped sand becomes **loose** and is drawn 22 % brighter.
@@ -34,15 +35,16 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 | Rule | Value |
 |---|---|
 | Slots | 24 |
-| Speed | 300 px/s, stadium loop around (300–780, 1135) |
+| Speed | 300 px/s, stadium loop around (300–780, 1192), radius 62 px |
+| Blocks | 40 px cubes |
 | Bar in the middle | Fullness: green, yellow from 60 %, red from 85 % |
 
 ## 3.5 Nests and ants <Badge type="tip" text="Live" />
 
-- 4 columns of nests (levels from the level editor can have 2 to 6). Three rows show above the booster tray; the rest wait below it.
+- 4 columns of nests (levels from the level editor can have 2 to 6). Two rows show above the booster tray, the third about two thirds; the rest wait below it.
 - Only the front nest of each column is active. Nests never change column: when the front nest fills it pops and the column slides up.
 - Nest sizes and order are generated from the picture: the blocks are listed in the order the sand naturally comes out (bottom rows first, or outside-in for pictures with enclosed colours), cut into nests of `chunk × 2` blocks, and dealt to the column with the least sand still queued. Levels can pin a seed that a test player could solve.
-- An ant leaves an active nest every 0.12 s while that nest still needs blocks and a matching block is on the belt. Ants walk at 420 px/s, are 74 px long and carry 32 px cubes.
+- An ant leaves an active nest every 0.12 s while that nest still needs blocks and a matching block is on the belt. Ants walk at 420 px/s, are 74 px long and carry 26 px cubes.
 
 ## 3.6 Controls <Badge type="tip" text="Live" />
 
@@ -64,12 +66,12 @@ Ten original pictures. Difficulty rises through picture size, number of colours 
 | 2 | Ice Cream | 16 | 5 | 3–6 | rows |
 | 3 | Goldfish | 18 | 6 | 4–6 | onion |
 | 4 | Cupcake | 18 | 7 | 4–7 | rows |
-| 5 | Little Owl | 20 | 6 | 5–8 | rows, seed 3 |
+| 5 | Little Owl | 20 | 6 | 5–8 | rows, seed 2 |
 | 6 | Hot Air Balloon | 20 | 6 | 5–8 | rows, seed 3 |
 | 7 | Cactus Pot | 20 | 6 | 5–8 | rows, seed 1 |
 | 8 | Garden Snail | 22 | 6 | 5–9 | rows |
 | 9 | Rocket | 22 | 7 | 6–9 | onion, seed 1 |
-| 10 | Penguin | 22 | 10 | 6–9 | rows, seed 3 |
+| 10 | Penguin | 22 | 10 | 6–9 | rows, seed 6 |
 
 - Every level was cleared by a test bot with the order and seed above.
 - **Design rule:** keep each colour in one area of the picture. A colour that runs from top to bottom (for example one body colour around the whole picture) makes nests that cannot fill until the very end, and the conveyor overflows.

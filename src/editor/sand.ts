@@ -194,11 +194,17 @@ export function rowsToGrains(rows: string[], n: number, keyOf: (c: string) => st
     return out;
 }
 
-/** Widen a square grain picture (earlier editor levels) to the frame, centred where it was. */
-export function squareToFrame(keys: string[], n: number) {
-    const { w, h, pad } = frameGrains(n), out = new Array<string>(w * h).fill('.');
-    for (let y = 0; y < h; y++) for (let x = 0; x < h; x++) out[y * w + x + pad] = keys[y * h + x] ?? '.';
-    return out;
+/** Fit a picture `oldW` grains wide (earlier editor levels: a square, or an older, wider frame)
+ * to the frame's width, keeping it centred; returns the grains and whether any sand was cut. */
+export function fitToFrame(keys: string[], oldW: number, n: number) {
+    const { w, h } = frameGrains(n), out = new Array<string>(w * h).fill('.'), dx = Math.floor((w - oldW) / 2);
+    let cut = false;
+    for (let y = 0; y < h; y++) for (let x = 0; x < oldW; x++) {
+        const k = keys[y * oldW + x] ?? '.', nx = x + dx;
+        if (nx >= 0 && nx < w) out[y * w + nx] = k;
+        else if (k !== '.') cut = true;
+    }
+    return { keys: out, cut };
 }
 
 /** Draw sand like the game does: one pixel per grain with a little brightness noise per grain. */

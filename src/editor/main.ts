@@ -4,10 +4,10 @@
 // colours (sand.ts); nests come from a recorded winning play (src/game/bot.ts, in web workers).
 // Levels are saved in the browser in the format the game reads with ?custom=1 (LevelDef).
 import type { Recording } from '../game/bot';
-import { COLS, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
+import { COLS, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
 import { CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, decodeSand, encodeSand, loadCustomLevels, useLevels } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
-import { type ConvertOpts, HEX, NAME, countKeys, drawSand, hexLab, imageToSand, nearestKey, rowsToGrains, squareToFrame } from './sand';
+import { type ConvertOpts, HEX, NAME, countKeys, drawSand, fitToFrame, hexLab, imageToSand, nearestKey, rowsToGrains } from './sand';
 import type { SolveJob, SolveResult } from './solver.worker';
 
 type Status = 'WIP' | 'REVIEW' | 'LIVE';
@@ -23,6 +23,8 @@ interface EdLevel {
     moves?: Recording['moves'];
     /** true: won twice with these nests; false: changed since; undefined: never checked. */
     verified?: boolean;
+    /** LAYOUT_VERSION the level was made with (recorded swipes are in screen positions). */
+    layout?: number;
     status: Status; comment: string; updated: number;
     /** Last Organizer Auto Play result (not saved). */
     autoplay?: Result;
@@ -80,24 +82,32 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
     let sand: Sand;
     // pictures cover the game's whole frame; older square ones are widened where they sat
     const { w: FW, h: FH } = frameGrains(n);
+    let cut = false;
     if (L.sand && L.sand.size === FH && (L.sand.w ?? FH) === FW) sand = L.sand;
-    else if (L.sand && L.sand.size === FH && !L.sand.w) sand = encodeSand(FH, squareToFrame(decodeSand(L.sand), n), FW);
-    else sand = encodeSand(FH, rowsToGrains(L.rows || [], n, (c) => keyOf.get(c) ?? SAND_PALETTE[0].key), FW);
+    else if (L.sand && L.sand.size === FH) {
+        // a square or an older, wider frame: keep the picture centred in today's frame
+        const fit = fitToFrame(decodeSand(L.sand), L.sand.w ?? FH, n);
+        sand = encodeSand(FH, fit.keys, FW);
+        cut = fit.cut;
+    } else sand = encodeSand(FH, rowsToGrains(L.rows || [], n, (c) => keyOf.get(c) ?? SAND_PALETTE[0].key), FW);
     if (L.sand) for (const c of SAND_PALETTE) keyOf.set(c.key, c.key);
     return {
         id: L.id || uid(), name: L.name || 'Màn mới', n, chunk: L.chunk || [4, 7], sand,
         order: L.order || 'rows', seed: L.seed ?? 0, salt: L.salt ?? randomSalt(),
         cols: Math.max(MIN_COLS, Math.min(MAX_COLS, L.cols ?? COLS)),
         nests: L.nests?.map((col) => col.map(([k, v]) => [keyOf.get(k) ?? k, v] as [string, number])),
-        // levels from the first editor version (cells, no grains) were checked under older rules
-        moves: L.sand ? L.moves : undefined, verified: L.sand ? L.verified : undefined,
+        // a check made under another layout (or with sand cut off just now) no longer counts:
+        // recorded swipes are screen positions, and the board has moved since
+        moves: L.sand && (L.layout ?? 1) === LAYOUT_VERSION ? L.moves : undefined,
+        verified: !L.sand ? undefined : (L.layout ?? 1) !== LAYOUT_VERSION || cut ? (L.verified === undefined ? undefined : false) : L.verified,
+        layout: LAYOUT_VERSION,
         status: L.status || 'WIP', comment: L.comment || '', updated: L.updated || Date.now(),
     };
 }
 function blankLevel(n: number): EdLevel {
     const { w, h } = frameGrains(n);
     return { id: uid(), name: 'Màn mới', n, chunk: [4, 7], sand: encodeSand(h, new Array<string>(w * h).fill('.'), w),
-        order: 'rows', seed: 0, salt: randomSalt(), cols: COLS, status: 'WIP', comment: '', updated: Date.now() };
+        order: 'rows', seed: 0, salt: randomSalt(), cols: COLS, layout: LAYOUT_VERSION, status: 'WIP', comment: '', updated: Date.now() };
 }
 
 const L = () => levels[cur];

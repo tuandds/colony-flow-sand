@@ -13,7 +13,7 @@ The tension: the conveyor has 24 slots. Releasing a colour no front-row nest wan
 
 ## 2.2 Session <Badge type="tip" text="Live" />
 
-A level takes about 30 to 150 seconds. Win → *Next*. Lose (conveyor overflow) → *Retry*. The last level reached is remembered.
+A level takes about 30 to 150 seconds. Win → *Next*. Lose (the conveyor is full and no block on it fits a nest) → *Retry*. The last level reached is remembered.
 
 ## 2.3 Long term <Badge type="warning" text="Coming soon" />
 

@@ -148,7 +148,7 @@ const LEVELS: LevelDef[] = [
         },
     },
     {
-        name: 'Little Owl', n: 20, chunk: [5, 8], seed: 3,
+        name: 'Little Owl', n: 20, chunk: [5, 8], seed: 2,
         colors: { b: '#8b5a3c', c: '#f1d6b0', w: '#ffffff', e: '#2b2b3a', y: '#ffb238', k: OUTLINE },
         paint(p) {
             p.tri(4.6, 7, 7, 2.6, 8.4, 6.4, 'b'); p.tri(15.4, 7, 13, 2.6, 11.6, 6.4, 'b');
@@ -217,7 +217,7 @@ const LEVELS: LevelDef[] = [
         },
     },
     {
-        name: 'Penguin', n: 22, chunk: [6, 9], seed: 3,
+        name: 'Penguin', n: 22, chunk: [6, 9], seed: 6,
         colors: { d: '#34405e', n: '#4a78c8', c: '#d9ecff', y: '#ffd04a', w: '#ffffff', o: '#ff9f2e', e: '#1d1d28', r: '#e5484d', s: '#ffd1dc', k: OUTLINE },
         paint(p) {
             // a penguin in a red scarf; each colour sits in one area so its nests can fill
