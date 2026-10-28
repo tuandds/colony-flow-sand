@@ -2,7 +2,7 @@
 // palette key per grain ('.' = empty), w x h grains covering the game's whole frame
 // (frameGrains in layout.ts), so what the editor shows is what the game shows.
 import { SUB, frameGrains } from '../game/layout';
-import { SAND_PALETTE } from '../game/levels';
+import { BANK_COLOURS, SAND_PALETTE } from '../game/levels';
 import { hash, packColor } from '../game/util';
 
 /** A Colour Bank entry: `key` is the one-character key in a picture's grain data (never
@@ -10,7 +10,7 @@ import { hash, packColor } from '../game/util';
 export interface BankColour { key: string; name: string; hex: string }
 /** The Colour Bank the editor paints and converts images with: the game's sand colours by
  * default, edited by the user (see setBank). */
-export let BANK: BankColour[] = SAND_PALETTE.map((c) => ({ ...c }));
+export let BANK: BankColour[] = BANK_COLOURS.map((c) => ({ ...c }));
 export const HEX = new Map<string, string>(), NAME = new Map<string, string>();
 let PAL_LAB = new Map<string, Lab>();
 export function setBank(list: BankColour[]) {

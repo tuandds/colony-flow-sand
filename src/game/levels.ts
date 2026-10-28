@@ -239,23 +239,33 @@ const LEVELS: LevelDef[] = [
 ];
 
 /**
- * The colours custom pictures are made of: the colours of the built-in pictures, with
- * near-duplicates merged (CIELAB distance under 14). `key` is the one-letter key used in
- * a picture's grain data; it never changes, so saved pictures keep their colours.
+ * Every sand colour custom pictures can use: the colours of the built-in pictures, then the
+ * team template's colour bank colours (keys v to E). `key` is the one-letter key used in a
+ * picture's grain data; it never changes, so saved pictures keep their colours. `retired`
+ * colours looked too much like another one (CIELAB distance under about 20): they are left
+ * out of the Colour Bank, but pictures that use them still draw.
  */
-export const SAND_PALETTE: { key: string; name: string; hex: string }[] = [
+export const SAND_PALETTE: { key: string; name: string; hex: string; retired?: true }[] = [
     { key: 'a', name: 'white', hex: '#ffffff' }, { key: 'b', name: 'silver', hex: '#c3ccd8' },
     { key: 'c', name: 'cream', hex: '#ffe0b8' }, { key: 'd', name: 'yellow', hex: '#ffe066' },
-    { key: 'e', name: 'gold', hex: '#ffc145' }, { key: 'f', name: 'orange', hex: '#ff8c42' },
-    { key: 'g', name: 'tan', hex: '#e7b06a' }, { key: 'h', name: 'caramel', hex: '#c88a46' },
-    { key: 'i', name: 'rust', hex: '#d9774a' }, { key: 'j', name: 'brown', hex: '#8b5a3c' },
-    { key: 'k', name: 'red', hex: '#e8344a' }, { key: 'l', name: 'blush', hex: '#ffd6dc' },
-    { key: 'm', name: 'pink', hex: '#f59ac2' }, { key: 'n', name: 'rose', hex: '#ff7eb3' },
+    { key: 'e', name: 'gold', hex: '#ffc145', retired: true }, { key: 'f', name: 'orange', hex: '#ff8c42' },
+    { key: 'g', name: 'tan', hex: '#e7b06a' }, { key: 'h', name: 'caramel', hex: '#c88a46', retired: true },
+    { key: 'i', name: 'rust', hex: '#d9774a', retired: true }, { key: 'j', name: 'brown', hex: '#8b5a3c' },
+    { key: 'k', name: 'red', hex: '#e8344a' }, { key: 'l', name: 'blush', hex: '#ffd6dc', retired: true },
+    { key: 'm', name: 'pink', hex: '#f59ac2' }, { key: 'n', name: 'rose', hex: '#ff7eb3', retired: true },
     { key: 'o', name: 'lime', hex: '#c8e06a' }, { key: 'p', name: 'green', hex: '#7cc957' },
     { key: 'q', name: 'forest', hex: '#5a8f2e' }, { key: 'r', name: 'sky', hex: '#5bc0f5' },
-    { key: 's', name: 'blue', hex: '#4a8fe0' }, { key: 't', name: 'navy', hex: '#34405e' },
+    { key: 's', name: 'blue', hex: '#4a8fe0' }, { key: 't', name: 'navy', hex: '#34405e', retired: true },
     { key: 'u', name: 'ink', hex: OUTLINE },
+    { key: 'v', name: 'lemon', hex: '#fcfc10' }, { key: 'w', name: 'lilac', hex: '#fccefd' },
+    { key: 'x', name: 'cerise', hex: '#f2447b' }, { key: 'y', name: 'chartreuse', hex: '#b7fd33' },
+    { key: 'z', name: 'royal', hex: '#3657f9' }, { key: 'A', name: 'purple', hex: '#aa44f6' },
+    { key: 'C', name: 'emerald', hex: '#44f245' }, { key: 'E', name: 'aqua', hex: '#75fefd' },
+    { key: 'F', name: 'orchid', hex: '#db7afa' },
 ];
+
+/** The Colour Bank's default colours: the sand colours that are not retired. */
+export const BANK_COLOURS = SAND_PALETTE.filter((c) => !c.retired).map(({ key, name, hex }) => ({ key, name, hex }));
 
 /** Run-length encode one key per grain ('.' = empty), `size` rows of `w` grains. */
 export function encodeSand(size: number, keys: string[], w = size): Sand {

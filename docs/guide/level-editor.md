@@ -21,9 +21,9 @@ The phone panel can be dragged by its title bar, resized from its corner, reload
 ## 1. Colour Bank
 
 - **Active Palette**: the level's own colours, plus the eraser. Every colour in the picture is always in it. Tap or drag a Bank colour into the box to add one; drag one back onto the Bank to take it off (only if the picture doesn't use it). Keys `1`–`0` pick the first ten. Long-press or right-click a colour to edit it.
-- **Bank** ("every colour a single-word key"): starts as the game's 21 sand colours, the colours of the 10 built-in pictures with near-duplicates merged (CIELAB distance under 14, `SAND_PALETTE` in `src/game/levels.ts`). Each row has a handle (⠿, drag to reorder), a swatch and its name. Tap a colour to paint with it; long-press or right-click to edit it.
+- **Bank** ("every colour a single-word key"): starts as 24 sand colours (`BANK_COLOURS` in `src/game/levels.ts`): colours of the built-in pictures and of the team template's bank (purple, orchid, lilac, royal, aqua and more), with colours that look alike removed (CIELAB distance under about 20). A Bank saved before gets the new colours added and the removed ones dropped, once; colours you changed or added stay. Pictures that use a removed colour still draw it. Each row has a handle (⠿, drag to reorder), a swatch and its name. Tap a colour to paint with it; long-press or right-click to edit it.
 - **Edit colour**: change the name (one word, no spaces, unique) or the colour, take it off this level's Active Palette, or delete it. A colour a picture uses can't be deleted. A changed colour changes that sand in every level using it, from its next save.
-- **＋ Add colour** adds a colour to the Bank (up to 52); **↺** resets the Bank to the 21 game colours. The Bank is kept in the browser (`cf_editor_bank`); each level saves its own colours, so the game shows them as they were when it was saved.
+- **＋ Add colour** adds a colour to the Bank (up to 52); **↺** resets the Bank to the 24 default colours. The Bank is kept in the browser (`cf_editor_bank`); each level saves its own colours, so the game shows them as they were when it was saved.
 
 ## 2. Sand Editor
 

@@ -5,7 +5,7 @@
 // Levels are saved in the browser in the format the game reads with ?custom=1 (LevelDef).
 import type { Recording } from '../game/bot';
 import { COLS, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
-import { CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, decodeSand, encodeSand, loadCustomLevels, useLevels } from '../game/levels';
+import { BANK_COLOURS, CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, decodeSand, encodeSand, loadCustomLevels, useLevels } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
 import { BANK, type BankColour, type ConvertOpts, HEX, NAME, countKeys, drawSand, fitToFrame, hexLab, imageToSand, nearestKey, rowsToGrains, setBank } from './sand';
 import type { SolveJob, SolveResult } from './solver.worker';
@@ -39,6 +39,8 @@ const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 const CHAPTER_KEY = 'cf_custom_chapters', BACKUP_KEY = 'cf_custom_backups', HISTORY_KEY = 'cf_custom_history', UI_KEY = 'cf_editor_ui';
 /** The edited Colour Bank (order, names, colours, added colours). */
 const BANK_KEY = 'cf_editor_bank';
+// version of the default colours a saved Bank was last brought up to (see loadBank)
+const BANK_VER_KEY = 'cf_editor_bank_v', BANK_VER = 2;
 const MAX_BACKUPS = 15, MAX_HISTORY = 10;
 const DIFFS: { key: string; label: string; short: string; chunk: [number, number] }[] = [
     { key: '3,5', label: 'Rất dễ', short: 'Rất dễ', chunk: [3, 5] }, { key: '4,6', label: 'Dễ', short: 'Dễ', chunk: [4, 6] },
@@ -73,7 +75,20 @@ function loadJson<T>(key: string, fallback: T): T {
 function loadBank(): BankColour[] {
     const saved = loadJson<BankColour[]>(BANK_KEY, []);
     const ok = Array.isArray(saved) && saved.length && saved.every((c) => c && /^[A-Za-z]$/.test(c.key) && /^#[0-9a-f]{6}$/i.test(c.hex) && c.name);
-    return ok ? saved : SAND_PALETTE.map((c) => ({ ...c }));
+    if (!ok) return BANK_COLOURS.map((c) => ({ ...c }));
+    // Once per update of the defaults: add the new default colours (unless the key or name is
+    // taken by the user's own colour) and drop retired ones the user has not changed. Pictures
+    // that use a retired colour still draw it. A colour deleted after this stays deleted.
+    if (loadJson<number>(BANK_VER_KEY, 1) < BANK_VER) {
+        const name = (n: string) => n.toLowerCase();
+        let list = saved.filter((x) => !SAND_PALETTE.some((c) => c.retired && c.key === x.key && c.hex.toLowerCase() === x.hex.toLowerCase()));
+        for (const c of BANK_COLOURS) {
+            if (list.length < 52 && !list.some((x) => x.key === c.key || name(x.name) === name(c.name))) list.push({ ...c });
+        }
+        try { localStorage.setItem(BANK_KEY, JSON.stringify(list)); localStorage.setItem(BANK_VER_KEY, String(BANK_VER)); } catch { /* kept for this session */ }
+        return list;
+    }
+    return saved;
 }
 function loadLevels(): EdLevel[] {
     const list = loadCustomLevels(CUSTOM_KEY).map(normalize);
@@ -497,8 +512,8 @@ $('ce-delete').onclick = () => {
 $('ce-remove').onclick = () => { const k = editingKey; closeColour(); if (k) removeFromPalette(k); };
 $('cb-add').onclick = () => openColour(null);
 $('cb-reset').onclick = () => {
-    if (!confirm('Đặt lại Colour Bank về 21 màu gốc của game? (Màu đã thêm mà đang dùng trong tranh vẫn vẽ được.)')) return;
-    saveBank(SAND_PALETTE.map((c) => ({ ...c })));
+    if (!confirm(`Đặt lại Colour Bank về ${BANK_COLOURS.length} màu gốc? (Màu đã thêm mà đang dùng trong tranh vẫn vẽ được.)`)) return;
+    saveBank(BANK_COLOURS.map((c) => ({ ...c })));
 };
 
 const TOOLS: [Tool, string, string][] = [['paint', '✏️', 'Vẽ (B)'], ['erase', '🧽', 'Tẩy (E)'], ['fill', '🪣', 'Đổ màu vùng (G)'], ['replace', '🔁', 'Thay cả màu (R)'], ['pick', '💧', 'Hút màu (I)']];
