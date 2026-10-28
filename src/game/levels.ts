@@ -123,13 +123,13 @@ const LEVELS: LevelDef[] = [
     },
     {
         name: 'Goldfish', n: 18, chunk: [4, 6], order: 'onion',
-        colors: { o: '#ff8c42', y: '#ffc145', b: '#ffe0b8', w: '#ffffff', e: '#2b2b3a', k: OUTLINE },
+        colors: { o: '#ff8c42', y: '#ffc145', b: '#ffe0b8', w: '#ffffff', k: OUTLINE },
         paint(p) {
             p.tri(12.5, 9, 16.8, 4.8, 16.8, 13.2, 'y');
             p.tri(6, 5.6, 11, 5.6, 8.8, 2.8, 'y');
             p.ellipse(8, 9, 6.2, 4.2, 'o');
             p.ellipse(8.4, 11.6, 3.8, 1.3, 'b');
-            p.circle(4.8, 8.2, 1.5, 'w'); p.rect(4.3, 7.7, 5.3, 8.7, 'e');
+            p.circle(4.8, 8.2, 1.5, 'w'); p.rect(4.3, 7.7, 5.3, 8.7, 'k');
             p.outline('k');
         },
     },
@@ -148,14 +148,14 @@ const LEVELS: LevelDef[] = [
         },
     },
     {
-        name: 'Little Owl', n: 20, chunk: [5, 8], seed: 6,
-        colors: { b: '#8b5a3c', c: '#f1d6b0', w: '#ffffff', e: '#2b2b3a', y: '#ffb238', k: OUTLINE },
+        name: 'Little Owl', n: 20, chunk: [5, 8], seed: 5,
+        colors: { b: '#8b5a3c', c: '#f1d6b0', w: '#ffffff', y: '#ffb238', k: OUTLINE },
         paint(p) {
             p.tri(4.6, 7, 7, 2.6, 8.4, 6.4, 'b'); p.tri(15.4, 7, 13, 2.6, 11.6, 6.4, 'b');
             p.ellipse(10, 11, 6.4, 7, 'b');
             p.ellipse(10, 13.6, 4, 4.2, 'c');
             p.circle(7.4, 8.8, 2.3, 'w'); p.circle(12.6, 8.8, 2.3, 'w');
-            p.rect(7, 8.5, 8.5, 10, 'e'); p.rect(11.5, 8.5, 13, 10, 'e');
+            p.rect(7, 8.5, 8.5, 10, 'k'); p.rect(11.5, 8.5, 13, 10, 'k');
             p.tri(8.8, 10.6, 11.2, 10.6, 10, 12.8, 'y');
             p.rect(7, 17.6, 9, 18.6, 'y'); p.rect(11, 17.6, 13, 18.6, 'y');
             p.outline('k');
@@ -190,12 +190,12 @@ const LEVELS: LevelDef[] = [
     },
     {
         name: 'Garden Snail', n: 22, chunk: [5, 9],
-        colors: { s: '#e39b4a', d: '#b8662a', y: '#c8e06a', e: '#2b2b3a', g: '#62b84a', k: OUTLINE },
+        colors: { s: '#e39b4a', d: '#b8662a', y: '#c8e06a', g: '#62b84a', k: OUTLINE },
         paint(p) {
             p.rect(1, 18.6, 21, 21, 'g');
             p.rect(3, 15, 19, 17.6, 'y'); p.circle(17.6, 13.8, 2.1, 'y');
             p.line(17, 12.4, 15.8, 8.6, 0.45, 'y'); p.line(18.4, 12.4, 19.8, 9, 0.45, 'y');
-            p.circle(15.8, 8.4, 0.8, 'e'); p.circle(19.8, 8.8, 0.8, 'e');
+            p.circle(15.8, 8.4, 0.8, 'k'); p.circle(19.8, 8.8, 0.8, 'k');
             p.circle(10, 10.4, 5.6, 's');
             p.inside((x, y) => { const d = Math.hypot(x - 10.3, y - 10.6); return y < 15 && ((d > 2.1 && d < 3.3) || d < 1); }, 'd');
             p.outline('k');
@@ -218,7 +218,7 @@ const LEVELS: LevelDef[] = [
     },
     {
         name: 'Penguin', n: 22, chunk: [6, 9], seed: 6,
-        colors: { d: '#34405e', n: '#4a78c8', c: '#d9ecff', y: '#ffd04a', w: '#ffffff', o: '#ff9f2e', e: '#1d1d28', r: '#e5484d', s: '#ffd1dc', k: OUTLINE },
+        colors: { d: '#34405e', n: '#4a78c8', c: '#d9ecff', y: '#ffd04a', w: '#ffffff', o: '#ff9f2e', r: '#e5484d', s: '#ffd1dc', k: OUTLINE },
         paint(p) {
             // a penguin in a red scarf; each colour sits in one area so its nests can fill
             p.ellipse(11, 12.5, 6.4, 7.1, 'n');
@@ -227,7 +227,7 @@ const LEVELS: LevelDef[] = [
             p.tri(5.6, 9.4, 2.8, 14.6, 6.6, 14.6, 'n'); p.tri(16.4, 9.4, 19.2, 14.6, 15.4, 14.6, 'n');
             p.ellipse(11, 14.8, 5.1, 5.2, 'w');
             p.ellipse(9.3, 6.4, 1.6, 1.9, 'c'); p.ellipse(12.7, 6.4, 1.6, 1.9, 'c');
-            p.circle(9.5, 6.2, 0.8, 'e'); p.circle(12.5, 6.2, 0.8, 'e');
+            p.circle(9.5, 6.2, 0.8, 'k'); p.circle(12.5, 6.2, 0.8, 'k');
             p.circle(7.3, 8.1, 0.8, 's'); p.circle(14.7, 8.1, 0.8, 's');
             p.tri(9.7, 7.7, 12.3, 7.7, 11, 9.3, 'o');
             p.inside((x, y) => y > 9.5 && y < 10.8 && Math.abs(x - 11) < 5.7, 'r');
