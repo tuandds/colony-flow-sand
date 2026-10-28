@@ -26,6 +26,8 @@ interface Model { parts: THREE.BufferGeometry[]; size: THREE.Vector3 }
 interface Live {
     root: THREE.Group; kind: Item3D['kind']; color: Item3D['color']; mats: THREE.Material[];
     body?: THREE.Group; s?: number; sq?: number; topLift?: number; outline?: THREE.Group;
+    /** The lid's own outline copy, and the plane that cuts it at the lid's bottom edge (see make). */
+    lidOutline?: THREE.Group; lidClip?: THREE.Plane;
     yaw?: THREE.Group; carry?: THREE.Group;
 }
 
@@ -89,11 +91,14 @@ export class ThreeLayer {
     private scene = new THREE.Scene();
     private camera = new THREE.OrthographicCamera(0, W, 0, -H, 1, 12000);
     private models: Record<'ant' | 'tile' | 'tileBase' | 'cube', Model> = {} as never;
+    /** Height of the lid's bottom edge in the nest model (the base sits below it). */
+    private lidBottom = 0;
     private live = new Map<object, Live>();
 
     constructor() {
         this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, alpha: true, antialias: true, premultipliedAlpha: false, preserveDrawingBuffer: true });
         this.renderer.setClearColor(0x000000, 0);
+        this.renderer.localClippingEnabled = true;
         this.renderer.setPixelRatio(1);
         this.renderer.setSize(Math.round(W * RES), Math.round(H * RES), false);
         this.camera.position.set(0, 0, 6000);
@@ -110,6 +115,7 @@ export class ThreeLayer {
         // Colony Flow's nest is a lidded box: Box_v2_T (lid) on Box_v2_B (base)
         const [tile, tileBase] = prepShared([top, baseBox]);
         this.models = { ant: prep(ant), cube: prep(cube), tile, tileBase };
+        this.lidBottom = Math.min(...tile.parts.map((g) => { g.computeBoundingBox(); return g.boundingBox!.min.y; }));
     }
 
     /** Screen height of a tile's top face. */
@@ -137,12 +143,17 @@ export class ThreeLayer {
             const sq = it.squash ?? TILE_SQUASH;
             const body = new THREE.Group(); body.scale.set(s, s * sq, s);
             for (const p of [...M.parts, ...this.models.tileBase.parts]) { const m = lambert(it.color); o.mats.push(m); body.add(new THREE.Mesh(p, m)); }
-            // white outline that hugs the nest: an inflated copy showing only its inside faces
-            const om = outlineMaterial();
-            o.mats.push(om);
-            const outline = new THREE.Group();
-            for (const p of [...M.parts, ...this.models.tileBase.parts]) outline.add(new THREE.Mesh(p, om));
-            body.add(outline);
+            // white outline that hugs the nest: an inflated copy showing only its inside faces. The
+            // lid is wider than the base, so its copy is cut at the lid's bottom edge: otherwise its
+            // underside shows as a white line between lid and base
+            const om = outlineMaterial(), lidClip = new THREE.Plane(), lm = outlineMaterial();
+            lm.clippingPlanes = [lidClip];
+            o.mats.push(om, lm);
+            const outline = new THREE.Group(), lidOutline = new THREE.Group();
+            for (const p of M.parts) lidOutline.add(new THREE.Mesh(p, lm));
+            for (const p of this.models.tileBase.parts) outline.add(new THREE.Mesh(p, om));
+            body.add(outline, lidOutline);
+            Object.assign(o, { lidOutline, lidClip });
             tilt.add(body); root.add(tilt);
             Object.assign(o, { body, s, sq, outline, topLift: M.size.y * s * sq * Math.cos(TILE_ELEV) });
             this.fitOutline(o);
@@ -183,6 +194,11 @@ export class ThreeLayer {
         const padX = OUTLINE_PX / o.s!, padY = OUTLINE_PX / (o.s! * o.sq!);
         o.outline!.scale.set((w + 2 * padX) / w, (h + 2 * padY) / h, (M.size.z + 2 * padX) / M.size.z);
         o.outline!.position.y = -padY;
+        // the lid's copy grows from the lid itself: its bottom face ends padY below the lid's
+        // bottom edge, where the clip plane removes it (only its sides and top are drawn)
+        const yL = this.lidBottom, hL = h - yL, syL = (hL + 2 * padY) / hL;
+        o.lidOutline!.scale.set((w + 2 * padX) / w, syL, (M.size.z + 2 * padX) / M.size.z);
+        o.lidOutline!.position.y = yL - padY - yL * syL;
     }
 
     /** Draw this frame's objects; anything not listed is removed. */
@@ -201,12 +217,20 @@ export class ThreeLayer {
                 o.body!.scale.y = o.s! * o.sq!;
                 o.topLift = this.models.tile.size.y * o.s! * o.sq! * Math.cos(TILE_ELEV);
                 this.fitOutline(o);
-                o.outline!.visible = !!it.outline;
+                o.outline!.visible = o.lidOutline!.visible = !!it.outline;
                 y = it.y + o.topLift * sc; layer = 2000;
             }
             if (it.kind === 'ant') { layer = 4000; o.yaw!.rotation.y = Math.PI / 2 - (it.ang ?? 0); }
             o.root.position.set(it.x, -y, layer + y * 0.2);
             o.root.scale.setScalar(sc);
+            if (o.lidClip) {
+                // the plane follows the nest: through the lid's bottom edge, keeping what is above
+                o.root.updateMatrixWorld(true);
+                const m = o.body!.matrixWorld;
+                o.lidClip.setFromNormalAndCoplanarPoint(
+                    new THREE.Vector3(0, 1, 0).transformDirection(m),
+                    new THREE.Vector3(0, this.lidBottom + 0.01 * this.models.tile.size.y, 0).applyMatrix4(m));
+            }
             for (const m of o.mats) { m.opacity = alpha; if (m.userData.time) m.userData.time.value = time; }
             if (o.carry) {
                 o.carry.visible = it.carry != null;
