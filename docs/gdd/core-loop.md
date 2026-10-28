@@ -9,7 +9,7 @@
 5. **Ants deliver.** When a block of a front-row nest's colour is on the belt, an ant walks out, picks it up and carries it home. The nest's number counts down.
 6. **Nests clear and the queue moves up.** A full nest pops; the next nest in that column slides up and becomes active.
 
-The tension: the conveyor has 24 slots. Releasing a colour no front-row nest wants fills it up.
+The tension: the conveyor has 30 slots. Releasing a colour no front-row nest wants fills it up.
 
 ## 2.2 Session <Badge type="tip" text="Live" />
 

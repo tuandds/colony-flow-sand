@@ -402,11 +402,11 @@ export class Sim {
                     else if (l) t -= 1;
                     else if (r) t += 1;
                     else {
-                        // the funnel walls are gentler than 45 degrees, so sand resting on them creeps
-                        // sideways toward the hole instead of sticking
+                        // the funnel walls are much gentler than 45 degrees (the funnel is as wide as
+                        // the frame), so sand resting on them slides sideways toward the hole
                         const toward = FUNNEL.x0 + (i + 0.5) * FUNNEL.cell < MOUTH.x ? 1 : -1;
                         const side = q + toward;
-                        if (this.rand() < 0.5 || i + toward < 0 || i + toward >= W || !FMASK[side] || fk[side]) continue;
+                        if (i + toward < 0 || i + toward >= W || !FMASK[side] || fk[side]) continue;
                         t = side;
                     }
                 }

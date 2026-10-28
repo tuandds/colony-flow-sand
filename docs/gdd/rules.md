@@ -5,7 +5,7 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 ## 3.1 Win and lose <Badge type="tip" text="Live" />
 
 - **Win:** every nest in every column has received all its blocks.
-- **Lose:** all 24 conveyor slots hold a block and none of them can go into a nest any more: no front nest still wants a colour on the belt, no ant is on its way and no nest is popping. This lasts more than 0.35 s (the grace covers the moment one nest fills and the next takes its place). A full belt alone is not a loss as long as ants can still take blocks off it.
+- **Lose:** all 30 conveyor slots hold a block and none of them can go into a nest any more: no front nest still wants a colour on the belt, no ant is on its way and no nest is popping. This lasts more than 0.35 s (the grace covers the moment one nest fills and the next takes its place). A full belt alone is not a loss as long as ants can still take blocks off it.
 
 ## 3.2 Sand picture <Badge type="tip" text="Live" />
 
@@ -26,7 +26,7 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 ## 3.3 Funnel and hole <Badge type="tip" text="Live" />
 
 - Sand leaving the board falls into the funnel in clumps of up to 6 grains.
-- The funnel is its own sand pile (6 px cells, 40 steps/s). Clumps slide down the walls toward the hole.
+- The funnel is as wide as the sand frame at the top (824 px) and narrows to the hole (92 px) over 110 px. It is its own sand pile (6 px cells, 40 steps/s): clumps fall straight down, and on the gentle walls they slide one cell toward the hole every step.
 - The hole takes 90 clumps per second, but **only while no finished block is waiting in it**. A waiting block plugs the hole until it drops onto the conveyor.
 - When the funnel is full, sand waits at the bottom of the board.
 
@@ -34,9 +34,9 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 
 | Rule | Value |
 |---|---|
-| Slots | 24 |
+| Slots | 30 |
 | Speed | 300 px/s, stadium loop around (300–780, 1192), radius 62 px |
-| Blocks | 40 px cubes |
+| Blocks | 27 px cubes |
 | Bar in the middle | Fullness: green, yellow from 60 %, red from 85 % |
 
 ## 3.5 Nests and ants <Badge type="tip" text="Live" />
@@ -66,7 +66,7 @@ Ten original pictures. Difficulty rises through picture size, number of colours 
 | 2 | Ice Cream | 16 | 5 | 3–6 | rows |
 | 3 | Goldfish | 18 | 6 | 4–6 | onion |
 | 4 | Cupcake | 18 | 7 | 4–7 | rows |
-| 5 | Little Owl | 20 | 6 | 5–8 | rows, seed 2 |
+| 5 | Little Owl | 20 | 6 | 5–8 | rows, seed 6 |
 | 6 | Hot Air Balloon | 20 | 6 | 5–8 | rows, seed 3 |
 | 7 | Cactus Pot | 20 | 6 | 5–8 | rows, seed 1 |
 | 8 | Garden Snail | 22 | 6 | 5–9 | rows |

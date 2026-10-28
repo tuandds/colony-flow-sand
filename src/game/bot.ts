@@ -2,7 +2,7 @@
 // It swipes the lowest fixed sand of the colours the front nests want, and only frees more
 // sand while the conveyor has room. Sand physics uses Math.random, so one game can differ
 // from the next; the editor asks for two wins in a row.
-import { BLOCK_GRAINS, NEST_SCALE, nestPos } from './layout';
+import { BLOCK_GRAINS, NEST_SCALE, SLOTS, nestPos } from './layout';
 import { type Nest, Sim } from './sim';
 import { mulberry32 } from './util';
 
@@ -37,8 +37,9 @@ export function botStep(sim: Sim) {
                     break;
                 }
             }
-            if (want.length && used < 22) swipe(s, want.slice(0, used < 10 ? 4 : 1));
-            else if (!want.length && any.length && used < 20) swipe(s, [any[any.length >> 1]]);
+            // keep a few slots free: at most SLOTS - 2 blocks for wanted colours, SLOTS - 4 otherwise
+            if (want.length && used < SLOTS - 2) swipe(s, want.slice(0, used < 10 ? 4 : 1));
+            else if (!want.length && any.length && used < SLOTS - 4) swipe(s, [any[any.length >> 1]]);
         }
     }
 }

@@ -148,7 +148,7 @@ const LEVELS: LevelDef[] = [
         },
     },
     {
-        name: 'Little Owl', n: 20, chunk: [5, 8], seed: 2,
+        name: 'Little Owl', n: 20, chunk: [5, 8], seed: 6,
         colors: { b: '#8b5a3c', c: '#f1d6b0', w: '#ffffff', e: '#2b2b3a', y: '#ffb238', k: OUTLINE },
         paint(p) {
             p.tri(4.6, 7, 7, 2.6, 8.4, 6.4, 'b'); p.tri(15.4, 7, 13, 2.6, 11.6, 6.4, 'b');

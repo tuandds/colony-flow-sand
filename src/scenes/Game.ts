@@ -184,7 +184,7 @@ export class Game extends Phaser.Scene {
             g.fillEllipse(x, y + 26, 56, 18);
             items.push({ ref: b, kind: 'cube', x, y: y + BLOCK * 0.36, color: s.colors[b.k], size: BLOCK });
         }
-        if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: MOUTH.x, y: MOUTH.y + 18, color: s.colors[s.pipe[0]], size: 32 });
+        if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: MOUTH.x, y: MOUTH.y + 14, color: s.colors[s.pipe[0]], size: 21 });
 
         // nest tiles: the front row (the nests ants work for) is full height with a white
         // outline; nests queued behind are lower and paler
