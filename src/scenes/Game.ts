@@ -530,127 +530,55 @@ export class Game extends Phaser.Scene {
         if (k === 'vibe' && on) navigator.vibrate?.(30);
     }
 
-    // Pause panel (the pause button), after the team's reference: blue header with a close
-    // button, music / sound / vibration switches, Restart and Home, plus the level cheat.
+    // Pause panel (the pause button), from the team's settings art (public/assets/settings):
+    // board with a close button, music / sound / vibration switches, Restart, Home, and the
+    // level cheat. Built at the art's size around the panel centre, then shown at 80 %.
     private showSettings() {
         this.overlay = 'settings';
         this.paused = true;
         const box = this.add.container(0, 0).setDepth(D.overlay);
-        const PX = 70, PW = 940, top = 470, HEAD = 150, cx = 540;
-        const row = top + HEAD + 150, restartY = row + 210, homeY = restartY + 185, cheatY = homeY + 150;
-        const perRow = 5, bw = 120, bh = 92, gap = 18, rows = Math.ceil(levelCount() / perRow);
-        const bottom = cheatY + 50 + rows * (bh + gap) + 30;
         box.add(this.add.rectangle(0, 0, W, H, 0x0a1020, 0.62).setOrigin(0).setInteractive());
-        const g = this.add.graphics();
-        g.fillStyle(0x0c3f9e).fillRoundedRect(PX - 6, top - 6, PW + 12, bottom - top + 22, 60);
-        g.fillStyle(0x1f6fe0).fillRoundedRect(PX, top, PW, bottom - top + 8, 54);
-        g.fillStyle(0xd3e6fb).fillRoundedRect(PX + 16, top + HEAD - 8, PW - 32, bottom - top - HEAD - 4, 40);
-        g.fillStyle(0xeaf5ff).fillRoundedRect(PX + 16, top + HEAD - 8, PW - 32, bottom - top - HEAD - 14, 40);
-        g.fillStyle(0x2f8cf2).fillRoundedRect(PX + 12, top + 12, PW - 24, HEAD - 30, { tl: 44, tr: 44, bl: 8, br: 8 });
-        g.fillStyle(0xffffff, 0.35).fillEllipse(PX + 70, top + 50, 64, 40);
-        box.add([g, this.text(cx, top + HEAD / 2 - 6, 'Pause', 76, '#ffffff', '#1d2a44', 10)]);
-        // close (resume)
-        box.add(this.iconButton(PX + PW - 90, top + HEAD / 2 - 6, 116, 104, 0xf2324a, 0xb3122b, (ig) => {
-            ig.lineStyle(26, 0x1d2a44).lineBetween(-22, -22, 22, 22).lineBetween(22, -22, -22, 22);
-            ig.lineStyle(16, 0xffffff).lineBetween(-22, -22, 22, 22).lineBetween(22, -22, -22, 22);
-        }, () => this.closeOverlay()));
-        // music, sound, vibration switches
-        const icons: [keyof Prefs, (ig: Phaser.GameObjects.Graphics, col: number) => void][] = [
-            ['music', (ig, col) => {
-                ig.fillStyle(col).fillCircle(-18, 26, 15).fillCircle(24, 18, 15);
-                ig.fillRect(-6, -30, 9, 58).fillRect(36, -38, 9, 58);
-                ig.fillPoints([new Phaser.Math.Vector2(-6, -30), new Phaser.Math.Vector2(45, -40), new Phaser.Math.Vector2(45, -24), new Phaser.Math.Vector2(-6, -14)], true);
-            }],
-            ['sound', (ig, col) => {
-                ig.fillStyle(col).fillPoints([-38, -14, -22, -14, 0, -36, 0, 36, -22, 14, -38, 14].reduce<Phaser.Math.Vector2[]>((a, v, i, arr) => (i % 2 ? a : [...a, new Phaser.Math.Vector2(v, arr[i + 1])]), []), true);
-                ig.lineStyle(9, col);
-                for (const r of [20, 38]) { ig.beginPath(); ig.arc(4, 0, r, -0.9, 0.9); ig.strokePath(); }
-            }],
-            ['vibe', (ig, col) => {
-                ig.lineStyle(9, col).strokeRoundedRect(-20, -36, 40, 72, 9);
-                ig.fillStyle(col).fillRect(-6, 24, 12, 5);
-                for (const sx of [-1, 1]) {
-                    ig.beginPath(); ig.moveTo(sx * 32, -24); ig.lineTo(sx * 42, -12); ig.lineTo(sx * 32, 0); ig.lineTo(sx * 42, 12); ig.lineTo(sx * 32, 24); ig.strokePath();
-                }
-            }],
-        ];
-        icons.forEach(([k, draw], i) => {
-            const x = cx + (i - 1) * 210;
-            const btn = this.add.container(x, row);
+        const panel = this.add.container(540, 960 - H * 0.1).setScale(0.8);
+        box.add(panel);
+        const BW = 888, BH = 1098, top = -BH / 2;
+        panel.add(this.add.image(0, 0, 'set_board'));
+        panel.add(this.text(0, top + 98, 'Pause', 84, '#ffffff', '#1d2a44', 12));
+        panel.add(this.artButton(BW / 2 - 70, top + 96, 'set_btn_close', 1, null, '', () => this.closeOverlay()));
+        // music, sound and vibration: blue when on, grey with a crossed-out icon when off
+        (['music', 'sound', 'vibe'] as const).forEach((k, i) => {
+            const btn = this.add.container((i - 1) * 240, top + 300);
             const paint = () => {
                 btn.removeAll(true);
                 const on = this.prefs[k];
-                const face = this.add.graphics();
-                this.squircle(face, 0, 0, 170, 170, on ? 0x3aa3f6 : 0x9aa7b8, on ? 0x1764c8 : 0x6b778a);
-                // white icon over a dark copy a little lower, for the outlined look
-                const dark = this.add.graphics().setScale(1.3), ig = this.add.graphics().setScale(1.3).setPosition(0, -5);
-                draw(dark, 0x1d2a44);
-                draw(ig, 0xffffff);
-                btn.add([face, dark, ig]);
-                if (!on) btn.add(this.add.graphics().lineStyle(22, 0x1d2a44).lineBetween(-52, -52, 52, 52).lineStyle(12, 0xf2324a).lineBetween(-52, -52, 52, 52));
+                const icon = this.add.image(0, -10, `set_${k}_${on ? 'on' : 'off'}`);
+                icon.setScale((on ? 118 : 150) / Math.max(icon.width, icon.height));
+                btn.add([this.add.image(0, 0, on ? 'set_btn_blue' : 'set_btn_gray').setScale(0.8), icon]);
             };
             paint();
-            btn.setSize(170, 170).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.setPref(k, !this.prefs[k]); this.sfx('click'); paint(); });
-            box.add(btn);
+            btn.setSize(204, 220).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.setPref(k, !this.prefs[k]); this.sfx('click'); paint(); });
+            panel.add(btn);
         });
-        // Restart and Home
-        box.add(this.bigButton(cx, restartY, 'Restart', 0x22cc22, 0x14931a, (ig) => {
-            ig.lineStyle(26, 0x1d2a44); ig.beginPath(); ig.arc(0, 0, 26, -1.2, 4.3); ig.strokePath();
-            ig.lineStyle(14, 0xffffff); ig.beginPath(); ig.arc(0, 0, 26, -1.2, 4.3); ig.strokePath();
-            ig.fillStyle(0x1d2a44).fillTriangle(4, -50, 30, -26, 0, -12);
-            ig.fillStyle(0xffffff).fillTriangle(8, -42, 24, -27, 6, -19);
-        }, () => this.startLevel(this.levelIndex)));
-        box.add(this.bigButton(cx, homeY, 'Home', 0xf74848, 0xb81f2a, (ig) => {
-            const house = [0, -40, 40, -2, 28, -2, 28, 36, -28, 36, -28, -2, -40, -2].reduce<Phaser.Math.Vector2[]>((a, v, i, arr) => (i % 2 ? a : [...a, new Phaser.Math.Vector2(v, arr[i + 1])]), []);
-            ig.lineStyle(14, 0x1d2a44).strokePoints(house, true);
-            ig.fillStyle(0xffffff).fillPoints(house, true);
-            ig.fillStyle(0x1d2a44).fillRect(-9, 12, 18, 24);
-        }, () => this.goHome()));
+        panel.add(this.artButton(0, top + 520, 'set_btn_green', 0.8, 'set_icon_retry', 'Restart', () => this.startLevel(this.levelIndex)));
+        panel.add(this.artButton(0, top + 712, 'set_btn_red', 0.8, 'set_icon_home', 'Home', () => this.goHome()));
         // cheat: jump to any level
-        box.add(this.text(cx, cheatY, 'Cheat: go to level', 36, '#33507e', null));
-        const rowW = perRow * bw + (perRow - 1) * gap;
+        panel.add(this.text(0, top + 846, 'Cheat: go to level', 38, '#33507e', null));
+        const perRow = 5, cw = 88, gap = 16, rowW = perRow * cw + (perRow - 1) * gap;
         for (let i = 0; i < levelCount(); i++) {
-            const x = cx - rowW / 2 + (i % perRow) * (bw + gap), y = cheatY + 44 + Math.floor(i / perRow) * (bh + gap);
-            const cur = i === this.levelIndex;
-            const c = this.add.container(x + bw / 2, y + bh / 2);
-            const cg = this.add.graphics();
-            this.squircle(cg, 0, 0, bw, bh, cur ? 0x6cc53b : 0x5b9bf0, cur ? 0x3f8f2a : 0x2f6cc8);
-            c.add([cg, this.text(0, -5, String(i + 1), 44, '#ffffff', '#1d2a44', 7)]);
-            c.setSize(bw, bh).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.sfx('click'); this.startLevel(i); });
-            box.add(c);
+            const c = this.add.container(-rowW / 2 + cw / 2 + (i % perRow) * (cw + gap), top + 912 + Math.floor(i / perRow) * 98);
+            c.add([this.add.image(0, 0, i === this.levelIndex ? 'set_btn_gray' : 'set_btn_blue').setScale(0.34), this.text(0, -6, String(i + 1), 38, '#ffffff', '#1d2a44', 7)]);
+            c.setSize(cw, 94).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.sfx('click'); this.startLevel(i); });
+            panel.add(c);
         }
-        // the panel at 80 % size around its centre, raised by a tenth of the screen (the dimmed
-        // backdrop stays full screen)
-        const mid = (top + bottom) / 2, panel = this.add.container(cx, mid - H * 0.1).setScale(0.8);
-        for (const o of box.list.slice(1)) { const t = o as unknown as Phaser.GameObjects.Components.Transform; t.x -= cx; t.y -= mid; }
-        panel.add(box.list.slice(1));
-        box.add(panel);
         this.overlayBox = box;
     }
 
-    /** A glossy rounded button face: a darker lip below, a lighter shine on top, a dark outline. */
-    private squircle(g: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number, color: number, lip: number) {
-        const r = Math.min(w, h) * 0.26;
-        g.fillStyle(0x1d2a44).fillRoundedRect(x - w / 2 - 5, y - h / 2 - 5, w + 10, h + 14, r + 4);
-        g.fillStyle(lip).fillRoundedRect(x - w / 2, y - h / 2, w, h + 4, r);
-        g.fillStyle(color).fillRoundedRect(x - w / 2, y - h / 2, w, h - 10, r);
-        g.fillStyle(0xffffff, 0.28).fillRoundedRect(x - w / 2 + 12, y - h / 2 + 8, w - 24, (h - 10) * 0.38, r * 0.7);
-    }
-    private iconButton(x: number, y: number, w: number, h: number, color: number, lip: number, icon: (g: Phaser.GameObjects.Graphics) => void, onTap: () => void) {
-        const c = this.add.container(x, y), g = this.add.graphics();
-        this.squircle(g, 0, 0, w, h, color, lip);
-        const ig = this.add.graphics().setPosition(0, -5);
-        icon(ig);
-        c.add([g, ig]).setSize(w, h).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.sfx('click'); onTap(); });
-        return c;
-    }
-    private bigButton(x: number, y: number, label: string, color: number, lip: number, icon: (g: Phaser.GameObjects.Graphics) => void, onTap: () => void) {
-        const w = 460, h = 150, c = this.add.container(x, y), g = this.add.graphics();
-        this.squircle(g, 0, 0, w, h, color, lip);
-        const ig = this.add.graphics().setPosition(-130, -6);
-        icon(ig);
-        c.add([g, ig, this.text(45, -8, label, 64, '#ffffff', '#1d2a44', 10)]);
-        c.setSize(w, h).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.sfx('click'); onTap(); });
+    /** A button from the settings art: its image, an optional icon left of the label, and the label. */
+    private artButton(x: number, y: number, key: string, scale: number, icon: string | null, label: string, onTap: () => void) {
+        const c = this.add.container(x, y), img = this.add.image(0, 0, key).setScale(scale);
+        c.add(img);
+        if (icon) { const ic = this.add.image(label ? -img.displayWidth / 2 + 78 : 0, -8, icon); ic.setScale(80 / Math.max(ic.width, ic.height)); c.add(ic); }
+        if (label) c.add(this.text(icon ? 36 : 0, -10, label, 60, '#ffffff', '#1d2a44', 10));
+        c.setSize(img.displayWidth, img.displayHeight).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.sfx('click'); onTap(); });
         return c;
     }
 

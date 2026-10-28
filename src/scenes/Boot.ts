@@ -4,6 +4,8 @@ import { ThreeLayer } from '../game/three-layer';
 /** Colony Flow's win-screen "Victory!" atlas (packed by Spine; see cutWinFrames). */
 const WIN_ATLASES = ['win_text'];
 const IMAGES = ['bg', 'btn_green', 'mascot', 'btn_blue_sq', 'pause', 'circle_cream', 'bst_add', 'bst_shuffle', 'bst_claw', 'bst_flower'];
+/** The Pause panel's art (public/assets/settings), loaded as `set_<name>`. */
+const SETTINGS = ['board', 'btn_blue', 'btn_gray', 'btn_close', 'btn_green', 'btn_red', 'music_on', 'music_off', 'sound_on', 'sound_off', 'vibe_on', 'vibe_off', 'icon_retry', 'icon_home'];
 const SOUNDS: Record<string, string> = {
     pop: 'pop.ogg', drop: 'cube_break_1.ogg', pick: 'SFX_INGAME_COIN_PICK.ogg', nest: 'count_reach.ogg',
     lose: 'sfx-Lose.wav', win: 'QuestRewardGet.ogg', click: 'ui_button_click.ogg', add: 'SFX_INGAME_ADD.ogg',
@@ -24,6 +26,7 @@ export class Boot extends Phaser.Scene {
         this.load.on('progress', (v: number) => label.setText(`Loading... ${Math.round(v * 100)}%`));
         this.load.setPath('assets/');
         for (const n of IMAGES) this.load.image(n, `img/${n}.png`);
+        for (const n of SETTINGS) this.load.image(`set_${n}`, `settings/${n}.png`);
         for (const [k, f] of Object.entries(SOUNDS)) this.load.audio(k, `sfx/${f}`);
         // Colony Flow's win screen: the "Victory!" letters (texture atlas converted from the
         // game's Spine atlas), plus glow and the button
