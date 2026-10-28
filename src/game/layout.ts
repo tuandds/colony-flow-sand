@@ -1,9 +1,9 @@
 // Screen layout and tuning, in game pixels (the game is 1080 x 1920, scaled to fit).
 
 export const W = 1080, H = 1920;
-/** Bumped when the board, funnel or conveyor move, or the funnel's rules change: recorded swipes
- * from an older version no longer replay, so the level editor asks for new ones. */
-export const LAYOUT_VERSION = 5;
+/** Bumped when the board, funnel, conveyor or picture scale change, or the funnel's rules change:
+ * recorded swipes from an older version no longer replay, so the level editor asks for new ones. */
+export const LAYOUT_VERSION = 6;
 
 export const BOARD = { x: 105, y: 172, w: 870, h: 798 };
 /** Inner edge of the board frame; sand never goes outside it. */
@@ -52,6 +52,9 @@ export const SPEED_BTN = { x: 852, y: 44, w: 190, h: 104 };
 export const ANT_SPEED = 420; // px/s, matched to Colony Flow
 export const DRAIN_RATE = 260; // picture cells per second
 export const SUB = 8; // sand grains per picture cell, per side
+/** Every level's frame is FRAME_N cells tall, so sand cells are the same size in every level;
+ * a smaller picture sits centred in the frame. */
+export const FRAME_N = 22;
 export const GRAINS_PER_UNIT = SUB * SUB;
 export const GRAINS_PER_PARTICLE = 6;
 export const UNITS_PER_BLOCK = 1; // units of sand (one picture cell each) that compress into a block

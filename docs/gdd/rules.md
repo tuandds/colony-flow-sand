@@ -14,8 +14,9 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 | Grains per picture cell | 8 × 8 = 64 (one *unit*) |
 | Block size | 1 unit = 64 grains of one colour |
 | Board frame | inside 824 × 744 px at (128, 197) |
-| Picture area | built-in pictures: 738 × 738 px at (171, 200); level editor pictures: the whole frame |
-| Swipe radius | max(1.1 × cell size, 34 px) |
+| Picture scale | the same in every level: the frame is 22 cells (176 grains) tall, so a cell is 33.5 px and a grain about 4.2 px; a smaller picture sits centred in the frame |
+| Picture area | 22 cells: 738 × 738 px at (171, 200); level editor pictures can use the whole frame (196 × 176 grains) |
+| Swipe radius | max(1.1 × cell size, 34 px) = 37 px |
 
 - Sand is **fixed** until swiped. Swiped sand becomes **loose** and is drawn 22 % brighter.
 - Loose sand falls with gravity 0.09 grains/step² up to 3.5 grains/step, at 110 steps per second. Blocked below, it slides down-left or down-right; on gentle slopes it creeps sideways toward a drop within 2 grains, with friction 0.82 bleeding off momentum.
@@ -62,7 +63,7 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 
 Ten original pictures. Difficulty rises through picture size, number of colours and nest size (`chunk`, in blocks before the ×2 nest scale). Nine of them were changed in the Level Editor (pictures, and nests for three); the game plays those copies from `src/game/level-edits.json`. Bot result: the test bot (`playBot`) on this build.
 
-| # | Picture | Grid | Colours (with outline) | Chunk | Nests | Edited | Bot |
+| # | Picture | Size (cells) | Colours (with outline) | Chunk | Nests | Edited | Bot |
 |---|---|---|---|---|---|---|---|
 | 1 | Cherries | 14 | 5 | 3–5 | set in the editor | yes | win |
 | 2 | Ice Cream | 16 | 5 | 3–6 | rows | yes | win |

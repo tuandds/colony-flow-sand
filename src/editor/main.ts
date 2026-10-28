@@ -6,7 +6,7 @@
 // The game's built-in levels are in the Level Bank too (ids builtin-<i>); the game plays the
 // saved copies, and on the dev server saving also writes them to src/game/level-edits.json.
 import type { Recording } from '../game/bot';
-import { COLS, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
+import { COLS, FRAME_N, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
 import EDITS from '../game/level-edits.json';
 import { BANK_COLOURS, CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, builtinDefs, decodeSand, encodeSand, loadCustomLevels, useLevels } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
@@ -108,7 +108,7 @@ function loadLevels(): EdLevel[] {
         if (!chapters.some((c) => c.id === BUILTIN_CHAPTER)) chapters.unshift({ id: BUILTIN_CHAPTER, name: 'Game', description: 'Các màn có sẵn trong game', levels: game.map((d) => d.id!) });
     }
     const out = list.map(normalize);
-    return out.length ? out : [blankLevel(20)];
+    return out.length ? out : [blankLevel()];
 }
 /** Whether a built-in level's copy plays differently from the original (or is renamed). */
 const ORIGINALS = new Map(builtinDefs().map((d) => [d.id!, d]));
@@ -133,18 +133,18 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
         const same = BANK.find((c) => c.hex === hex);
         keyOf.set(k, same ? same.key : nearestKey(hexLab(hex), BANK.map((c) => c.key)));
     }
-    const n = L.n || 20;
-    let sand: Sand;
-    // pictures cover the game's whole frame; older square ones are widened where they sat
-    const { w: FW, h: FH } = frameGrains(n);
-    let cut = false;
+    // pictures cover the game's whole frame, which is FRAME_N cells in every level; smaller or
+    // older pictures (a square, an older frame, another size) sit centred in it, as in the game
+    const n = FRAME_N, { w: FW, h: FH } = frameGrains(n);
+    let sand: Sand, cut = false;
     if (L.sand && L.sand.size === FH && (L.sand.w ?? FH) === FW) sand = L.sand;
-    else if (L.sand && L.sand.size === FH) {
-        // a square or an older, wider frame: keep the picture centred in today's frame
-        const fit = fitToFrame(decodeSand(L.sand), L.sand.w ?? FH, n);
+    else {
+        const old = L.sand ? { keys: decodeSand(L.sand), w: L.sand.w ?? L.sand.size, h: L.sand.size }
+            : { keys: rowsToGrains(L.rows || [], L.n || 20, (c) => keyOf.get(c) ?? BANK[0].key), ...frameGrains(L.n || 20) };
+        const fit = fitToFrame(old.keys, old.w, old.h);
         sand = encodeSand(FH, fit.keys, FW);
         cut = fit.cut;
-    } else sand = encodeSand(FH, rowsToGrains(L.rows || [], n, (c) => keyOf.get(c) ?? BANK[0].key), FW);
+    }
     return {
         id: L.id || uid(), name: L.name || 'Màn mới', n, chunk: L.chunk || [4, 7], sand,
         order: L.order || 'rows', seed: L.seed ?? 0, salt: L.salt ?? randomSalt(),
@@ -159,8 +159,8 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
         palette: Array.isArray(L.palette) ? L.palette.map((k) => keyOf.get(k) ?? k) : undefined,
     };
 }
-function blankLevel(n: number): EdLevel {
-    const { w, h } = frameGrains(n);
+function blankLevel(): EdLevel {
+    const n = FRAME_N, { w, h } = frameGrains(n);
     return { id: uid(), name: 'Màn mới', n, chunk: [4, 7], sand: encodeSand(h, new Array<string>(w * h).fill('.'), w),
         order: 'rows', seed: 0, salt: randomSalt(), cols: COLS, layout: LAYOUT_VERSION, status: 'WIP', comment: '', updated: Date.now() };
 }
@@ -934,7 +934,7 @@ function selectLevel(i: number) {
 }
 function newLevel() {
     bankSnapshot();
-    const l = blankLevel(20);
+    const l = blankLevel();
     levels.splice(cur + 1, 0, l);
     chapters.find((c) => c.id === bankChapter)?.levels.push(l.id);
     selectLevel(cur + 1);
@@ -951,7 +951,7 @@ function deleteLevel(i: number) {
     bankSnapshot();
     const [gone] = levels.splice(i, 1);
     for (const c of chapters) c.levels = c.levels.filter((id) => id !== gone.id);
-    if (!levels.length) levels.push(blankLevel(20));
+    if (!levels.length) levels.push(blankLevel());
     selectLevel(Math.min(cur, levels.length - 1));
 }
 
@@ -1041,19 +1041,21 @@ function openGen() {
 function runGen() {
     clearTimeout(genTimer);
     genTimer = window.setTimeout(() => {
-        const cv = $<HTMLCanvasElement>('gen-preview'), { w: FW, h: FH } = frameGrains(gen.n), dpr = window.devicePixelRatio || 1;
+        // the preview is the whole frame at the game's scale, the picture (gen.n cells tall) centred in it
+        const cv = $<HTMLCanvasElement>('gen-preview'), { w: FW, h: FH } = frameGrains(FRAME_N), dpr = window.devicePixelRatio || 1;
         cv.style.aspectRatio = `${FW} / ${FH}`;
         const w = cv.clientWidth || 480;
         cv.width = Math.round(w * dpr); cv.height = Math.round((w * FH / FW) * dpr);
         const g = cv.getContext('2d')!;
         g.fillStyle = '#f0dcb4'; g.fillRect(0, 0, cv.width, cv.height);
         if (!genImage) { $('gen-summary').innerHTML = '<span class="hint">Chọn một ảnh để xem trước.</span>'; $<HTMLButtonElement>('gen-apply').disabled = true; return; }
-        genResult = imageToSand(genImage, { ...gen, keys: genActiveOnly ? activeKeys() : undefined });
+        const pic = frameGrains(gen.n);
+        genResult = fitToFrame(imageToSand(genImage, { ...gen, keys: genActiveOnly ? activeKeys() : undefined }), pic.w, pic.h).keys;
         drawSand(g, genResult, FW, FH, 0, 0, cv.width, cv.height);
         const c = [...countKeys(genResult)].sort((a, b) => b[1] - a[1]);
         const total = c.reduce((s, [, n]) => s + Math.floor(n / 64), 0);
         $('gen-summary').innerHTML = c.map(([k, n]) => `<span class="chip" title="${NAME.get(k)}"><i style="background:${HEX.get(k)}"></i>${Math.floor(n / 64)}</span>`).join('') +
-            `<span class="chip">≈ ${total} khối · ${FW}×${FH} hạt</span>`;
+            `<span class="chip">≈ ${total} khối · tranh ${pic.w}×${pic.h} hạt</span>`;
         $<HTMLButtonElement>('gen-apply').disabled = false;
     }, 80);
 }
@@ -1074,7 +1076,7 @@ function applyGen() {
     if (!genResult) return;
     sandSnapshot();
     const l = L();
-    l.n = gen.n; grains = genResult.slice();
+    l.n = FRAME_N; grains = genResult.slice();
     if (l.name === 'Màn mới' && genName) l.name = genName;
     $('gen-modal').classList.remove('on');
     pictureChanged();
@@ -1528,7 +1530,7 @@ $('org-delete-selected').onclick = () => {
         bankSnapshot();
         levels = levels.filter((l) => !orgSelected.has(l.id));
         for (const c of chapters) c.levels = c.levels.filter((id) => !orgSelected.has(id));
-        if (!levels.length) levels.push(blankLevel(20));
+        if (!levels.length) levels.push(blankLevel());
         cur = 0; grains = decodeSand(L().sand);
     } else { orgPush(); orgDraft = orgDraft.filter((id) => !orgSelected.has(id)); }
     orgSelected.clear();

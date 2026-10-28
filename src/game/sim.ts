@@ -3,7 +3,7 @@
 import {
     ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, BOARD, COLS, DRAIN_RATE, DROP_S, FMASK, FMASK_COUNT,
     FUNNEL, FUNNEL_HZ, GRAINS_PER_PARTICLE, GRAINS_PER_UNIT, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS,
-    MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colX, frameGrains, funnelHalf, nestPos,
+    FRAME_N, MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colX, frameGrains, funnelHalf, nestPos,
 } from './layout';
 import { Level, buildLevel, decodeSand } from './levels';
 import { hash, mulberry32, packColor } from './util';
@@ -69,21 +69,25 @@ export class Sim {
     start(i: number) {
         this.levelIndex = i;
         const L = (this.L = buildLevel(i));
-        const n = (this.n = L.n);
+        this.n = L.n;
         // Each picture cell is split into SUB x SUB sand grains that are simulated one by one.
-        // The simulated area reaches the board's inner frame on both sides (and is padded above),
-        // so loose sand on the picture's edges can still slide off and fall until the frame stops it.
-        const { h: PG, gs, pad } = frameGrains(n), top = 2 * pad;
+        // The frame is always FRAME_N cells tall, so grains are the same size in every level. The
+        // simulated area reaches the board's inner frame on both sides (and is padded above), so
+        // loose sand on the picture's edges can still slide off and fall until the frame stops it.
+        const { h: PG, gs, pad } = frameGrains(FRAME_N), top = 2 * pad;
         const G = (this.G = PG + 2 * pad);
         const keys = (this.keys = [null, ...Object.keys(L.colors)]);
         const key = new Uint8Array(G * G), rgb = new Uint32Array(G * G);
-        // grain-level pictures (level editor) give every grain, as wide as the frame (or a
-        // centred square); the others one key per cell in the centred picture square
-        const grains = L.sand && L.sand.size === PG ? decodeSand(L.sand) : null;
-        const SW = grains ? L.sand!.w ?? PG : PG, x0 = Math.floor((G - SW) / 2);
-        for (let gy = 0; gy < PG; gy++) for (let gx = 0; gx < SW; gx++) {
+        // grain-level pictures (level editor) give every grain; the others one key per cell of an
+        // n-cell square. Either way the picture sits centred in the frame (anything outside the
+        // frame is cut off).
+        const grains = L.sand ? decodeSand(L.sand) : null;
+        const SH = grains ? L.sand!.size : L.n * SUB, SW = grains ? L.sand!.w ?? SH : SH;
+        const x0 = Math.floor((G - SW) / 2), y0 = top + Math.floor((PG - SH) / 2);
+        for (let gy = 0; gy < SH; gy++) for (let gx = 0; gx < SW; gx++) {
             const k = grains ? grains[gy * SW + gx] : L.grid[(gy / SUB) | 0][(gx / SUB) | 0];
-            if (k && k !== '.' && gx + x0 >= 0 && gx + x0 < G) key[(gy + top) * G + gx + x0] = Math.max(0, keys.indexOf(k));
+            const x = gx + x0, y = gy + y0;
+            if (k && k !== '.' && x >= 0 && x < G && y >= top && y < top + PG) key[y * G + x] = Math.max(0, keys.indexOf(k));
         }
         fitWholeBlocks(key, G, keys.length);
         for (let p = 0; p < key.length; p++) {
@@ -96,7 +100,7 @@ export class Sim {
         this.dr = new Uint8Array(G * G); this.loose = new Uint8Array(G * G);
         this.vx = new Float32Array(G * G); this.vy = new Float32Array(G * G);
         this.colors = L.colors; this.total = total; this.drained = 0;
-        this.cell = PIC.size / n; this.gs = gs; this.ox = PIC.x - pad * gs; this.oy = PIC.y - top * gs;
+        this.cell = PIC.size / FRAME_N; this.gs = gs; this.ox = PIC.x - pad * gs; this.oy = PIC.y - top * gs;
         this.picDirty = true;
         this.queue = []; this.qHead = 0; this.drainCarry = 0;
         this.particles = []; this.emitAcc = {}; this.emitAt = {};

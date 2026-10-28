@@ -1,7 +1,7 @@
 // Image -> grain-level sand picture, and drawing sand the way the game does. A picture is one
 // palette key per grain ('.' = empty), w x h grains covering the game's whole frame
 // (frameGrains in layout.ts), so what the editor shows is what the game shows.
-import { SUB, frameGrains } from '../game/layout';
+import { FRAME_N, SUB, frameGrains } from '../game/layout';
 import { BANK_COLOURS, SAND_PALETTE } from '../game/levels';
 import { hash, packColor } from '../game/util';
 
@@ -214,14 +214,16 @@ export function rowsToGrains(rows: string[], n: number, keyOf: (c: string) => st
     return out;
 }
 
-/** Fit a picture `oldW` grains wide (earlier editor levels: a square, or an older, wider frame)
- * to the frame's width, keeping it centred; returns the grains and whether any sand was cut. */
-export function fitToFrame(keys: string[], oldW: number, n: number) {
-    const { w, h } = frameGrains(n), out = new Array<string>(w * h).fill('.'), dx = Math.floor((w - oldW) / 2);
+/** Put a picture `oldW` x `oldH` grains (a smaller picture, an earlier editor level's square or
+ * frame) centred in the game's frame (FRAME_N cells), where the game shows it; returns the
+ * grains and whether any sand fell outside the frame and was cut. */
+export function fitToFrame(keys: string[], oldW: number, oldH: number) {
+    const { w, h } = frameGrains(FRAME_N), out = new Array<string>(w * h).fill('.');
+    const dx = Math.floor((w - oldW) / 2), dy = Math.floor((h - oldH) / 2);
     let cut = false;
-    for (let y = 0; y < h; y++) for (let x = 0; x < oldW; x++) {
-        const k = keys[y * oldW + x] ?? '.', nx = x + dx;
-        if (nx >= 0 && nx < w) out[y * w + nx] = k;
+    for (let y = 0; y < oldH; y++) for (let x = 0; x < oldW; x++) {
+        const k = keys[y * oldW + x] ?? '.', nx = x + dx, ny = y + dy;
+        if (nx >= 0 && nx < w && ny >= 0 && ny < h) out[ny * w + nx] = k;
         else if (k !== '.') cut = true;
     }
     return { keys: out, cut };

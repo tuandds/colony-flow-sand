@@ -4,7 +4,7 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
-- No changes since v1.0.1.
+- **Same sand scale in every level:** the frame is always 22 cells tall, so sand cells and grains are the same size in every level; smaller pictures (Cherries, Ice Cream and others) now sit centred in the frame instead of being blown up. In the Level Editor, picture size (12–22) sets how big the picture is in the frame. Recorded editor wins need to be made again; the bot still clears the same levels as before.
 
 [Play latest](https://tuandds.github.io/colony-flow-sand/demo/)
 

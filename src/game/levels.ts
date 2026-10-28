@@ -1,7 +1,7 @@
 // Sand pictures for the levels. Each level is an N x N grid of colour keys, given either as
 // rows of characters ('.' = empty) or painted with simple shapes. Empty cells hold no sand,
 // so pictures can have any outline.
-import { SUB, frameGrains } from './layout';
+import { FRAME_N, SUB, frameGrains } from './layout';
 import EDITS from './level-edits.json';
 
 type Grid = (string | null)[][];
@@ -319,22 +319,22 @@ export const builtinId = (i: number) => 'builtin-' + i;
 
 /**
  * The built-in levels as the level editor keeps them: grain pictures in the Colour Bank's keys
- * (matched by colour), as wide as the frame, with `salt` set to the level's number so the game
- * makes the same nests as for the original.
+ * (matched by colour) filling the FRAME_N frame, the picture centred in it as the game shows it,
+ * with `salt` set to the level's number so the game makes the same nests as for the original.
  */
 export function builtinDefs(): LevelDef[] {
     return LEVELS.map((L, i) => {
-        const { w, h, pad } = frameGrains(L.n), keys = new Array<string>(w * h).fill('.');
-        const g = buildDef(L).grid;
+        const { w, h } = frameGrains(FRAME_N), keys = new Array<string>(w * h).fill('.');
+        const g = buildDef(L).grid, s = L.n * SUB, x0 = Math.floor((w - s) / 2), y0 = Math.floor((h - s) / 2);
         const keyOf = (c: string) => { const hex = L.colors[c].toLowerCase(); return SAME_AS[hex] ?? SAND_PALETTE.find((p) => p.hex.toLowerCase() === hex)?.key ?? c; };
-        for (let y = 0; y < h; y++) for (let x = 0; x < h; x++) {
+        for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
             const c = g[(y / SUB) | 0][(x / SUB) | 0];
-            if (c) keys[y * w + x + pad] = keyOf(c);
+            if (c) keys[(y + y0) * w + x + x0] = keyOf(c);
         }
         const colors: Record<string, string> = {};
         for (const k of new Set(keys)) if (k !== '.') colors[k] = SAND_PALETTE.find((p) => p.key === k)?.hex ?? L.colors[k];
         const { paint: _p, rows: _r, ...rest } = L;
-        return { ...rest, id: builtinId(i), colors, sand: encodeSand(h, keys, w), salt: L.salt ?? i };
+        return { ...rest, id: builtinId(i), n: FRAME_N, colors, sand: encodeSand(h, keys, w), salt: L.salt ?? i };
     });
 }
 
