@@ -7,7 +7,7 @@ import type { Recording } from '../game/bot';
 import { COLS, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
 import { CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, decodeSand, encodeSand, loadCustomLevels, useLevels } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
-import { type ConvertOpts, HEX, NAME, countKeys, drawSand, fitToFrame, hexLab, imageToSand, nearestKey, rowsToGrains } from './sand';
+import { BANK, type BankColour, type ConvertOpts, HEX, NAME, countKeys, drawSand, fitToFrame, hexLab, imageToSand, nearestKey, rowsToGrains, setBank } from './sand';
 import type { SolveJob, SolveResult } from './solver.worker';
 
 type Status = 'WIP' | 'REVIEW' | 'LIVE';
@@ -26,6 +26,8 @@ interface EdLevel {
     /** LAYOUT_VERSION the level was made with (recorded swipes are in screen positions). */
     layout?: number;
     status: Status; comment: string; updated: number;
+    /** The level's Active Palette (Colour Bank keys); colours in the picture are always shown too. */
+    palette?: string[];
     /** Last Organizer Auto Play result (not saved). */
     autoplay?: Result;
 }
@@ -35,6 +37,8 @@ type Tool = 'paint' | 'erase' | 'fill' | 'replace' | 'pick';
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 const CHAPTER_KEY = 'cf_custom_chapters', BACKUP_KEY = 'cf_custom_backups', HISTORY_KEY = 'cf_custom_history', UI_KEY = 'cf_editor_ui';
+/** The edited Colour Bank (order, names, colours, added colours). */
+const BANK_KEY = 'cf_editor_bank';
 const MAX_BACKUPS = 15, MAX_HISTORY = 10;
 const DIFFS: { key: string; label: string; short: string; chunk: [number, number] }[] = [
     { key: '3,5', label: 'Rất dễ', short: 'Rất dễ', chunk: [3, 5] }, { key: '4,6', label: 'Dễ', short: 'Dễ', chunk: [4, 6] },
@@ -47,12 +51,13 @@ const randomSalt = () => 100 + Math.floor(Math.random() * 9000);
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
 // ---------- state ----------
+setBank(loadBank());
 let levels: EdLevel[] = loadLevels();
 let chapters: Chapter[] = loadJson<Chapter[]>(CHAPTER_KEY, []);
 let savedAll = snapshotAll();
 let cur = 0;
 let grains: string[] = decodeSand(levels[0].sand);
-let colour = SAND_PALETTE[0].key;
+let colour = BANK[0].key;
 let tool: Tool = 'paint';
 let brush = 6;
 let sandUndo: string[] = [], sandRedo: string[] = [];
@@ -65,6 +70,11 @@ const filters = { status: new Set<string>(), diff: new Set<string>(), check: new
 function loadJson<T>(key: string, fallback: T): T {
     try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return v ?? fallback; } catch { return fallback; }
 }
+function loadBank(): BankColour[] {
+    const saved = loadJson<BankColour[]>(BANK_KEY, []);
+    const ok = Array.isArray(saved) && saved.length && saved.every((c) => c && /^[A-Za-z]$/.test(c.key) && /^#[0-9a-f]{6}$/i.test(c.hex) && c.name);
+    return ok ? saved : SAND_PALETTE.map((c) => ({ ...c }));
+}
 function loadLevels(): EdLevel[] {
     const list = loadCustomLevels(CUSTOM_KEY).map(normalize);
     return list.length ? list : [blankLevel(20)];
@@ -75,8 +85,10 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
     // keys of older levels were their own; match them to the palette by colour
     const keyOf = new Map<string, string>();
     for (const [k, hex] of Object.entries(L.colors || {})) {
-        const same = SAND_PALETTE.find((c) => c.hex === hex && (!L.sand || c.key === k));
-        keyOf.set(k, same ? same.key : nearestKey(hexLab(hex), SAND_PALETTE.map((c) => c.key)));
+        // grain pictures already use bank keys; first-version levels are matched by colour
+        if (L.sand) { keyOf.set(k, k); if (!HEX.has(k)) { HEX.set(k, hex); NAME.set(k, k); } continue; }
+        const same = BANK.find((c) => c.hex === hex);
+        keyOf.set(k, same ? same.key : nearestKey(hexLab(hex), BANK.map((c) => c.key)));
     }
     const n = L.n || 20;
     let sand: Sand;
@@ -89,8 +101,7 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
         const fit = fitToFrame(decodeSand(L.sand), L.sand.w ?? FH, n);
         sand = encodeSand(FH, fit.keys, FW);
         cut = fit.cut;
-    } else sand = encodeSand(FH, rowsToGrains(L.rows || [], n, (c) => keyOf.get(c) ?? SAND_PALETTE[0].key), FW);
-    if (L.sand) for (const c of SAND_PALETTE) keyOf.set(c.key, c.key);
+    } else sand = encodeSand(FH, rowsToGrains(L.rows || [], n, (c) => keyOf.get(c) ?? BANK[0].key), FW);
     return {
         id: L.id || uid(), name: L.name || 'Màn mới', n, chunk: L.chunk || [4, 7], sand,
         order: L.order || 'rows', seed: L.seed ?? 0, salt: L.salt ?? randomSalt(),
@@ -102,6 +113,7 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
         verified: !L.sand ? undefined : (L.layout ?? 1) !== LAYOUT_VERSION || cut ? (L.verified === undefined ? undefined : false) : L.verified,
         layout: LAYOUT_VERSION,
         status: L.status || 'WIP', comment: L.comment || '', updated: L.updated || Date.now(),
+        palette: Array.isArray(L.palette) ? L.palette.map((k) => keyOf.get(k) ?? k) : undefined,
     };
 }
 function blankLevel(n: number): EdLevel {
@@ -336,33 +348,159 @@ function pickColour(k: string) {
     if (tool === 'erase' || tool === 'pick') tool = 'paint';
     renderColourBank(); renderTools();
 }
+/** The level's Active Palette: its chosen colours, then any other colour in the picture. */
+function activeKeys(): string[] {
+    const used = countKeys(grains), list = (L().palette ?? []).filter((k) => HEX.has(k));
+    for (const c of BANK) if (used.has(c.key) && !list.includes(c.key)) list.push(c.key);
+    for (const k of used.keys()) if (!list.includes(k)) list.push(k);
+    return list;
+}
+function addToPalette(k: string) {
+    const list = activeKeys();
+    if (list.includes(k)) return;
+    L().palette = [...list, k];
+    renderDirty();
+}
+function removeFromPalette(k: string) {
+    if (countKeys(grains).has(k)) { toast(`${NAME.get(k)} đang có trong tranh: không bỏ khỏi Active Palette được`); return; }
+    L().palette = activeKeys().filter((x) => x !== k);
+    renderColourBank(); renderDirty();
+}
+/** Long-press (or right-click) opens the colour's editor; a plain tap does `tap`. */
+function pressable(el: HTMLElement, key: string, tap: () => void) {
+    let timer = 0, long = false;
+    el.onpointerdown = (e) => { if (e.button !== 0) return; long = false; timer = window.setTimeout(() => { long = true; openColour(key); }, 450); };
+    el.onpointerup = el.onpointerleave = () => clearTimeout(timer);
+    el.onclick = () => { if (!long) tap(); };
+    el.oncontextmenu = (e) => { e.preventDefault(); openColour(key); };
+}
+let bankDrag: number | null = null;
 function renderColourBank() {
     const used = countKeys(grains);
     const ap = $('active-pal');
     ap.innerHTML = '';
-    for (const c of SAND_PALETTE.filter((x) => used.has(x.key))) {
-        const b = document.createElement('button');
-        b.className = 'pal-btn' + (c.key === colour && tool !== 'erase' ? ' on' : '');
-        b.style.background = c.hex; b.title = `${c.name} · ${used.get(c.key)} hạt`;
-        b.onclick = () => pickColour(c.key);
-        ap.appendChild(b);
-    }
     const er = document.createElement('button');
     er.className = 'pal-btn eraser' + (tool === 'erase' ? ' on' : '');
-    er.title = 'Tẩy (E)'; er.textContent = '⌫';
+    er.title = 'Tẩy (E)';
+    er.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
     er.onclick = () => { tool = 'erase'; renderColourBank(); renderTools(); };
     ap.appendChild(er);
+    activeKeys().forEach((k, i) => {
+        const b = document.createElement('button');
+        b.className = 'pal-btn' + (k === colour && tool !== 'erase' ? ' on' : '');
+        b.style.background = HEX.get(k)!;
+        b.title = `${NAME.get(k)}${used.has(k) ? ` · ${used.get(k)} hạt` : ''}${i < 10 ? ` · phím ${(i + 1) % 10}` : ''} (giữ để sửa, kéo ra Bank để bỏ)`;
+        b.draggable = true;
+        b.ondragstart = (e) => { e.dataTransfer!.setData('text/x-cf-active', k); };
+        pressable(b, k, () => pickColour(k));
+        ap.appendChild(b);
+    });
+    // drop a bank colour here to add it
+    ap.ondragover = (e) => { if (e.dataTransfer?.types.includes('text/x-cf-colour')) { e.preventDefault(); ap.classList.add('drop'); } };
+    ap.ondragleave = () => ap.classList.remove('drop');
+    ap.ondrop = (e) => { e.preventDefault(); ap.classList.remove('drop'); const k = e.dataTransfer!.getData('text/x-cf-colour'); if (k) { addToPalette(k); pickColour(k); } };
+
     const bank = $('bank-colours');
     bank.innerHTML = '';
-    for (const c of SAND_PALETTE) {
-        const b = document.createElement('button');
-        b.className = 'bank-colour' + (c.key === colour ? ' on' : '') + (used.has(c.key) ? ' used' : '');
-        b.innerHTML = `<i style="background:${c.hex}"></i><span>${c.name}</span>`;
-        b.title = c.hex;
-        b.onclick = () => pickColour(c.key);
-        bank.appendChild(b);
-    }
+    BANK.forEach((c, i) => {
+        const row = document.createElement('div');
+        row.className = 'cb-row' + (c.key === colour ? ' on' : '') + (used.has(c.key) ? ' used' : '');
+        row.innerHTML = '<span class="cb-grip" title="Kéo để đổi thứ tự">⠿</span>';
+        const sw = document.createElement('div');
+        sw.className = 'cb-sw'; sw.style.background = c.hex;
+        const pill = document.createElement('div');
+        pill.className = 'cb-name'; pill.textContent = c.name;
+        for (const el of [sw, pill]) {
+            el.title = `${c.name} · ${c.hex} — bấm để vẽ, kéo vào Active Palette, giữ để sửa`;
+            el.draggable = true;
+            el.ondragstart = (e) => { e.stopPropagation(); e.dataTransfer!.setData('text/x-cf-colour', c.key); };
+            pressable(el, c.key, () => { addToPalette(c.key); pickColour(c.key); });
+        }
+        row.append(sw, pill);
+        // drag the grip to reorder the bank
+        const grip = row.querySelector<HTMLElement>('.cb-grip')!;
+        grip.draggable = true;
+        grip.ondragstart = (e) => { bankDrag = i; e.dataTransfer!.setData('text/x-cf-bank', String(i)); };
+        row.ondragover = (e) => { if (bankDrag !== null) { e.preventDefault(); row.classList.add('drop-before'); } };
+        row.ondragleave = () => row.classList.remove('drop-before');
+        row.ondrop = (e) => {
+            row.classList.remove('drop-before');
+            if (bankDrag === null) return;
+            e.preventDefault(); e.stopPropagation();
+            const list = [...BANK], [m] = list.splice(bankDrag, 1);
+            list.splice(bankDrag < i ? i - 1 : i, 0, m);
+            bankDrag = null;
+            saveBank(list);
+        };
+        bank.appendChild(row);
+    });
+    // drop an Active Palette colour on the bank to take it off the palette
+    bank.ondragover = (e) => { if (e.dataTransfer?.types.includes('text/x-cf-active')) e.preventDefault(); };
+    bank.ondrop = (e) => { const k = e.dataTransfer?.getData('text/x-cf-active'); if (k) { e.preventDefault(); removeFromPalette(k); } };
 }
+
+// ---------- editing the Colour Bank ----------
+const KEY_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+let editingKey: string | null = null;
+function saveBank(list: BankColour[]) {
+    setBank(list);
+    try { localStorage.setItem(BANK_KEY, JSON.stringify(list)); } catch { toast('Không lưu được Colour Bank'); }
+    thumbCache.clear();
+    if (!BANK.some((c) => c.key === colour)) colour = BANK[0].key;
+    renderAll();
+}
+/** Levels whose picture uses colour key k. */
+const levelsUsing = (k: string) => levels.filter((l) => l.sand.data.includes(k));
+function openColour(key: string | null) {
+    editingKey = key;
+    const c = key ? BANK.find((x) => x.key === key) ?? { key, name: NAME.get(key) ?? key, hex: HEX.get(key) ?? '#888888' } : null;
+    $('ce-title').textContent = c ? `Sửa màu · ${c.name}` : 'Thêm màu';
+    $<HTMLInputElement>('ce-name').value = c ? c.name : '';
+    $<HTMLInputElement>('ce-color').value = c ? c.hex : '#88aacc';
+    const n = key ? levelsUsing(key).length : 0;
+    $('ce-hint').textContent = key ? (n ? `Đang dùng ở ${n} màn: đổi màu sẽ đổi màu cát ở các màn đó khi lưu.` : 'Chưa màn nào dùng màu này.') : 'Tên là một từ, không dấu cách (vd: mint, darkBlue).';
+    $<HTMLButtonElement>('ce-delete').hidden = !key;
+    $<HTMLButtonElement>('ce-remove').hidden = !key || !activeKeys().includes(key);
+    $('colour-modal').classList.add('on');
+    $<HTMLInputElement>('ce-name').focus();
+}
+function closeColour() { $('colour-modal').classList.remove('on'); editingKey = null; }
+$('ce-cancel').onclick = closeColour;
+$('ce-save').onclick = () => {
+    const name = $<HTMLInputElement>('ce-name').value.trim(), hex = $<HTMLInputElement>('ce-color').value.toLowerCase();
+    if (!/^[A-Za-z][A-Za-z0-9_-]{0,23}$/.test(name)) { toast('Tên màu là một từ: chữ cái đầu, không dấu cách'); return; }
+    if (BANK.some((c) => c.key !== editingKey && c.name.toLowerCase() === name.toLowerCase())) { toast(`Đã có màu tên “${name}”`); return; }
+    const list = BANK.map((c) => ({ ...c }));
+    if (editingKey) {
+        const c = list.find((x) => x.key === editingKey);
+        if (c) Object.assign(c, { name, hex }); else list.push({ key: editingKey, name, hex });
+    } else {
+        const key = [...KEY_CHARS].find((k) => !HEX.has(k) && !list.some((c) => c.key === k));
+        if (!key) { toast('Colour Bank đã đầy (52 màu)'); return; }
+        list.push({ key, name, hex });
+        colour = key;
+        addToPalette(key);
+    }
+    closeColour();
+    saveBank(list);
+};
+$('ce-delete').onclick = () => {
+    const k = editingKey;
+    if (!k) return;
+    const n = levelsUsing(k).length;
+    if (n) { toast(`Màu đang dùng ở ${n} màn: thay màu đó trong tranh trước khi xoá`); return; }
+    if (!confirm(`Xoá màu “${NAME.get(k)}” khỏi Colour Bank?`)) return;
+    for (const l of levels) if (l.palette) l.palette = l.palette.filter((x) => x !== k);
+    closeColour();
+    saveBank(BANK.filter((c) => c.key !== k));
+};
+$('ce-remove').onclick = () => { const k = editingKey; closeColour(); if (k) removeFromPalette(k); };
+$('cb-add').onclick = () => openColour(null);
+$('cb-reset').onclick = () => {
+    if (!confirm('Đặt lại Colour Bank về 21 màu gốc của game? (Màu đã thêm mà đang dùng trong tranh vẫn vẽ được.)')) return;
+    saveBank(SAND_PALETTE.map((c) => ({ ...c })));
+};
+
 const TOOLS: [Tool, string, string][] = [['paint', '✏️', 'Vẽ (B)'], ['erase', '🧽', 'Tẩy (E)'], ['fill', '🪣', 'Đổ màu vùng (G)'], ['replace', '🔁', 'Thay cả màu (R)'], ['pick', '💧', 'Hút màu (I)']];
 function renderTools() {
     $('tools').innerHTML = '';
@@ -839,6 +977,7 @@ function showBackups() {
 
 // ---------- generate from an image ----------
 const gen: ConvertOpts = { n: 20, colors: 6, bg: 12, outline: false, smooth: 1, fit: 'contain' };
+let genActiveOnly = false;
 let genImage: HTMLImageElement | null = null, genName = '', genResult: string[] | null = null, genTimer = 0;
 
 function openGen() {
@@ -861,7 +1000,7 @@ function runGen() {
         const g = cv.getContext('2d')!;
         g.fillStyle = '#f0dcb4'; g.fillRect(0, 0, cv.width, cv.height);
         if (!genImage) { $('gen-summary').innerHTML = '<span class="hint">Chọn một ảnh để xem trước.</span>'; $<HTMLButtonElement>('gen-apply').disabled = true; return; }
-        genResult = imageToSand(genImage, gen);
+        genResult = imageToSand(genImage, { ...gen, keys: genActiveOnly ? activeKeys() : undefined });
         drawSand(g, genResult, FW, FH, 0, 0, cv.width, cv.height);
         const c = [...countKeys(genResult)].sort((a, b) => b[1] - a[1]);
         const total = c.reduce((s, [, n]) => s + Math.floor(n / 64), 0);
@@ -903,6 +1042,7 @@ for (const [id, key] of [['g-size', 'n'], ['g-colors', 'colors'], ['g-bg', 'bg']
     $<HTMLInputElement>(id).oninput = (e) => { gen[key] = +(e.target as HTMLInputElement).value; $(id + '-v').textContent = String(gen[key]); runGen(); };
 }
 $<HTMLInputElement>('g-outline').onchange = (e) => { gen.outline = (e.target as HTMLInputElement).checked; runGen(); };
+$<HTMLInputElement>('g-active').onchange = (e) => { genActiveOnly = (e.target as HTMLInputElement).checked; runGen(); };
 $<HTMLSelectElement>('g-fit').onchange = (e) => { gen.fit = (e.target as HTMLSelectElement).value as ConvertOpts['fit']; runGen(); };
 $('gen-cancel').onclick = () => $('gen-modal').classList.remove('on');
 $('gen-apply').onclick = applyGen;
@@ -1374,12 +1514,13 @@ window.addEventListener('keydown', (e) => {
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
-    if (e.key === 'Escape') { closePlay(); $('gen-modal').classList.remove('on'); $('list-modal').classList.remove('on'); return; }
+    if (e.key === 'Escape') { closePlay(); closeColour(); $('gen-modal').classList.remove('on'); $('list-modal').classList.remove('on'); return; }
     if (typing || mode !== 'editor') return;
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redoSand(); else undoSand(); return; }
     if (mod) return;
     if (e.key === '[') { brush = Math.max(2, brush - 1); renderTools(); drawSandCanvas(); return; }
     if (e.key === ']') { brush = Math.min(24, brush + 1); renderTools(); drawSandCanvas(); return; }
+    if (/^[0-9]$/.test(e.key)) { const k = activeKeys()[(+e.key + 9) % 10]; if (k) pickColour(k); return; }
     const t = ({ b: 'paint', e: 'erase', g: 'fill', r: 'replace', i: 'pick' } as Record<string, Tool>)[e.key.toLowerCase()];
     if (t) { tool = t; renderTools(); renderColourBank(); }
 });

@@ -20,8 +20,10 @@ The phone panel can be dragged by its title bar, resized from its corner, reload
 
 ## 1. Colour Bank
 
-- **Active Palette**: the colours in the picture, plus the eraser.
-- **Bank**: the game's 21 sand colours, each with a one-word name. They are the colours of the 10 built-in pictures with near-duplicates merged (CIELAB distance under 14), defined as `SAND_PALETTE` in `src/game/levels.ts`. Click one to paint with it.
+- **Active Palette**: the level's own colours, plus the eraser. Every colour in the picture is always in it. Tap or drag a Bank colour into the box to add one; drag one back onto the Bank to take it off (only if the picture doesn't use it). Keys `1`–`0` pick the first ten. Long-press or right-click a colour to edit it.
+- **Bank** ("every colour a single-word key"): starts as the game's 21 sand colours, the colours of the 10 built-in pictures with near-duplicates merged (CIELAB distance under 14, `SAND_PALETTE` in `src/game/levels.ts`). Each row has a handle (⠿, drag to reorder), a swatch and its name. Tap a colour to paint with it; long-press or right-click to edit it.
+- **Edit colour**: change the name (one word, no spaces, unique) or the colour, take it off this level's Active Palette, or delete it. A colour a picture uses can't be deleted. A changed colour changes that sand in every level using it, from its next save.
+- **＋ Add colour** adds a colour to the Bank (up to 52); **↺** resets the Bank to the 21 game colours. The Bank is kept in the browser (`cf_editor_bank`); each level saves its own colours, so the game shows them as they were when it was saved.
 
 ## 2. Sand Editor
 
@@ -34,7 +36,7 @@ The phone panel can be dragged by its title bar, resized from its corner, reload
 
 ### Generator
 
-Settings: picture size (12–24 cells: the frame is that many cells tall, 96–192 grains, and about 1.11 times as wide), how the image sits in the frame (fit the whole image, or fill the frame and crop), most colours (2–12, the outline not counted), background removal (grains this close in CIELAB to the image's corner colour become empty; transparent pixels are always empty), speckle smoothing (passes of a 3 × 3 majority filter), and an optional dark outline 4 grains wide (off by default, so the picture keeps the image's own edge).
+Settings: only the Active Palette's colours (optional), picture size (12–24 cells: the frame is that many cells tall, 96–192 grains, and about 1.11 times as wide), how the image sits in the frame (fit the whole image, or fill the frame and crop), most colours (2–12, the outline not counted), background removal (grains this close in CIELAB to the image's corner colour become empty; transparent pixels are always empty), speckle smoothing (passes of a 3 × 3 majority filter), and an optional dark outline 4 grains wide (off by default, so the picture keeps the image's own edge).
 
 How it works: every grain takes the nearest palette colour in CIELAB, so "near" means "looks alike". While there are too many colours, it drops the colour whose loss changes the picture least, so a small but distinct detail (a red roof, a sun) is kept. Loose specks smaller than 64 grains are removed, because the game would let them fall at once. The preview shows the result as sand with its block counts; **Apply** replaces the picture.
 

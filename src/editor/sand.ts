@@ -5,9 +5,26 @@ import { SUB, frameGrains } from '../game/layout';
 import { SAND_PALETTE } from '../game/levels';
 import { hash, packColor } from '../game/util';
 
-export const HEX = new Map(SAND_PALETTE.map((c) => [c.key, c.hex]));
-export const NAME = new Map(SAND_PALETTE.map((c) => [c.key, c.name]));
-export const OUTLINE_KEY = SAND_PALETTE.find((c) => c.name === 'ink')!.key;
+/** A Colour Bank entry: `key` is the one-character key in a picture's grain data (never
+ * changes), `name` the single-word name shown in the editor. */
+export interface BankColour { key: string; name: string; hex: string }
+/** The Colour Bank the editor paints and converts images with: the game's sand colours by
+ * default, edited by the user (see setBank). */
+export let BANK: BankColour[] = SAND_PALETTE.map((c) => ({ ...c }));
+export const HEX = new Map<string, string>(), NAME = new Map<string, string>();
+let PAL_LAB = new Map<string, Lab>();
+export function setBank(list: BankColour[]) {
+    BANK = list;
+    // keep colours a picture may still use after they leave the bank, so it still draws
+    for (const c of SAND_PALETTE) if (!HEX.has(c.key)) { HEX.set(c.key, c.hex); NAME.set(c.key, c.name); }
+    for (const c of list) { HEX.set(c.key, c.hex); NAME.set(c.key, c.name); }
+    PAL_LAB = new Map(list.map((c) => [c.key, hexLab(c.hex)]));
+}
+/** Key of the outline colour: the bank's 'ink', or its darkest colour. */
+export function outlineKey() {
+    const ink = BANK.find((c) => c.name === 'ink');
+    return ink ? ink.key : [...BANK].sort((a, b) => hexLab(a.hex)[0] - hexLab(b.hex)[0])[0].key;
+}
 /** Sand the game would shed at once: islands this small fall off by themselves (sim.ts). */
 const MIN_ISLAND = 64;
 /** Outline width in grains; thinner rims would count as debris in the game. */
@@ -24,10 +41,9 @@ export function rgbLab(r: number, g: number, b: number): Lab {
 }
 export function hexLab(hex: string): Lab { const v = parseInt(hex.slice(1), 16); return rgbLab((v >> 16) & 255, (v >> 8) & 255, v & 255); }
 export const dist = (a: Lab, b: Lab) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-const PAL_LAB = new Map(SAND_PALETTE.map((c) => [c.key, hexLab(c.hex)]));
 export function nearestKey(lab: Lab, keys: string[]) {
     let best = keys[0], bd = Infinity;
-    for (const k of keys) { const d = dist(lab, PAL_LAB.get(k)!); if (d < bd) { bd = d; best = k; } }
+    for (const k of keys) { const lk = PAL_LAB.get(k); if (!lk) continue; const d = dist(lab, lk); if (d < bd) { bd = d; best = k; } }
     return best;
 }
 
@@ -43,6 +59,8 @@ export interface ConvertOpts {
     smooth: number;
     /** 'contain': the whole image fits the frame; 'cover': the image fills the frame, cropped. */
     fit: 'contain' | 'cover';
+    /** Colours to choose from (the Active Palette); every bank colour when empty. */
+    keys?: string[];
 }
 
 /** Turn an image into sand: nearest palette colour per grain, few colours, no loose specks. */
@@ -75,13 +93,15 @@ export function imageToSand(img: HTMLImageElement, o: ConvertOpts): string[] {
     for (const id of ids) if (id >= 0) { const c = ((id >> 14) << 8) | (((id >> 8) & 15) << 4) | ((id >> 2) & 15); hist.set(c, (hist.get(c) || 0) + 1); }
     const coarse = [...hist.keys()], weight = coarse.map((c) => hist.get(c)!);
     const labs = coarse.map((c) => rgbLab(((c >> 8) << 4) + 8, (((c >> 4) & 15) << 4) + 8, ((c & 15) << 4) + 8));
-    const PAL = new Map(SAND_PALETTE.map((c) => [c.key, hexLab(c.hex)]));
+    const PAL = new Map(BANK.map((c) => [c.key, hexLab(c.hex)]));
     const best = (lab: Lab, keys: string[]) => {
         let k = keys[0], d = Infinity;
         for (const c of keys) { const e = dist(lab, PAL.get(c)!); if (e < d) { d = e; k = c; } }
         return [k, d] as const;
     };
-    let keep = SAND_PALETTE.map((c) => c.key).filter((k) => k !== OUTLINE_KEY || !o.outline);
+    const rim = outlineKey();
+    let keep = (o.keys?.length ? o.keys : BANK.map((c) => c.key)).filter((k) => PAL.has(k) && (k !== rim || !o.outline));
+    if (!keep.length) keep = BANK.map((c) => c.key);
     keep = [...new Set(labs.map((lab) => best(lab, keep)[0]))];
     while (keep.length > o.colors) {
         let drop = keep[0], least = Infinity;
@@ -169,7 +189,7 @@ export function dropSpecks(keys: string[], w: number, h: number) {
 
 /** Dark rim RIM grains wide around the picture, like the built-in pictures' outline. */
 export function addRim(keys: string[], w: number, h: number) {
-    const out = keys.slice(), d = new Int16Array(w * h).fill(-1), q: number[] = [];
+    const rim = outlineKey(), out = keys.slice(), d = new Int16Array(w * h).fill(-1), q: number[] = [];
     for (let p = 0; p < keys.length; p++) if (keys[p] !== '.') { d[p] = 0; q.push(p); }
     for (let i = 0; i < q.length; i++) {
         const p = q[i], x = p % w, y = (p / w) | 0;
@@ -177,7 +197,7 @@ export function addRim(keys: string[], w: number, h: number) {
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
             const xx = x + dx, yy = y + dy, r = yy * w + xx;
             if (xx < 0 || yy < 0 || xx >= w || yy >= h || d[r] >= 0) continue;
-            d[r] = d[p] + 1; out[r] = OUTLINE_KEY; q.push(r);
+            d[r] = d[p] + 1; out[r] = rim; q.push(r);
         }
     }
     return out;
@@ -227,3 +247,5 @@ export function countKeys(keys: string[]) {
     for (const k of keys) if (k !== '.') c.set(k, (c.get(k) || 0) + 1);
     return c;
 }
+
+setBank(BANK);
