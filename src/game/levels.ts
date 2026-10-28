@@ -344,7 +344,7 @@ export function builtinDefs(): LevelDef[] {
  * (which the editor writes on the dev server); the newer one wins.
  */
 export function gameLevels(): LevelDef[] {
-    const saved = loadCustomLevels(CUSTOM_KEY), file = EDITS as LevelDef[];
+    const saved = loadCustomLevels(CUSTOM_KEY), file = EDITS as unknown as LevelDef[];
     return LEVELS.map((L, i) => {
         const id = builtinId(i), a = saved.find((x) => x.id === id), b = file.find((x) => x.id === id);
         return (a && b ? ((a.updated ?? 0) >= (b.updated ?? 0) ? a : b) : a ?? b) ?? L;

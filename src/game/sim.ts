@@ -44,7 +44,9 @@ export class Sim {
     emitAcc: Record<string, number> = {}; emitAt: Record<string, [number, number, number]> = {};
     // funnel cells: colour key, grain count, colour
     fk: (string | null)[] = []; fn = new Uint8Array(FUNNEL.cols * FUNNEL.rows); fc: number[] = [];
-    fFree = FMASK_COUNT; fT = 0; fExit = 0; fFlip = 0;
+    /** When each funnel clump arrived (a running count), so the oldest leaves first. */
+    fs = new Uint32Array(FUNNEL.cols * FUNNEL.rows); fSeq = 0;
+    fFree = FMASK_COUNT; fT = 0; fExit = 0;
     hopper: Record<string, number> = {};
     pipe: string[] = []; dropping: Block[] = [];
     slots: (Block | null)[] = []; beltOff = 0;
@@ -98,8 +100,8 @@ export class Sim {
         this.picDirty = true;
         this.queue = []; this.qHead = 0; this.drainCarry = 0;
         this.particles = []; this.emitAcc = {}; this.emitAt = {};
-        this.fk = new Array(FUNNEL.cols * FUNNEL.rows).fill(null); this.fn.fill(0); this.fc = new Array(FUNNEL.cols * FUNNEL.rows).fill(0);
-        this.fFree = FMASK_COUNT; this.fT = 0; this.fExit = 0; this.fFlip = 0;
+        this.fk = new Array(FUNNEL.cols * FUNNEL.rows).fill(null); this.fn.fill(0); this.fc = new Array(FUNNEL.cols * FUNNEL.rows).fill(0); this.fs.fill(0); this.fSeq = 0;
+        this.fFree = FMASK_COUNT; this.fT = 0; this.fExit = 0;
         this.hopper = {}; this.pipe = []; this.dropping = [];
         this.slots = new Array(SLOTS).fill(null); this.beltOff = 0;
         this.ncols = Math.max(MIN_COLS, Math.min(MAX_COLS, L.cols ?? COLS));
@@ -369,7 +371,7 @@ export class Sim {
         for (let j = 0; j < 3; j++) for (let d = 0; d < W; d++) for (const i of d ? [col - d, col + d] : [col]) {
             const q = j * W + i;
             if (i < 0 || i >= W || !FMASK[q] || this.fk[q]) continue;
-            this.fk[q] = p.k; this.fn[q] = p.n; this.fc[q] = p.c; this.fFree--;
+            this.fk[q] = p.k; this.fn[q] = p.n; this.fc[q] = p.c; this.fs[q] = ++this.fSeq; this.fFree--;
             return true;
         }
         return false;
@@ -378,23 +380,32 @@ export class Sim {
     // rate, so a big pour piles up and drains slowly.
     private stepFunnel(dt: number) {
         this.fT += dt;
-        const W = FUNNEL.cols, Hh = FUNNEL.rows, { fk, fn, fc } = this;
+        const W = FUNNEL.cols, Hh = FUNNEL.rows, { fk, fn, fc, fs } = this;
         while (this.fT >= 1 / FUNNEL_HZ) {
             this.fT -= 1 / FUNNEL_HZ;
             this.fExit = Math.min(this.fExit + MOUTH_RATE / FUNNEL_HZ, 6);
             const bottom = (Hh - 1) * W;
             // a finished block still sitting in the hole (not yet dropped onto the conveyor)
-            // plugs it: the sand above waits until the block is gone
-            for (let i = 0; i < W && this.fExit >= 1 && !this.pipe.length; i++) {
-                const q = bottom + i;
-                if (!fk[q]) continue;
-                this.addToHopper(fk[q]!, fn[q]);
-                fk[q] = null; this.fFree++; this.fExit--;
+            // plugs it: the sand above waits until the block is gone. The oldest sand at the
+            // bottom goes first; taking cells left to right let newer sand falling into the
+            // left cells jump ahead of older sand lying further along.
+            if (this.fExit >= 1 && !this.pipe.length) {
+                const out: number[] = [];
+                for (let i = 0; i < W; i++) if (fk[bottom + i]) out.push(bottom + i);
+                out.sort((a, b) => fs[a] - fs[b]);
+                for (const q of out) {
+                    if (this.fExit < 1 || this.pipe.length) break;
+                    this.addToHopper(fk[q]!, fn[q]);
+                    fk[q] = null; this.fFree++; this.fExit--;
+                }
             }
-            const flip = (this.fFlip ^= 1);
-            for (let j = Hh - 2; j >= 0; j--) for (let ii = 0; ii < W; ii++) {
-                const i = flip ? ii : W - 1 - ii, q = j * W + i;
-                if (!fk[q]) continue;
+            // the oldest clumps move first, so a gap at the bottom goes to the sand that has
+            // waited longest (often on the walls beside it) rather than to newer sand above it
+            const moving: number[] = [];
+            for (let q = 0; q < bottom; q++) if (fk[q]) moving.push(q);
+            moving.sort((a, b) => fs[a] - fs[b]);
+            for (const q of moving) {
+                const i = q % W;
                 let t = q + W;
                 if (!FMASK[t] || fk[t]) {
                     const l = i > 0 && FMASK[t - 1] && !fk[t - 1], r = i < W - 1 && FMASK[t + 1] && !fk[t + 1];
@@ -410,7 +421,7 @@ export class Sim {
                         t = side;
                     }
                 }
-                fk[t] = fk[q]; fn[t] = fn[q]; fc[t] = fc[q]; fk[q] = null;
+                fk[t] = fk[q]; fn[t] = fn[q]; fc[t] = fc[q]; fs[t] = fs[q]; fk[q] = null;
             }
         }
     }

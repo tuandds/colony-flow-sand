@@ -27,7 +27,9 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 
 - Sand leaving the board falls into the funnel in clumps of up to 6 grains.
 - The funnel is as wide as the sand frame at the top (824 px) and narrows to the hole (92 px) over 110 px. It is its own sand pile (6 px cells, 40 steps/s): clumps fall straight down, and on the gentle walls they slide one cell toward the hole every step.
+- **First in, first out.** The clumps move in the order they arrived, oldest first, so a gap at the bottom is filled by the sand that has waited longest (often beside it on the wall), not by newer sand straight above. The hole also takes the oldest clumps in its bottom row first. Sand that lands far out on a wall still has to slide in, so it can reach the hole after sand that landed right above it.
 - The hole takes 90 clumps per second, but **only while no finished block is waiting in it**. A waiting block plugs the hole until it drops onto the conveyor.
+- Each colour is pressed on its own: a colour's sand waits under the hole until it has 64 grains, so a colour that comes in small amounts can make its block after a colour that came later.
 - When the funnel is full, sand waits at the bottom of the board.
 
 ## 3.4 Conveyor <Badge type="tip" text="Live" />

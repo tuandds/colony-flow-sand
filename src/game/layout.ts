@@ -1,9 +1,9 @@
 // Screen layout and tuning, in game pixels (the game is 1080 x 1920, scaled to fit).
 
 export const W = 1080, H = 1920;
-/** Bumped when the board, funnel or conveyor move: recorded swipes (screen positions) from an
- * older layout no longer replay, so the level editor asks for new ones. */
-export const LAYOUT_VERSION = 4;
+/** Bumped when the board, funnel or conveyor move, or the funnel's rules change: recorded swipes
+ * from an older version no longer replay, so the level editor asks for new ones. */
+export const LAYOUT_VERSION = 5;
 
 export const BOARD = { x: 105, y: 172, w: 870, h: 798 };
 /** Inner edge of the board frame; sand never goes outside it. */

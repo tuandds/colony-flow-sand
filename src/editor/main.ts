@@ -96,7 +96,7 @@ function loadBank(): BankColour[] {
     return saved;
 }
 function loadLevels(): EdLevel[] {
-    const saved = loadCustomLevels(CUSTOM_KEY), file = EDITS as LevelDef[];
+    const saved = loadCustomLevels(CUSTOM_KEY), file = EDITS as unknown as LevelDef[];
     // the game's levels: the copy in src/game/level-edits.json when there is one, else the original
     const game = builtinDefs().map((d) => file.find((x) => x.id === d.id) ?? d);
     // a copy saved in the repo after this browser's copy (another computer, git pull) replaces it
