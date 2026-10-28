@@ -1,6 +1,6 @@
 import * as Phaser from 'phaser';
 import {
-    BELT, BELT_LEN, BLOCK, BOARD, BOOSTER_IMAGES, BOOSTER_POS, FMASK, FRAME, FUNNEL, H, MOUTH, PAUSE_BTN, PIC,
+    BELT, BELT_LEN, BLOCK, BOOSTER_IMAGES, BOOSTER_POS, FMASK, FRAME, FUNNEL, H, INNER, MOUTH, PAUSE_BTN, PIC,
     SLOTS, SPEED_BTN, TILE, TRAY_Y, W, beltPoint,
 } from '../game/layout';
 import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useLevels } from '../game/levels';
@@ -86,12 +86,12 @@ export class Game extends Phaser.Scene {
         this.add.image(0, 0, 'bg').setOrigin(0).setDisplaySize(W, H).setDepth(D.bg);
         this.drawChute();
         this.funnelGfx = this.add.graphics().setDepth(D.funnel);
-        this.add.image(BOARD.x, BOARD.y, 'board').setOrigin(0).setDisplaySize(BOARD.w, BOARD.h).setDepth(D.board);
+        this.drawBoard();
         this.sandImage = this.add.image(0, 0, '__WHITE').setOrigin(0).setDepth(D.sand);
         this.drawBeltBase();
         this.beltGfx = this.add.graphics().setDepth(D.belt);
         this.fullGfx = this.add.graphics().setDepth(D.belt + 0.2);
-        this.fullText = this.text(540, BELT.cy + 1, '0%', 24, '#5a3a20', null).setDepth(D.belt + 0.5);
+        this.fullText = this.text(540, BELT.cy + 1, '0%', 24, '#14203a', null).setDepth(D.belt + 0.5);
         this.shadowGfx = this.add.graphics().setDepth(D.shadows);
         // Phaser canvas textures need a 2D canvas, so each frame the WebGL output of the 3D
         // layer is copied into one
@@ -179,7 +179,7 @@ export class Game extends Phaser.Scene {
         const items: Item3D[] = [];
         const g = this.shadowGfx;
         g.clear();
-        g.fillStyle(0x5a3719, 0.22);
+        g.fillStyle(0x24345e, 0.25);
         for (let i = 0; i < SLOTS; i++) {
             const b = s.slots[i];
             if (!b) continue;
@@ -249,19 +249,27 @@ export class Game extends Phaser.Scene {
         s.picDirty = false;
     }
 
+    /** The picture frame: a white rim around a periwinkle inside (sand is drawn on top). */
+    private drawBoard() {
+        const g = this.add.graphics().setDepth(D.board), m = 14;
+        g.fillStyle(0x24345e, 0.12).fillRoundedRect(INNER.x - m, INNER.y - m + 6, INNER.w + 2 * m, INNER.h + 2 * m, 26);
+        g.fillStyle(0xfcfaff).fillRoundedRect(INNER.x - m, INNER.y - m, INNER.w + 2 * m, INNER.h + 2 * m, 26);
+        g.fillStyle(0x96aedd).fillRoundedRect(INNER.x, INNER.y, INNER.w, INNER.h, 12);
+    }
+
     private drawChute() {
         const g = this.add.graphics().setDepth(D.chute);
         const pts = [
             new Phaser.Math.Vector2(FRAME.x, FRAME.y), new Phaser.Math.Vector2(MOUTH.x - MOUTH.half, MOUTH.y),
             new Phaser.Math.Vector2(MOUTH.x + MOUTH.half, MOUTH.y), new Phaser.Math.Vector2(FRAME.x + FRAME.w, FRAME.y),
         ];
-        g.fillStyle(0xf1dcc0).fillPoints(pts, true);
-        g.lineStyle(12, 0xe2bf92).strokePoints(pts, true);
+        g.fillStyle(0x93a9d8).fillPoints(pts, true);
+        g.lineStyle(12, 0xfcfaff).strokePoints(pts, true);
         // pipe nozzle under the hole
         const n = this.add.graphics().setDepth(D.belt + 0.2);
-        n.fillStyle(0xe2bf92).fillRoundedRect(MOUTH.x - 56, MOUTH.y - 10, 112, 40, 14);
-        n.fillStyle(0xf7ead8).fillRoundedRect(MOUTH.x - 50, MOUTH.y - 10, 100, 32, 12);
-        n.fillStyle(0x6b4a2e).fillRoundedRect(MOUTH.x - 34, MOUTH.y - 2, 68, 18, 9);
+        n.fillStyle(0xfcfaff).fillRoundedRect(MOUTH.x - 56, MOUTH.y - 10, 112, 40, 14);
+        n.fillStyle(0xdfe6f7).fillRoundedRect(MOUTH.x - 50, MOUTH.y - 10, 100, 32, 12);
+        n.fillStyle(0x34466f).fillRoundedRect(MOUTH.x - 34, MOUTH.y - 2, 68, 18, 9);
     }
 
     private drawFunnel() {
@@ -291,22 +299,25 @@ export class Game extends Phaser.Scene {
         g.fillPath();
     }
 
+    // slate-blue belt with white rims; its edges are darker than its middle
     private drawBeltBase() {
-        const g = this.add.graphics().setDepth(D.belt - 0.5);
-        this.stadium(g, BELT.r + BELT.band / 2 + 12, 0xe2bf92);
-        this.stadium(g, BELT.r + BELT.band / 2 + 4, 0xf7ead8);
-        this.stadium(g, BELT.r + BELT.band / 2 - 4, 0xd9b48a);
+        const g = this.add.graphics().setDepth(D.belt - 0.5), R = BELT.r + BELT.band / 2, r = BELT.r - BELT.band / 2;
+        this.stadium(g, R + 12, 0xfcfeff);
+        this.stadium(g, R + 4, 0x6f8bb2);
+        this.stadium(g, R - 6, 0x82a2cb);
         const inner = this.add.graphics().setDepth(D.belt + 0.1);
-        this.stadium(inner, BELT.r - BELT.band / 2 + 4, 0xf7ead8);
-        this.stadium(inner, BELT.r - BELT.band / 2 - 4, 0xefdcc2);
-        inner.fillStyle(0xffffff).fillRoundedRect(BELT.cxL - 6, BELT.cy - 13, BELT.cxR - BELT.cxL + 12, 26, 13);
+        this.stadium(inner, r + 10, 0x6f8bb2);
+        this.stadium(inner, r + 4, 0xf9fdff);
+        this.stadium(inner, r - 4, 0xc8d3ef);
+        inner.fillStyle(0xf1f1fa).fillRoundedRect(BELT.cxL - 6, BELT.cy - 13, BELT.cxR - BELT.cxL + 12, 26, 13);
+        inner.fillStyle(0x8a9dcc).fillRoundedRect(BELT.cxL - 3, BELT.cy - 10, BELT.cxR - BELT.cxL + 6, 20, 10);
     }
 
     private drawBelt() {
         const s = this.sim, g = this.beltGfx;
         g.clear();
         // moving chevrons along the track
-        g.lineStyle(6, 0xfff5e6, 0.45);
+        g.lineStyle(6, 0xc9d9f2, 0.4);
         const gap = 44;
         for (let d = s.beltOff % gap; d < BELT_LEN; d += gap) {
             const [x, y] = beltPoint(d), [x2, y2] = beltPoint((d + 1) % BELT_LEN);
