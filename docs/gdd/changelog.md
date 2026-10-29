@@ -5,7 +5,7 @@ Every published version stays playable at its own URL. The [landing page](https:
 ## latest (main) <Badge type="tip" text="Live" />
 
 - **Booster buttons like Sand Drop:** green square buttons with new pictures (magnet for Activate, arrows for Shuffle, ball cannon for Fan), a red badge with the uses left and a green plus when none are left; Activate gets a yellow frame while it waits for a nest. The falling fan is unchanged.
-- **Fan animation:** using the Fan dims the screen, drops the fan into the middle, with wind streaks blowing onto the conveyor, and the wind lifts the blocks up to either side of the fan before they drop into their nests. The game holds still until the last block is in its nest; the rules are unchanged.
+- **Fan animation:** using the Fan dims the screen and drops the ball cannon into the middle; it sucks the conveyor's blocks into its mouth one by one, then shoots them one at a time, 0.2 s apart and 1.5 times their size in flight, into their nests. The game holds still until the last block is in its nest; the rules are unchanged.
 - **x2 speed:** the x2 button always shows the speed the game runs at, and stopping Auto Play goes back to normal speed.
 - **Background:** the page background is Food Hunt's light wooden planks (it was Colony Flow's picnic cloth).
 - **Boosters work:** three boosters, 1 use each per level. **Activate** wakes a nest waiting behind the front row (tap the booster, then the nest), so ants fill it too. **Shuffle** makes the nests trade places. **Fan** blows every block on the conveyor into a nest of its colour, upper rows first. Activate uses the claw icon; the add-slot icon is gone. Without boosters the rules play out exactly as before (the test bot's results are unchanged).

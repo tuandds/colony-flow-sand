@@ -5,7 +5,7 @@ import {
 } from '../game/layout';
 import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useLevels } from '../game/levels';
 import { type Recording, botStep, playBot, replayStep } from '../game/bot';
-import { Flyer, Sfx, Sim, levelOverride } from '../game/sim';
+import { FAN_FLIGHT, FAN_SHOT_GAP, Flyer, Sfx, Sim, levelOverride } from '../game/sim';
 import { Item3D, ThreeLayer } from '../game/three-layer';
 import { abgrToRgb, isLight, shade, shadeCss } from '../game/util';
 
@@ -23,12 +23,17 @@ const D = { bg: 0, chute: 1, funnel: 2, board: 3, sand: 4, belt: 5, shadows: 6, 
 
 type Overlay = 'start' | 'settings' | 'end' | null;
 
-/** Fan booster animation: where the fan hangs, and its timeline (s): the fan drops in, then the
- * belt's blocks swirl up in its wind, then the rules blow them into the nests. The game holds still
- * until the last block is in its nest. */
-const FAN = { x: 540, y: 900, size: 300, drop: 0.45, lift: 1 };
-/** A streak of wind under the fan. */
-type Gust = { x: number; y: number; vx: number; vy: number; t: number; life: number; len: number };
+/** Fan booster animation: the ball cannon drops into the middle, sucks the belt's blocks into its
+ * mouth one by one, then shoots them out one by one into their nests. The game holds still until
+ * the last block is in its nest. Times in s: the drop, each block's trip into the mouth, the gap
+ * between shots. */
+const FAN = { x: 540, y: 900, size: 300, drop: 0.45, suck: 0.5, shot: 0.06 };
+/** The cannon's mouth: the centre of the barrel's dark opening, (66, 285) in bst_cannon's 373 x 381
+ * picture. The cannon is placed and scaled about this point, so it stays put when the cannon kicks. */
+const FAN_MOUTH_PX = { x: 66, y: 285 };
+const FAN_MOUTH = { x: FAN.x + ((FAN_MOUTH_PX.x - 373 / 2) / 381) * FAN.size, y: FAN.y + ((FAN_MOUTH_PX.y - 381 / 2) / 381) * FAN.size };
+/** A streak of air being sucked into the cannon. */
+type Gust = { x: number; y: number; t: number; life: number; len: number; sx: number; sy: number };
 
 // Draws the game with Phaser objects and turns pointer input into swipes and button presses.
 // The rules live in Sim; the 3D nests, ants and blocks come from ThreeLayer as a texture.
@@ -87,9 +92,11 @@ export class Game extends Phaser.Scene {
     private fanFx: {
         t: number; blown: boolean; leaving: boolean;
         icon: Phaser.GameObjects.Image; dims: Phaser.GameObjects.Rectangle[]; wind: Phaser.GameObjects.Graphics;
-        gusts: Gust[]; gustAcc: number; spinOff: Map<Flyer, number>;
-        /** Where each belt slot's block is blown to, beside the fan. */
-        spots: Map<number, [number, number]>;
+        gusts: Gust[]; gustAcc: number;
+        /** When each belt slot's block starts its trip into the mouth (s after the drop), and the gap. */
+        order: Map<number, number>; gap: number;
+        /** Each shot block's turn to leave the mouth, and those already fired (for the recoil). */
+        shots: Map<Flyer, number>; fired: Set<Flyer>;
     } | null = null;
     private labels: Phaser.GameObjects.Text[] = [];
     private overlay: Overlay = null;
@@ -228,19 +235,29 @@ export class Game extends Phaser.Scene {
             if (!b) continue;
             let [x, y] = s.slotPos(i);
             if (b.drop < 1) { const t = b.drop; x = MOUTH.x + (x - MOUTH.x) * t; y = MOUTH.y + 10 + (y - MOUTH.y - 10) * t; }
-            // Fan: the block swirls up off the belt in the wind, its shadow fading as it rises
+            // Fan: the block is sucked into the cannon, its shadow fading as it rises; swallowed
+            // blocks are not drawn
             const up = this.fanLift(i, x, y);
+            if (up.e >= 1) continue;
             // a soft contact shadow tucked under the cube, sized with it
             g.fillStyle(0x24345e, 0.25 * (1 - up.e));
             g.fillEllipse(x, y + BLOCK * 0.55, BLOCK * 1.05 * (1 - up.e * 0.5), BLOCK * 0.32 * (1 - up.e * 0.5));
-            items.push({ ref: b, kind: 'cube', x: up.x, y: up.y + BLOCK * 0.36, color: s.colors[b.k], size: BLOCK, ang: up.ang });
+            if (up.e > 0) items.push({ ref: b, kind: 'cube', x: up.x, y: up.y, color: s.colors[b.k], size: BLOCK, ang: up.ang, scale: up.scale, centered: true });
+            else items.push({ ref: b, kind: 'cube', x, y: y + BLOCK * 0.36, color: s.colors[b.k], size: BLOCK });
         }
         if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: MOUTH.x, y: MOUTH.y + 16, color: s.colors[s.pipe[0]], size: 25 });
-        // Fan: blocks arc from the belt into their nests, shrinking as they drop in
+        // Fan: blocks shot from the cannon's mouth arc into their nests, growing out of the mouth to
+        // 1.5 times their size and turning as they fly, then shrinking back as they drop in; a block
+        // still waiting its turn is inside the cannon
         for (const f of s.flyers) {
-            const t = Math.min(1, f.t), e = t * t * (3 - 2 * t), ex = f.nest.dx ?? f.sx, ey = (f.nest.dy ?? f.sy) - TILE * 0.2;
-            const x = f.sx + (ex - f.sx) * e, y = f.sy + (ey - f.sy) * e - Math.sin(Math.PI * t) * 60;
-            items.push({ ref: f, kind: 'cube', x, y, color: s.colors[f.k], size: BLOCK * (1 - 0.35 * t), ang: (this.fanFx?.spinOff.get(f) ?? 0) * (1 - e) });
+            const k = this.fanFx?.shots.get(f);
+            let t = Math.min(1, f.t);
+            if (k !== undefined) { const age = this.shotAge(f, k); if (age < 0) continue; t = Math.min(1, age / FAN_FLIGHT); }
+            // (x, y) is the block's centre: it leaves from the middle of the mouth
+            const e = t * (2 - t), ex = f.nest.dx ?? f.sx, ey = (f.nest.dy ?? f.sy) - TILE * 0.2;
+            const x = f.sx + (ex - f.sx) * e, y = f.sy + (ey - f.sy) * e - Math.sin(Math.PI * t) * 140;
+            const sc = 1.5 * Math.min(1, 0.25 + t * 3) * (1 - 0.3 * t * t);
+            items.push({ ref: f, kind: 'cube', x, y, color: s.colors[f.k], size: BLOCK, scale: sc, ang: (1 - t) * 6, centered: true });
         }
 
         // nest tiles: the front row (the nests ants work for) is full height with a white
@@ -480,82 +497,95 @@ export class Game extends Phaser.Scene {
             this.add.rectangle(0, 0, W, top, 0x000000, 0.55).setOrigin(0).setDepth(D.hud + 0.5),
         ];
         for (const d of dims) { d.setAlpha(0); this.tweens.add({ targets: d, alpha: 1, duration: 200 }); }
-        const icon = this.add.image(FAN.x, -FAN.size, 'bst_flower').setDepth(D.hud + 1);
-        icon.setScale(FAN.size / Math.max(icon.width, icon.height));
-        this.tweens.add({ targets: icon, y: FAN.y, duration: FAN.drop * 1000, ease: 'Bounce.Out' });
-        // the wind blows each block up to the fan's side it is on: two columns either side of
-        // the fan, filled from the top, outer blocks of the belt to the outer column
-        const spots = new Map<number, [number, number]>(), s = this.sim;
-        for (const side of [-1, 1]) {
-            const mine: { i: number; x: number }[] = [];
-            for (let i = 0; i < SLOTS; i++) {
-                if (!s.slots[i]) continue;
-                const [x] = s.slotPos(i);
-                if ((x < FAN.x ? -1 : 1) === side) mine.push({ i, x });
-            }
-            mine.sort((a, b) => Math.abs(a.x - FAN.x) - Math.abs(b.x - FAN.x));
-            mine.forEach(({ i }, k) => spots.set(i, [FAN.x + side * (205 + (k % 2) * 90), FAN.y - 150 + Math.floor(k / 2) * 72]));
+        const icon = this.add.image(FAN_MOUTH.x, -FAN.size, 'bst_cannon').setDepth(D.hud + 1);
+        icon.setOrigin(FAN_MOUTH_PX.x / icon.width, FAN_MOUTH_PX.y / icon.height);
+        icon.setScale(FAN.size / Math.max(icon.width, icon.height)).setData('s', icon.scale);
+        // it falls in over everything, then sits behind the blocks (under the 3D layer) so the
+        // blocks show going into and out of its mouth
+        this.tweens.add({ targets: icon, y: FAN_MOUTH.y, duration: FAN.drop * 1000, ease: 'Bounce.Out', onComplete: () => icon.setDepth(D.three - 0.1) });
+        // blocks nearest the mouth go in first; all of them within about a second
+        const s = this.sim, near: { i: number; d: number }[] = [];
+        for (let i = 0; i < SLOTS; i++) {
+            if (!s.slots[i]) continue;
+            const [x, y] = s.slotPos(i);
+            near.push({ i, d: Math.hypot(x - FAN_MOUTH.x, y - FAN_MOUTH.y) });
         }
-        this.fanFx = { t: 0, blown: false, leaving: false, icon, dims, wind: this.add.graphics().setDepth(D.hud + 0.9), gusts: [], gustAcc: 0, spinOff: new Map(), spots };
+        near.sort((p, q) => p.d - q.d);
+        const gap = Math.min(0.06, 1 / Math.max(1, near.length));
+        const order = new Map(near.map(({ i }, k) => [i, k * gap] as [number, number]));
+        this.fanFx = { t: 0, blown: false, leaving: false, icon, dims, wind: this.add.graphics().setDepth(D.hud + 0.9), gusts: [], gustAcc: 0, order, gap, shots: new Map(), fired: new Set() };
         this.sfx('click');
     }
 
-    /** Where block `i` of the belt is while the wind lifts it: from the belt (x, y) up to its spot
-     * beside the fan (rising first, then drifting out), where it bobs and turns. `e` is how far
-     * along it is (0 on the belt, 1 at its spot). */
+    /** Where block `i` of the belt is while the cannon sucks it in: from the belt (x, y) along a
+     * curve into the mouth, speeding up, shrinking and turning. `e` is how far in it is (0 on the
+     * belt, 1 swallowed: then it is no longer drawn). */
     private fanLift(i: number, x: number, y: number) {
-        const f = this.fanFx, spot = f?.spots.get(i);
-        if (!f || f.blown || !spot) return { x, y, e: 0, ang: 0 };
-        const u = Phaser.Math.Clamp((f.t - FAN.drop - (i % 7) * 0.04) / FAN.lift, 0, 1);
-        const ey = 1 - (1 - u) ** 3, ex = u * u * (3 - 2 * u);
+        const f = this.fanFx, start = f?.order.get(i);
+        if (!f || f.blown || start === undefined) return { x, y, e: 0, ang: 0, scale: 1 };
+        const u = Phaser.Math.Clamp((f.t - FAN.drop - start) / FAN.suck, 0, 1), e = u * u;
+        // a curve that rises from the block, then swings sideways into the mouth
+        const cx = x, cy = FAN_MOUTH.y + 60, m = 1 - e;
         return {
-            x: x + (spot[0] - x) * ex + Math.sin(f.t * 5 + i * 1.7) * 10 * ey,
-            y: y + (spot[1] - y) * ey + Math.cos(f.t * 4 + i) * 10 * ey,
-            e: ey, ang: Math.sin(f.t * 4 + i) * 0.5 * ey + u * 4,
+            x: m * m * x + 2 * m * e * cx + e * e * FAN_MOUTH.x,
+            y: m * m * y + 2 * m * e * cy + e * e * FAN_MOUTH.y,
+            e, ang: u * 6, scale: 1 - 0.85 * e,
         };
     }
 
     private stepFan(dt: number) {
         const f = this.fanFx!;
         f.t += dt;
-        if (!f.leaving && f.t > FAN.drop * 0.8) {
-            f.gustAcc += dt * 45;
+        // air streaks rush in from the belt toward the mouth while the blocks go in
+        const sucking = !f.blown && f.t > FAN.drop * 0.8;
+        if (sucking) {
+            f.gustAcc += dt * 40;
             for (; f.gustAcc >= 1; f.gustAcc--) {
-                const a = Math.PI / 2 + (Math.random() - 0.5) * 1.3, v = 900 + Math.random() * 600;
-                f.gusts.push({ x: FAN.x + (Math.random() - 0.5) * 200, y: FAN.y + 60 + Math.random() * 40, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.45 + Math.random() * 0.2, len: 40 + Math.random() * 60 });
+                const sx = BELT.cxL - 40 + Math.random() * (BELT.cxR - BELT.cxL + 80), sy = BELT.cy + (Math.random() - 0.5) * 140;
+                f.gusts.push({ x: sx, y: sy, sx, sy, t: 0, life: 0.35 + Math.random() * 0.15, len: 50 + Math.random() * 50 });
             }
         }
         for (let i = f.gusts.length - 1; i >= 0; i--) {
             const g = f.gusts[i];
-            g.t += dt; g.x += g.vx * dt; g.y += g.vy * dt;
-            // the wind curls up again where it hits the belt
-            if (g.y > BELT.cy - 40) { g.vy -= 5000 * dt; g.vx *= 1 + dt * 2; }
+            g.t += dt;
+            const k = Math.min(1, g.t / g.life) ** 2;
+            g.x = g.sx + (FAN_MOUTH.x - g.sx) * k; g.y = g.sy + (FAN_MOUTH.y - g.sy) * k;
             if (g.t > g.life) f.gusts.splice(i, 1);
         }
-        if (!f.blown && f.t >= FAN.drop + FAN.lift + 0.25) this.blowFan();
+        // the cannon swells a little as each block goes in, and kicks back with each shot
+        const sc = f.icon.getData('s') as number;
+        let kick = 0;
+        if (!f.blown) for (const [, start] of f.order) { const u = (f.t - FAN.drop - start) / FAN.suck; if (u > 0.9 && u < 1.15) kick = Math.max(kick, 0.05); }
+        for (const [fl, k] of f.shots) {
+            const since = this.shotAge(fl, k);
+            if (since >= 0 && !f.fired.has(fl)) { f.fired.add(fl); this.sfx('pop', 0.8); }
+            if (since >= 0 && since < 0.12) kick = Math.max(kick, 0.1 * (1 - since / 0.12));
+        }
+        f.icon.setScale(sc * (1 + kick), sc * (1 - kick * 0.5));
+        const last = Math.max(0, ...f.order.values());
+        if (!f.blown && f.t >= FAN.drop + last + FAN.suck + 0.15) this.blowFan();
         if (f.blown && !f.leaving && !this.sim.flyers.length) this.leaveFan();
     }
 
-    /** The rules take over: the lifted blocks fly from where they hang into their nests. */
+    /** How long ago block `fl` left the mouth (s; negative while it waits its turn). Flyers all
+     * start together in the rules, each `dur` long (the flight plus FAN_SHOT_GAP per block before
+     * it), so the extra time of a later block is spent waiting inside the cannon. */
+    private shotAge(fl: Flyer, k: number) {
+        return fl.t * fl.dur - k * FAN_SHOT_GAP;
+    }
+
+    /** The rules take over: every block flies from the cannon's mouth to its nest, one after another. */
     private blowFan() {
-        const f = this.fanFx!, s = this.sim, from = new Map<string, { x: number; y: number; ang: number }>();
-        for (let i = 0; i < SLOTS; i++) {
-            if (!s.slots[i]) continue;
-            const [x, y] = s.slotPos(i), up = this.fanLift(i, x, y);
-            from.set(`${x},${y}`, { x: up.x, y: up.y + BLOCK * 0.36, ang: up.ang });
-        }
-        const before = s.flyers.length;
+        const f = this.fanFx!, s = this.sim, before = s.flyers.length;
         if (s.fan()) this.setUses(2, this.boosters[2].uses - 1);
         f.blown = true;
-        for (const fl of s.flyers.slice(before)) {
-            const p = from.get(`${fl.sx},${fl.sy}`);
-            if (p) { fl.sx = p.x; fl.sy = p.y; f.spinOff.set(fl, p.ang); }
-        }
+        s.flyers.slice(before).forEach((fl, k) => { fl.sx = FAN_MOUTH.x; fl.sy = FAN_MOUTH.y; f.shots.set(fl, k); });
     }
 
     private leaveFan() {
         const f = this.fanFx!;
         f.leaving = true;
+        f.icon.setDepth(D.hud + 1);
         this.tweens.add({ targets: f.icon, y: -FAN.size, duration: 350, ease: 'Back.In' });
         this.tweens.add({ targets: f.dims, alpha: 0, duration: 350, onComplete: () => this.endFan() });
     }
@@ -569,15 +599,15 @@ export class Game extends Phaser.Scene {
         this.fanFx = null;
     }
 
-    /** The Fan's wind: white streaks blowing down from the fan onto the belt. */
+    /** The Fan's suction: white streaks rushing from the belt into the cannon's mouth. */
     private drawWind() {
         const f = this.fanFx;
         if (!f) return;
         const g = f.wind.clear();
         for (const w of f.gusts) {
-            const k = w.t / w.life, sp = Math.hypot(w.vx, w.vy) || 1;
-            g.lineStyle(7 * (1 - k * 0.5), 0xffffff, 0.7 * Math.sin(Math.PI * k));
-            g.lineBetween(w.x, w.y, w.x - (w.vx / sp) * w.len, w.y - (w.vy / sp) * w.len);
+            const k = w.t / w.life, dx = FAN_MOUTH.x - w.sx, dy = FAN_MOUTH.y - w.sy, d = Math.hypot(dx, dy) || 1;
+            g.lineStyle(6 * (1 - k * 0.5), 0xffffff, 0.6 * Math.sin(Math.PI * Math.min(1, k)));
+            g.lineBetween(w.x, w.y, w.x - (dx / d) * w.len, w.y - (dy / d) * w.len);
         }
     }
 
@@ -950,6 +980,8 @@ export class Game extends Phaser.Scene {
                 scene.moves = moves ?? null; scene.moveAt = 0; scene.replayAcc = 0; scene.replayFrame = 0;
                 if (on) { if (moves) scene.startLevel(scene.levelIndex); scene.started = true; scene.closeOverlay(); }
             },
+            /** Hold the game still (or let it go on), without the pause panel: for screenshots. */
+            hold(on = true) { scene.paused = on; },
             /** Use a booster: 0 Activate (with `ci`, `ri`: the nest to wake), 1 Shuffle, 2 Fan. */
             booster(i: number, ci = 0, ri = 1) { return i === 0 ? scene.sim.activate(ci, ri) : i === 1 ? scene.sim.shuffle() : scene.sim.fan(); },
             swipeCells(pts: [number, number][]) {

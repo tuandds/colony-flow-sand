@@ -25,6 +25,8 @@ export interface Ant {
     /** Where on the nest's top edge the ant leaves from and comes back to (px from its centre). */
     ox: number;
 }
+/** Fan booster: seconds between two blocks leaving the cannon, and each block's flight time. */
+export const FAN_SHOT_GAP = 0.2, FAN_FLIGHT = 0.5;
 /** A block the Fan booster blew off the belt, flying into a nest. */
 export interface Flyer { k: string; sx: number; sy: number; nest: Nest; t: number; dur: number }
 export interface Particle { k: string; n: number; c: number; sx: number; sy: number; mx: number; my: number; ex: number; ey: number; t: number; dur: number }
@@ -641,7 +643,8 @@ export class Sim {
             this.slots[i] = null;
             const di = this.dropping.indexOf(b);
             if (di >= 0) this.dropping.splice(di, 1);
-            this.flyers.push({ k: b.k, sx: bx, sy: by, nest: target, t: 0, dur: 0.5 + n * 0.04 });
+            // shot one after another: the n-th block waits n gaps, then flies
+            this.flyers.push({ k: b.k, sx: bx, sy: by, nest: target, t: 0, dur: FAN_FLIGHT + n * FAN_SHOT_GAP });
             n++;
         }
         if (n) this.sfx('pop', 0.9);

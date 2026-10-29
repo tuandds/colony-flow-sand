@@ -20,6 +20,9 @@ export interface Item3D {
     color: string | number;
     size?: number; ang?: number; carry?: number | null; alpha?: number; scale?: number;
     squash?: number; outline?: boolean;
+    /** Cubes: (x, y) is the cube's centre, and it turns about its centre (blocks in flight).
+     * Otherwise (x, y) is the point under the cube. */
+    centered?: boolean;
 }
 
 interface Model { parts: THREE.BufferGeometry[]; size: THREE.Vector3 }
@@ -27,6 +30,8 @@ interface Live {
     root: THREE.Group; kind: Item3D['kind']; color: Item3D['color']; mats: THREE.Material[];
     body?: THREE.Group; s?: number; sq?: number; topLift?: number; outline?: THREE.Group;
     yaw?: THREE.Group; carry?: THREE.Group;
+    /** Cubes: the tilted group, and half the cube's size. */
+    tilt?: THREE.Group; half?: number;
 }
 
 const meshes = (group: THREE.Group) => {
@@ -164,6 +169,7 @@ export class ThreeLayer {
             o.yaw = yaw; o.carry = carry;
         } else {
             const tilt = new THREE.Group(); tilt.rotation.x = CUBE_ELEV;
+            o.tilt = tilt; o.half = (it.size ?? 50) / 2;
             const c = this.cubeMesh(it.color, it.size ?? 50);
             c.traverse((m) => { const mat = (m as THREE.Mesh).material as THREE.Material | undefined; if (mat) o.mats.push(mat); });
             tilt.add(c); root.add(tilt);
@@ -206,7 +212,13 @@ export class ThreeLayer {
             }
             if (it.kind === 'ant') { layer = 4000; o.yaw!.rotation.y = Math.PI / 2 - (it.ang ?? 0); }
             // cubes turn about the screen axis (the Fan's whirl); 0 when not given
-            if (it.kind === 'cube') o.root.rotation.z = it.ang ?? 0;
+            if (it.kind === 'cube') {
+                o.root.rotation.z = it.ang ?? 0;
+                // centred: shift the cube so its middle (half its size up the tilted cube) is on
+                // the anchor point, which the turn then goes about
+                const h = it.centered ? o.half! : 0;
+                o.tilt!.position.set(0, -h * Math.cos(CUBE_ELEV), -h * Math.sin(CUBE_ELEV));
+            }
             o.root.position.set(it.x, -y, layer + y * 0.2);
             o.root.scale.setScalar(sc);
             for (const m of o.mats) { m.opacity = alpha; if (m.userData.time) m.userData.time.value = time; }

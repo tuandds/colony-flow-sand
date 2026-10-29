@@ -4,7 +4,7 @@ import { ThreeLayer } from '../game/three-layer';
 /** Colony Flow's win-screen atlases (packed by Spine; see cutWinFrames): the "Victory!"
  * letters, and the two cheering ants as loose body parts. */
 const WIN_ATLASES = ['win_text', 'win_char'];
-const IMAGES = ['bg', 'btn_green', 'mascot', 'btn_blue_sq', 'pause', 'btn_speed_on', 'btn_speed_off', 'icon_ff', 'bst_btn', 'bst_frame', 'badge_red', 'badge_plus', 'bst_magnet', 'bst_arrows', 'bst_cannon', 'bst_flower'];
+const IMAGES = ['bg', 'btn_green', 'mascot', 'btn_blue_sq', 'pause', 'btn_speed_on', 'btn_speed_off', 'icon_ff', 'bst_btn', 'bst_frame', 'badge_red', 'badge_plus', 'bst_magnet', 'bst_arrows', 'bst_cannon'];
 /** The Pause panel's art (public/assets/settings), loaded as `set_<name>`. */
 const SETTINGS = ['board', 'btn_blue', 'btn_gray', 'btn_close', 'btn_green', 'btn_red', 'music_on', 'music_off', 'sound_on', 'sound_off', 'vibe_on', 'vibe_off', 'icon_retry', 'icon_home'];
 const SOUNDS: Record<string, string> = {
