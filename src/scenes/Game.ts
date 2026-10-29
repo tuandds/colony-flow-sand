@@ -17,6 +17,8 @@ type Prefs = { music: boolean; sound: boolean; vibe: boolean };
 const VIBES: Partial<Record<Sfx, number | number[]>> = { nest: 25, win: [60, 40, 60], lose: 200 };
 /** Uses of each booster (Activate, Shuffle, Fan) at the start of every level. */
 const BOOSTER_USES = [1, 1, 1];
+/** The level (1-based) from which each booster can be used; before it the booster shows locked. */
+const BOOSTER_UNLOCK = [1, 1, 5];
 
 // Depths, back to front.
 const D = { bg: 0, chute: 1, funnel: 2, board: 3, sand: 4, belt: 5, shadows: 6, three: 7, labels: 8, fx: 9, tray: 10, hud: 11, overlay: 20 };
@@ -84,7 +86,11 @@ export class Game extends Phaser.Scene {
     private boosters: {
         img: Phaser.GameObjects.Image; base: Phaser.GameObjects.Image; frame: Phaser.GameObjects.Image;
         badge: Phaser.GameObjects.Container; plus: Phaser.GameObjects.Image; count: Phaser.GameObjects.Text; bump: number; uses: number;
+        /** Locked look: a grey button with a padlock instead of the picture and badge. */
+        lockBase: Phaser.GameObjects.Image; lock: Phaser.GameObjects.Image; lockText: Phaser.GameObjects.Text; locked: boolean;
     }[] = [];
+    /** "Unlocks at Level N", shown for a moment when a locked booster is tapped. */
+    private lockHint!: Phaser.GameObjects.Text;
     /** Activate booster: waiting for the player to tap a nest (the game holds still meanwhile). */
     private picking = false;
     private pickHint!: Phaser.GameObjects.Text;
@@ -183,7 +189,7 @@ export class Game extends Phaser.Scene {
         this.endAt = 0;
         this.setPicking(false);
         this.endFan();
-        this.boosters.forEach((_b, i) => this.setUses(i, BOOSTER_USES[i]));
+        this.boosters.forEach((_b, i) => { this.setLocked(i, this.levelIndex + 1 < BOOSTER_UNLOCK[i]); this.setUses(i, BOOSTER_USES[i]); });
     }
 
     update(_time: number, delta: number) {
@@ -211,7 +217,7 @@ export class Game extends Phaser.Scene {
         this.boosters.forEach((b, i) => {
             b.bump = Math.max(0, b.bump - dt * 5);
             const s = 1 + b.bump * 0.12 + (this.picking && i === 0 ? 0.06 + 0.04 * Math.sin(this.time.now / 120) : 0);
-            for (const o of [b.base, b.img, b.frame]) o.setScale((o.getData('sx') ?? o.getData('s')) * s, (o.getData('sy') ?? o.getData('s')) * s);
+            for (const o of [b.base, b.img, b.frame, b.lockBase, b.lock, b.lockText]) o.setScale((o.getData('sx') ?? o.getData('s')) * s, (o.getData('sy') ?? o.getData('s')) * s);
         });
         if (this.overlay === 'end' && this.overlayBox && !this.winScreen) {
             this.endAt += dt;
@@ -440,20 +446,36 @@ export class Game extends Phaser.Scene {
             const count = this.text(0, 1, '1', 36, '#ffffff', '#7a1020', 6);
             badge.add([this.add.image(0, 0, 'badge_red').setDisplaySize(58, 58), count]);
             const plus = this.add.image(x + 58, y + 58, 'badge_plus').setDisplaySize(58, 58).setDepth(D.tray + 0.3).setVisible(false);
-            const b = { img, base, frame, badge, plus, count, bump: 0, uses: BOOSTER_USES[i] };
-            base.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.useBooster(i));
+            // locked: the grey button is square with no drop shadow, so it covers the green button's
+            // body (the top 141 of its 147 px)
+            const lockBase = sized(this.add.image(x, y - 3 * k, 'bst_btn_locked').setDepth(D.tray + 0.1), 141 * k).setVisible(false);
+            // the padlock sits a little high, with the level it opens at under it
+            const lock = this.add.image(x, y - 24, 'icon_lock').setDepth(D.tray + 0.2).setVisible(false);
+            lock.setData('s', 66 / lock.height).setScale(lock.getData('s'));
+            const lockText = this.text(x, y + 34, `Level ${BOOSTER_UNLOCK[i]}`, 30, '#ffffff', '#3a3a3a', 6)
+                .setDepth(D.tray + 0.2).setData('s', 1).setVisible(false);
+            const b = { img, base, frame, badge, plus, count, bump: 0, uses: BOOSTER_USES[i], lockBase, lock, lockText, locked: false };
+            for (const o of [base, lockBase]) o.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.useBooster(i));
             this.boosters.push(b);
         });
         this.pickHint = this.text(540, BOOSTER_POS[0].y + 116, 'Tap a waiting nest to wake it up', 40, '#ffffff', '#3a3550', 8)
             .setDepth(D.hud).setVisible(false);
+        this.lockHint = this.text(540, BOOSTER_POS[0].y + 116, '', 40, '#ffffff', '#3a3550', 8).setDepth(D.hud).setAlpha(0);
+    }
+
+    private setLocked(i: number, on: boolean) {
+        const b = this.boosters[i];
+        b.locked = on;
+        b.lockBase.setVisible(on); b.lock.setVisible(on); b.lockText.setVisible(on);
+        b.base.setVisible(!on); b.img.setVisible(!on);
     }
 
     private setUses(i: number, n: number) {
         const b = this.boosters[i];
         b.uses = n;
         b.count.setText(String(n));
-        b.badge.setVisible(n > 0);
-        b.plus.setVisible(n <= 0);
+        b.badge.setVisible(!b.locked && n > 0);
+        b.plus.setVisible(!b.locked && n <= 0);
     }
 
     private setPicking(on: boolean) {
@@ -476,6 +498,13 @@ export class Game extends Phaser.Scene {
         const b = this.boosters[i];
         this.sfx('click'); b.bump = 1;
         if (i === 0 && this.picking) { this.setPicking(false); return; }
+        if (b.locked) {
+            this.setPicking(false);
+            this.tweens.killTweensOf(this.lockHint);
+            this.lockHint.setText(`Unlocks at Level ${BOOSTER_UNLOCK[i]}`).setAlpha(1);
+            this.tweens.add({ targets: this.lockHint, alpha: 0, delay: 1200, duration: 300 });
+            return;
+        }
         if (b.uses <= 0) return;
         if (i === 0) {
             if (this.sim.cols.some((col, ci) => col.some((_n, ri) => this.canWake(ci, ri)))) this.setPicking(true);
