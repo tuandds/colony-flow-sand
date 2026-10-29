@@ -59,9 +59,9 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 | Pause button | Pause panel: close (✕, resume), music / sound / vibration switches (kept in the browser), Restart, Home (the site's landing page; level 1's start screen elsewhere), cheat to jump to any level. Vibration buzzes when a nest fills, on a win and on a loss (phones that support it) |
 | ▶▶ x2 | Toggle double speed |
 | Boosters | A row of three under the HUD, above the picture frame, each with 1 use per level (badge; greyed when used up). A booster that would do nothing (nothing to wake, swap or blow) only bounces and keeps its use |
-| Activate | Tap it, then tap a nest waiting behind the front row (on screen): ants work for that nest too, from where it stands, until it is full. The game holds still while you pick; tap anywhere else (or the booster) to cancel. A woken nest looks like a front nest |
+| Activate | Tap it, then tap a nest waiting in the second or third row: ants work for that nest too, from where it stands, until it is full. The game holds still while you pick; tap anywhere else (or the booster) to cancel. A woken nest looks like a front nest |
 | Shuffle | The nests trade places at random across all columns and rows (each keeps the blocks it has). Nests with an ant on its way stay put; a woken nest stays woken wherever it lands |
-| Fan | Every block on the conveyor flies into a nest of its colour that still has room, upper rows first (nearest column within a row), woken or not. Ants on their way to those blocks go back |
+| Fan | The screen dims (blocks, nests and ants stay lit), the fan drops into the middle (it does not spin) and blows wind down onto the conveyor, and the wind lifts the blocks up to either side of the fan (each to the side it was on). Then every block drops from there into a nest of its colour that still has room, upper rows first (nearest column within a row), woken or not, and the fan flies off. The game holds still from the tap until the last block is in its nest (about 3 s). Ants on their way to those blocks go back |
 | Keys N / P / R | Next / previous level, restart (desktop testing) |
 
 ## 3.7 Levels <Badge type="tip" text="Live" />

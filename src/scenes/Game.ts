@@ -5,7 +5,7 @@ import {
 } from '../game/layout';
 import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useLevels } from '../game/levels';
 import { type Recording, botStep, playBot, replayStep } from '../game/bot';
-import { Sfx, Sim, levelOverride } from '../game/sim';
+import { Flyer, Sfx, Sim, levelOverride } from '../game/sim';
 import { Item3D, ThreeLayer } from '../game/three-layer';
 import { abgrToRgb, isLight, shade, shadeCss } from '../game/util';
 
@@ -22,6 +22,13 @@ const BOOSTER_USES = [1, 1, 1];
 const D = { bg: 0, chute: 1, funnel: 2, board: 3, sand: 4, belt: 5, shadows: 6, three: 7, labels: 8, fx: 9, tray: 10, hud: 11, overlay: 20 };
 
 type Overlay = 'start' | 'settings' | 'end' | null;
+
+/** Fan booster animation: where the fan hangs, and its timeline (s): the fan drops in, then the
+ * belt's blocks swirl up in its wind, then the rules blow them into the nests. The game holds still
+ * until the last block is in its nest. */
+const FAN = { x: 540, y: 900, size: 300, drop: 0.45, lift: 1 };
+/** A streak of wind under the fan. */
+type Gust = { x: number; y: number; vx: number; vy: number; t: number; life: number; len: number };
 
 // Draws the game with Phaser objects and turns pointer input into swipes and button presses.
 // The rules live in Sim; the 3D nests, ants and blocks come from ThreeLayer as a texture.
@@ -73,6 +80,14 @@ export class Game extends Phaser.Scene {
     /** Activate booster: waiting for the player to tap a nest (the game holds still meanwhile). */
     private picking = false;
     private pickHint!: Phaser.GameObjects.Text;
+    /** The Fan booster's animation while it plays (the game holds still until the blocks are blown). */
+    private fanFx: {
+        t: number; blown: boolean; leaving: boolean;
+        icon: Phaser.GameObjects.Image; dims: Phaser.GameObjects.Rectangle[]; wind: Phaser.GameObjects.Graphics;
+        gusts: Gust[]; gustAcc: number; spinOff: Map<Flyer, number>;
+        /** Where each belt slot's block is blown to, beside the fan. */
+        spots: Map<number, [number, number]>;
+    } | null = null;
     private labels: Phaser.GameObjects.Text[] = [];
     private overlay: Overlay = null;
     private overlayBox?: Phaser.GameObjects.Container;
@@ -157,12 +172,16 @@ export class Game extends Phaser.Scene {
         this.closeOverlay();
         this.endAt = 0;
         this.setPicking(false);
+        this.endFan();
         this.boosters.forEach((_b, i) => this.setUses(i, BOOSTER_USES[i]));
     }
 
     update(_time: number, delta: number) {
         const dt = Math.min(0.05, delta / 1000);
-        if (this.started && !this.paused && !this.picking && !(this.overlay === 'settings')) {
+        const live = this.started && !this.paused && !(this.overlay === 'settings');
+        if (live && this.fanFx) this.stepFan(dt);
+        if (live && this.fanFx?.blown && !this.fanFx.leaving) this.sim.stepFlyersOnly(this.speedUp ? dt * 2 : dt);
+        if (live && !this.picking && !(this.fanFx && !this.fanFx.leaving)) {
             const step = this.speedUp ? dt * 2 : dt;
             if (this.autoplay && this.moves) {
                 // strokes on the half second, then 30 frames of 1/60 s: the recorder's rhythm
@@ -206,16 +225,19 @@ export class Game extends Phaser.Scene {
             if (!b) continue;
             let [x, y] = s.slotPos(i);
             if (b.drop < 1) { const t = b.drop; x = MOUTH.x + (x - MOUTH.x) * t; y = MOUTH.y + 10 + (y - MOUTH.y - 10) * t; }
+            // Fan: the block swirls up off the belt in the wind, its shadow fading as it rises
+            const up = this.fanLift(i, x, y);
             // a soft contact shadow tucked under the cube, sized with it
-            g.fillEllipse(x, y + BLOCK * 0.55, BLOCK * 1.05, BLOCK * 0.32);
-            items.push({ ref: b, kind: 'cube', x, y: y + BLOCK * 0.36, color: s.colors[b.k], size: BLOCK });
+            g.fillStyle(0x24345e, 0.25 * (1 - up.e));
+            g.fillEllipse(x, y + BLOCK * 0.55, BLOCK * 1.05 * (1 - up.e * 0.5), BLOCK * 0.32 * (1 - up.e * 0.5));
+            items.push({ ref: b, kind: 'cube', x: up.x, y: up.y + BLOCK * 0.36, color: s.colors[b.k], size: BLOCK, ang: up.ang });
         }
         if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: MOUTH.x, y: MOUTH.y + 16, color: s.colors[s.pipe[0]], size: 25 });
         // Fan: blocks arc from the belt into their nests, shrinking as they drop in
         for (const f of s.flyers) {
             const t = Math.min(1, f.t), e = t * t * (3 - 2 * t), ex = f.nest.dx ?? f.sx, ey = (f.nest.dy ?? f.sy) - TILE * 0.2;
-            const x = f.sx + (ex - f.sx) * e, y = f.sy + (ey - f.sy) * e - Math.sin(Math.PI * t) * 150;
-            items.push({ ref: f, kind: 'cube', x, y, color: s.colors[f.k], size: BLOCK * (1 - 0.35 * t) });
+            const x = f.sx + (ex - f.sx) * e, y = f.sy + (ey - f.sy) * e - Math.sin(Math.PI * t) * 60;
+            items.push({ ref: f, kind: 'cube', x, y, color: s.colors[f.k], size: BLOCK * (1 - 0.35 * t), ang: (this.fanFx?.spinOff.get(f) ?? 0) * (1 - e) });
         }
 
         // nest tiles: the front row (the nests ants work for) is full height with a white
@@ -258,6 +280,7 @@ export class Game extends Phaser.Scene {
         this.threeCtx.drawImage(this.three.canvas, 0, 0);
         this.threeTex.refresh();
 
+        this.drawWind();
         this.fxGfx.clear();
         for (const f of s.fx) {
             this.fxGfx.fillStyle(f.color, Math.max(0, 1 - f.t / f.life));
@@ -412,16 +435,17 @@ export class Game extends Phaser.Scene {
         this.pickHint?.setVisible(on);
     }
 
-    /** A nest the Activate booster can wake: waiting behind the front row, and on screen. */
+    /** A nest the Activate booster can wake: waiting in the second or third row (the third shows
+     * down to its number). */
     private canWake(ci: number, ri: number) {
         const nest = this.sim.cols[ci]?.[ri];
-        return !!nest && !this.sim.isActive(nest, ri) && !nest.pop && nest.dy !== null && nest.dy < H - 60;
+        return !!nest && ri <= 2 && !this.sim.isActive(nest, ri) && !nest.pop && nest.dy !== null;
     }
 
     /** Booster buttons: Activate waits for a nest to be tapped; Shuffle and Fan act at once. A
      * booster that would do nothing (nothing to wake, swap or blow) only bounces. */
     private useBooster(i: number) {
-        if (this.overlay || this.sim.state !== 'play') return;
+        if (this.overlay || this.sim.state !== 'play' || this.fanFx) return;
         const b = this.boosters[i];
         this.sfx('click'); b.bump = 1;
         if (i === 0 && this.picking) { this.setPicking(false); return; }
@@ -431,7 +455,126 @@ export class Game extends Phaser.Scene {
             return;
         }
         this.setPicking(false);
-        if (i === 1 ? this.sim.shuffle() : this.sim.fan()) this.setUses(i, b.uses - 1);
+        if (i === 1) { if (this.sim.shuffle()) this.setUses(i, b.uses - 1); }
+        else if (this.sim.slots.some(Boolean)) this.startFan();
+    }
+
+    // ---------- Fan booster animation ----------
+    /** The screen dims (the blocks, nests and ants stay lit), and the fan drops into the middle. */
+    private startFan() {
+        // one under the 3D layer (it dims the picture and the belt, not the blocks, nests and ants)
+        // and one over the HUD and boosters above the frame
+        const top = INNER.y - 14;
+        const dims = [
+            this.add.rectangle(0, top, W, H - top, 0x000000, 0.55).setOrigin(0).setDepth(D.shadows - 0.05),
+            this.add.rectangle(0, 0, W, top, 0x000000, 0.55).setOrigin(0).setDepth(D.hud + 0.5),
+        ];
+        for (const d of dims) { d.setAlpha(0); this.tweens.add({ targets: d, alpha: 1, duration: 200 }); }
+        const icon = this.add.image(FAN.x, -FAN.size, 'bst_flower').setDepth(D.hud + 1);
+        icon.setScale(FAN.size / Math.max(icon.width, icon.height));
+        this.tweens.add({ targets: icon, y: FAN.y, duration: FAN.drop * 1000, ease: 'Bounce.Out' });
+        // the wind blows each block up to the fan's side it is on: two columns either side of
+        // the fan, filled from the top, outer blocks of the belt to the outer column
+        const spots = new Map<number, [number, number]>(), s = this.sim;
+        for (const side of [-1, 1]) {
+            const mine: { i: number; x: number }[] = [];
+            for (let i = 0; i < SLOTS; i++) {
+                if (!s.slots[i]) continue;
+                const [x] = s.slotPos(i);
+                if ((x < FAN.x ? -1 : 1) === side) mine.push({ i, x });
+            }
+            mine.sort((a, b) => Math.abs(a.x - FAN.x) - Math.abs(b.x - FAN.x));
+            mine.forEach(({ i }, k) => spots.set(i, [FAN.x + side * (205 + (k % 2) * 90), FAN.y - 150 + Math.floor(k / 2) * 72]));
+        }
+        this.fanFx = { t: 0, blown: false, leaving: false, icon, dims, wind: this.add.graphics().setDepth(D.hud + 0.9), gusts: [], gustAcc: 0, spinOff: new Map(), spots };
+        this.sfx('click');
+    }
+
+    /** Where block `i` of the belt is while the wind lifts it: from the belt (x, y) up to its spot
+     * beside the fan (rising first, then drifting out), where it bobs and turns. `e` is how far
+     * along it is (0 on the belt, 1 at its spot). */
+    private fanLift(i: number, x: number, y: number) {
+        const f = this.fanFx, spot = f?.spots.get(i);
+        if (!f || f.blown || !spot) return { x, y, e: 0, ang: 0 };
+        const u = Phaser.Math.Clamp((f.t - FAN.drop - (i % 7) * 0.04) / FAN.lift, 0, 1);
+        const ey = 1 - (1 - u) ** 3, ex = u * u * (3 - 2 * u);
+        return {
+            x: x + (spot[0] - x) * ex + Math.sin(f.t * 5 + i * 1.7) * 10 * ey,
+            y: y + (spot[1] - y) * ey + Math.cos(f.t * 4 + i) * 10 * ey,
+            e: ey, ang: Math.sin(f.t * 4 + i) * 0.5 * ey + u * 4,
+        };
+    }
+
+    private stepFan(dt: number) {
+        const f = this.fanFx!;
+        f.t += dt;
+        if (!f.leaving && f.t > FAN.drop * 0.8) {
+            f.gustAcc += dt * 45;
+            for (; f.gustAcc >= 1; f.gustAcc--) {
+                const a = Math.PI / 2 + (Math.random() - 0.5) * 1.3, v = 900 + Math.random() * 600;
+                f.gusts.push({ x: FAN.x + (Math.random() - 0.5) * 200, y: FAN.y + 60 + Math.random() * 40, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.45 + Math.random() * 0.2, len: 40 + Math.random() * 60 });
+            }
+        }
+        for (let i = f.gusts.length - 1; i >= 0; i--) {
+            const g = f.gusts[i];
+            g.t += dt; g.x += g.vx * dt; g.y += g.vy * dt;
+            // the wind curls up again where it hits the belt
+            if (g.y > BELT.cy - 40) { g.vy -= 5000 * dt; g.vx *= 1 + dt * 2; }
+            if (g.t > g.life) f.gusts.splice(i, 1);
+        }
+        if (!f.blown && f.t >= FAN.drop + FAN.lift + 0.25) this.blowFan();
+        if (f.blown && !f.leaving && !this.sim.flyers.length) this.leaveFan();
+    }
+
+    /** The rules take over: the lifted blocks fly from where they hang into their nests. */
+    private blowFan() {
+        const f = this.fanFx!, s = this.sim, from = new Map<string, { x: number; y: number; ang: number }>();
+        for (let i = 0; i < SLOTS; i++) {
+            if (!s.slots[i]) continue;
+            const [x, y] = s.slotPos(i), up = this.fanLift(i, x, y);
+            from.set(`${x},${y}`, { x: up.x, y: up.y + BLOCK * 0.36, ang: up.ang });
+        }
+        const before = s.flyers.length;
+        if (s.fan()) this.setUses(2, this.boosters[2].uses - 1);
+        f.blown = true;
+        for (const fl of s.flyers.slice(before)) {
+            const p = from.get(`${fl.sx},${fl.sy}`);
+            if (p) { fl.sx = p.x; fl.sy = p.y; f.spinOff.set(fl, p.ang); }
+        }
+    }
+
+    private leaveFan() {
+        const f = this.fanFx!;
+        f.leaving = true;
+        this.tweens.add({ targets: f.icon, y: -FAN.size, duration: 350, ease: 'Back.In' });
+        this.tweens.add({ targets: f.dims, alpha: 0, duration: 350, onComplete: () => this.endFan() });
+    }
+
+    private endFan() {
+        const f = this.fanFx;
+        if (!f) return;
+        this.tweens.killTweensOf([f.icon, ...f.dims]);
+        f.icon.destroy(); f.wind.destroy();
+        for (const d of f.dims) d.destroy();
+        this.fanFx = null;
+    }
+
+    /** The Fan's wind: white streaks blowing down from the fan onto the belt. */
+    private drawWind() {
+        const f = this.fanFx;
+        if (!f) return;
+        const g = f.wind.clear();
+        for (const w of f.gusts) {
+            const k = w.t / w.life, sp = Math.hypot(w.vx, w.vy) || 1;
+            g.lineStyle(7 * (1 - k * 0.5), 0xffffff, 0.7 * Math.sin(Math.PI * k));
+            g.lineBetween(w.x, w.y, w.x - (w.vx / sp) * w.len, w.y - (w.vy / sp) * w.len);
+        }
+    }
+
+    /** x2 speed on or off; the button shows which. Every game starts at normal speed. */
+    private setSpeed(on: boolean) {
+        this.speedUp = on;
+        this.speedBtn.setTexture(on ? 'btn_speed_on' : 'btn_speed_off').setDisplaySize(SPEED_BTN.w, SPEED_BTN.h);
     }
 
     private buildHud() {
@@ -446,8 +589,7 @@ export class Game extends Phaser.Scene {
             .setInteractive({ useHandCursor: true }).on('pointerdown', () => {
                 if (this.overlay) return;
                 this.sfx('click');
-                this.speedUp = !this.speedUp;
-                this.speedBtn.setTexture(this.speedUp ? 'btn_speed_on' : 'btn_speed_off').setDisplaySize(sp.w, sp.h);
+                this.setSpeed(!this.speedUp);
             });
         const ix = sp.x + 58, iy = sp.y + sp.h * 0.46;
         this.add.image(ix, iy, 'icon_ff').setDisplaySize(59, 42).setDepth(D.hud + 0.1);
@@ -754,7 +896,7 @@ export class Game extends Phaser.Scene {
     }
 
     private onDown(p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) {
-        if (this.overlay || over.length || this.sim.state !== 'play') return;
+        if (this.overlay || over.length || this.sim.state !== 'play' || this.fanFx) return;
         if (this.picking) {
             // Activate: wake the nest under the finger; a tap anywhere else cancels
             const s = this.sim;
@@ -793,7 +935,8 @@ export class Game extends Phaser.Scene {
             bot(sec = 300) { scene.started = true; return playBot(scene.sim, sec); },
             /** Play live with the test bot, or replay recorded winning strokes from the start, at `speed` (1 or 2). */
             autoplay(on = true, speed = 2, moves?: Recording['moves']) {
-                scene.autoplay = on; scene.speedUp = speed > 1;
+                // Auto Play runs at `speed`; stopping it goes back to normal speed
+                scene.autoplay = on; scene.setSpeed(on && speed > 1);
                 scene.moves = moves ?? null; scene.moveAt = 0; scene.replayAcc = 0; scene.replayFrame = 0;
                 if (on) { if (moves) scene.startLevel(scene.levelIndex); scene.started = true; scene.closeOverlay(); }
             },

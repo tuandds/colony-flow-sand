@@ -205,6 +205,8 @@ export class ThreeLayer {
                 y = it.y + o.topLift * sc; layer = 2000;
             }
             if (it.kind === 'ant') { layer = 4000; o.yaw!.rotation.y = Math.PI / 2 - (it.ang ?? 0); }
+            // cubes turn about the screen axis (the Fan's whirl); 0 when not given
+            if (it.kind === 'cube') o.root.rotation.z = it.ang ?? 0;
             o.root.position.set(it.x, -y, layer + y * 0.2);
             o.root.scale.setScalar(sc);
             for (const m of o.mats) { m.opacity = alpha; if (m.userData.time) m.userData.time.value = time; }

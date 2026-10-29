@@ -575,6 +575,20 @@ export class Sim {
             if (f.t >= 1) { this.flyers.splice(i, 1); this.deliver(f.nest, f.nest.dx!); }
         }
     }
+    /** While the game holds still for the Fan: only its blocks fly (and the sparks and nest bumps
+     * they set off play out); the sand, belt, ants and nests wait. */
+    stepFlyersOnly(dt: number) {
+        this.stepFlyers(dt);
+        for (const col of this.cols) for (const n of col) n.bump = Math.max(0, n.bump - dt * 4);
+        this.stepFx(dt);
+    }
+    private stepFx(dt: number) {
+        for (let i = this.fx.length - 1; i >= 0; i--) {
+            const f = this.fx[i];
+            f.t += dt; f.vy += 1400 * dt; f.x += f.vx * dt; f.y += f.vy * dt;
+            if (f.t > f.life) this.fx.splice(i, 1);
+        }
+    }
 
     // ---------- boosters ----------
     /** Activate: wake a nest waiting behind the front row, so ants work for it too. */
@@ -671,11 +685,7 @@ export class Sim {
         this.stepNests(dt);
         this.stepAnts(dt);
         this.stepFlyers(dt);
-        for (let i = this.fx.length - 1; i >= 0; i--) {
-            const f = this.fx[i];
-            f.t += dt; f.vy += 1400 * dt; f.x += f.vx * dt; f.y += f.vy * dt;
-            if (f.t > f.life) this.fx.splice(i, 1);
-        }
+        this.stepFx(dt);
         this.checkEnd(dt);
         if (this.state !== 'play') this.endT += dt;
     }

@@ -4,6 +4,8 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
+- **Fan animation:** using the Fan dims the screen, drops the fan into the middle, with wind streaks blowing onto the conveyor, and the wind lifts the blocks up to either side of the fan before they drop into their nests. The game holds still until the last block is in its nest; the rules are unchanged.
+- **x2 speed:** the x2 button always shows the speed the game runs at, and stopping Auto Play goes back to normal speed.
 - **Background:** the page background is Food Hunt's light wooden planks (it was Colony Flow's picnic cloth).
 - **Boosters work:** three boosters, 1 use each per level. **Activate** wakes a nest waiting behind the front row (tap the booster, then the nest), so ants fill it too. **Shuffle** makes the nests trade places. **Fan** blows every block on the conveyor into a nest of its colour, upper rows first. Activate uses the claw icon; the add-slot icon is gone. Without boosters the rules play out exactly as before (the test bot's results are unchanged).
 - **Win screen like Colony Flow's:** "Level N" over "Victory!", Colony Flow's two cheering ants (yellow and pink, put together from their `win_char` parts) jumping in turn either side of a pile of coins in the glow, and confetti raining down (paper strips that flip as they fall, white and yellow stars, shapes and curly streamers). The Next button is replaced by Colony Flow's two reward buttons, a yellow one with an ad badge (80 coins) and a green one (40); there are no coins yet, so both just go on to the next level.
