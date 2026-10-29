@@ -76,7 +76,10 @@ export class Game extends Phaser.Scene {
     private fullGfx!: Phaser.GameObjects.Graphics;
     private levelText!: Phaser.GameObjects.Text;
     private speedBtn!: Phaser.GameObjects.Image;
-    private boosters: { img: Phaser.GameObjects.Image; base: Phaser.GameObjects.Image; badge: Phaser.GameObjects.Container; count: Phaser.GameObjects.Text; bump: number; uses: number }[] = [];
+    private boosters: {
+        img: Phaser.GameObjects.Image; base: Phaser.GameObjects.Image; frame: Phaser.GameObjects.Image;
+        badge: Phaser.GameObjects.Container; plus: Phaser.GameObjects.Image; count: Phaser.GameObjects.Text; bump: number; uses: number;
+    }[] = [];
     /** Activate booster: waiting for the player to tap a nest (the game holds still meanwhile). */
     private picking = false;
     private pickHint!: Phaser.GameObjects.Text;
@@ -201,7 +204,7 @@ export class Game extends Phaser.Scene {
         this.boosters.forEach((b, i) => {
             b.bump = Math.max(0, b.bump - dt * 5);
             const s = 1 + b.bump * 0.12 + (this.picking && i === 0 ? 0.06 + 0.04 * Math.sin(this.time.now / 120) : 0);
-            b.base.setScale(b.base.getData('s') * s); b.img.setScale(b.img.getData('s') * s);
+            for (const o of [b.base, b.img, b.frame]) o.setScale((o.getData('sx') ?? o.getData('s')) * s, (o.getData('sy') ?? o.getData('s')) * s);
         });
         if (this.overlay === 'end' && this.overlayBox && !this.winScreen) {
             this.endAt += dt;
@@ -402,23 +405,29 @@ export class Game extends Phaser.Scene {
     }
 
     // boosters: a row under the HUD, above the picture frame (as in Sand Drop)
+    // as in Sand Drop: a green square button with the booster's picture, a red badge with the
+    // uses left (a green plus when there are none), and a yellow frame while it waits for a tap
     private buildTray() {
+        const sized = (o: Phaser.GameObjects.Image, w: number) => o.setData('s', w / o.width).setScale(w / o.width);
         BOOSTER_IMAGES.forEach((key, i) => {
             const { x, y } = BOOSTER_POS[i];
-            const base = this.add.image(x, y, 'circle_cream').setDepth(D.tray + 0.1);
-            base.setData('s', 128 / base.width).setScale(base.getData('s'));
-            const img = this.add.image(x, y - 2, key).setDepth(D.tray + 0.2);
-            img.setData('s', 86 / Math.max(img.width, img.height)).setScale(img.getData('s'));
-            const badge = this.add.container(x + 46, y + 44).setDepth(D.tray + 0.3);
-            const bg = this.add.graphics();
-            bg.fillStyle(0x5cbf2a).fillCircle(0, 0, 26).lineStyle(6, 0xffffff).strokeCircle(0, 0, 26);
-            const count = this.text(0, 1, '1', 34, '#ffffff', '#2e6b12', 6);
-            badge.add([bg, count]);
-            const b = { img, base, badge, count, bump: 0, uses: BOOSTER_USES[i] };
+            const base = sized(this.add.image(x, y, 'bst_btn').setDepth(D.tray + 0.1), 150);
+            // the yellow frame lies exactly over the button's white rim: the button's body (its
+            // outline included) is the top 141 of its 147 px, the rest is its drop shadow
+            const k = 150 / base.width;
+            const frame = this.add.image(x, y - 3 * k, 'bst_frame').setDepth(D.tray + 0.15).setDisplaySize(138 * k, 141 * k).setVisible(false);
+            frame.setData('sx', frame.scaleX).setData('sy', frame.scaleY);
+            const img = this.add.image(x, y - 6, key).setDepth(D.tray + 0.2);
+            img.setData('s', 104 / Math.max(img.width, img.height)).setScale(img.getData('s'));
+            const badge = this.add.container(x + 58, y + 58).setDepth(D.tray + 0.3);
+            const count = this.text(0, 1, '1', 36, '#ffffff', '#7a1020', 6);
+            badge.add([this.add.image(0, 0, 'badge_red').setDisplaySize(58, 58), count]);
+            const plus = this.add.image(x + 58, y + 58, 'badge_plus').setDisplaySize(58, 58).setDepth(D.tray + 0.3).setVisible(false);
+            const b = { img, base, frame, badge, plus, count, bump: 0, uses: BOOSTER_USES[i] };
             base.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.useBooster(i));
             this.boosters.push(b);
         });
-        this.pickHint = this.text(540, BOOSTER_POS[0].y + 108, 'Tap a waiting nest to wake it up', 40, '#ffffff', '#3a3550', 8)
+        this.pickHint = this.text(540, BOOSTER_POS[0].y + 116, 'Tap a waiting nest to wake it up', 40, '#ffffff', '#3a3550', 8)
             .setDepth(D.hud).setVisible(false);
     }
 
@@ -427,12 +436,13 @@ export class Game extends Phaser.Scene {
         b.uses = n;
         b.count.setText(String(n));
         b.badge.setVisible(n > 0);
-        b.base.setAlpha(n > 0 ? 1 : 0.55); b.img.setAlpha(n > 0 ? 1 : 0.45);
+        b.plus.setVisible(n <= 0);
     }
 
     private setPicking(on: boolean) {
         this.picking = on;
         this.pickHint?.setVisible(on);
+        this.boosters[0]?.frame.setVisible(on);
     }
 
     /** A nest the Activate booster can wake: waiting in the second or third row (the third shows

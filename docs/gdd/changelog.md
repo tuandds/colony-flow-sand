@@ -4,6 +4,7 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
+- **Booster buttons like Sand Drop:** green square buttons with new pictures (magnet for Activate, arrows for Shuffle, ball cannon for Fan), a red badge with the uses left and a green plus when none are left; Activate gets a yellow frame while it waits for a nest. The falling fan is unchanged.
 - **Fan animation:** using the Fan dims the screen, drops the fan into the middle, with wind streaks blowing onto the conveyor, and the wind lifts the blocks up to either side of the fan before they drop into their nests. The game holds still until the last block is in its nest; the rules are unchanged.
 - **x2 speed:** the x2 button always shows the speed the game runs at, and stopping Auto Play goes back to normal speed.
 - **Background:** the page background is Food Hunt's light wooden planks (it was Colony Flow's picnic cloth).
