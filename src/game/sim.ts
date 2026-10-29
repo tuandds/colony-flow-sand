@@ -13,6 +13,8 @@ export type Sfx = 'pop' | 'drop' | 'pick' | 'nest' | 'lose' | 'win' | 'click' | 
 export interface Nest {
     color: string; need: number; got: number; inflight: number; cool: number; pop: number;
     dx: number | null; dy: number | null; bump: number;
+    /** Woken by the Activate booster: works like a front nest from where it stands. */
+    on?: boolean;
 }
 export interface Block { k: string; claimed: Ant | null; drop: number }
 export interface Ant {
@@ -23,6 +25,8 @@ export interface Ant {
     /** Where on the nest's top edge the ant leaves from and comes back to (px from its centre). */
     ox: number;
 }
+/** A block the Fan booster blew off the belt, flying into a nest. */
+export interface Flyer { k: string; sx: number; sy: number; nest: Nest; t: number; dur: number }
 export interface Particle { k: string; n: number; c: number; sx: number; sy: number; mx: number; my: number; ex: number; ey: number; t: number; dur: number }
 export interface Spark { x: number; y: number; vx: number; vy: number; life: number; t: number; color: number; s: number }
 
@@ -54,7 +58,7 @@ export class Sim {
     hopper: Record<string, number> = {};
     pipe: string[] = []; dropping: Block[] = [];
     slots: (Block | null)[] = []; beltOff = 0;
-    cols: Nest[][] = []; ants: Ant[] = []; fx: Spark[] = [];
+    cols: Nest[][] = []; ants: Ant[] = []; fx: Spark[] = []; flyers: Flyer[] = [];
     /** Number of nest columns in this level. */
     ncols = COLS;
     simT = 0; simFlip = 0; sweepT = 0; stuckT = 0;
@@ -114,7 +118,7 @@ export class Sim {
         this.slots = new Array(SLOTS).fill(null); this.beltOff = 0;
         this.ncols = Math.max(MIN_COLS, Math.min(MAX_COLS, L.cols ?? COLS));
         this.cols = this.makeNests(i, L, key, keys);
-        this.ants = []; this.fx = [];
+        this.ants = []; this.fx = []; this.flyers = [];
         this.simT = 0; this.simFlip = 0; this.sweepT = 0; this.stuckT = 0;
         this.state = 'play'; this.endT = 0; this.time = 0;
         this.rand = mulberry32(0x5eed + i);
@@ -462,6 +466,8 @@ export class Sim {
     }
 
     // ---------- nests and ants ----------
+    /** Ants work for the front nest of each column, and for nests the Activate booster woke. */
+    isActive(nest: Nest, ri: number) { return ri === 0 || !!nest.on; }
     private stepNests(dt: number) {
         for (let ci = 0; ci < this.ncols; ci++) {
             const col = this.cols[ci];
@@ -473,22 +479,26 @@ export class Sim {
                 nest.dx += (tx - nest.dx) * Math.min(1, dt * 10);
                 nest.bump = Math.max(0, nest.bump - dt * 4);
             });
-            const front = col[0];
-            if (!front) continue;
-            if (front.pop > 0) {
-                front.pop += dt / 0.35;
-                if (front.pop >= 1) col.shift();
-                continue;
-            }
-            front.cool -= dt;
-            if (front.got + front.inflight < front.need && front.cool <= 0) {
-                // ants use the front slot, not the nest's sliding position, so the rules don't
+            for (let ri = 0; ri < col.length; ri++) {
+                const nest = col[ri];
+                if (nest.pop > 0) {
+                    nest.pop += dt / 0.35;
+                    if (nest.pop < 1) continue;
+                    col.splice(ri, 1);
+                    // the nest behind a finished front nest starts work on the next frame
+                    if (ri === 0) break;
+                    ri--; continue;
+                }
+                if (!this.isActive(nest, ri)) continue;
+                nest.cool -= dt;
+                if (nest.got + nest.inflight >= nest.need || nest.cool > 0) continue;
+                // ants use the nest's slot, not its sliding position, so the rules don't
                 // depend on the animation (recorded plays then replay exactly)
-                const [nx, ny] = nestPos(ci, 0, this.ncols);
+                const [nx, ny] = nestPos(ci, ri, this.ncols);
                 let best = -1, bd = 1e9;
                 for (let i = 0; i < SLOTS; i++) {
                     const b = this.slots[i];
-                    if (!b || b.claimed || b.k !== front.color || b.drop < 1) continue;
+                    if (!b || b.claimed || b.k !== nest.color || b.drop < 1) continue;
                     const [bx, by] = this.slotPos(i);
                     const d = Math.hypot(bx - nx, by - ny);
                     if (d < bd) { bd = d; best = i; }
@@ -498,10 +508,10 @@ export class Sim {
                     // each ant takes its own line: it leaves from its own spot on the nest and
                     // heads off the block by its own amount, from chasing it to cutting across
                     const ox = (this.rand() - 0.5) * TILE * 0.6, lead = 0.25 + this.rand() * 0.75;
-                    const ant: Ant = { x: nx + ox, y: ny - TILE / 2, slot: best, block: b, nest: front, col: ci, carry: null, ang: -Math.PI / 2, t: Math.random() * 6, lead, ox };
+                    const ant: Ant = { x: nx + ox, y: ny - TILE / 2, slot: best, block: b, nest, col: ci, carry: null, ang: -Math.PI / 2, t: Math.random() * 6, lead, ox };
                     b.claimed = ant;
-                    front.inflight++;
-                    front.cool = 0.12;
+                    nest.inflight++;
+                    nest.cool = 0.12;
                     this.ants.push(ant);
                 }
             }
@@ -524,7 +534,7 @@ export class Sim {
             a.t += dt;
             let tx: number, ty: number, ax: number, ay: number;
             if (!a.carry) { [tx, ty] = this.slotPos(a.slot); [ax, ay] = this.intercept(a, tx, ty); }
-            else { [tx, ty] = nestPos(a.col, 0, this.ncols); tx += a.ox; ty -= TILE / 2; ax = tx; ay = ty; }
+            else { [tx, ty] = nestPos(a.col, Math.max(0, this.cols[a.col].indexOf(a.nest)), this.ncols); tx += a.ox; ty -= TILE / 2; ax = tx; ay = ty; }
             // it runs toward its aim point and arrives when it reaches the block (or the nest)
             const dx = ax - a.x, dy = ay - a.y, d = Math.hypot(dx, dy), step = ANT_SPEED * dt;
             const left = Math.hypot(tx - a.x, ty - a.y);
@@ -540,14 +550,8 @@ export class Sim {
                     this.slots[a.slot] = null;
                     this.sfx('pick', 0.45);
                 } else {
-                    const nest = a.nest;
-                    nest.got++; nest.inflight--; nest.bump = 1;
                     this.ants.splice(i, 1);
-                    if (nest.got >= nest.need) {
-                        nest.pop = 0.001;
-                        this.sfx('nest', 0.8);
-                        this.burst(colX(a.col, this.ncols), nest.dy!, this.colors[nest.color]);
-                    } else this.sfx('add', 0.35);
+                    this.deliver(a.nest, colX(a.col, this.ncols));
                 }
             } else if (d > 0.001) {
                 const k = Math.min(step, d) / d;
@@ -555,6 +559,81 @@ export class Sim {
             }
         }
     }
+    /** A block reaches its nest (carried by an ant, or blown in by the Fan). */
+    private deliver(nest: Nest, x: number) {
+        nest.got++; nest.inflight--; nest.bump = 1;
+        if (nest.got >= nest.need) {
+            nest.pop = 0.001;
+            this.sfx('nest', 0.8);
+            this.burst(x, nest.dy!, this.colors[nest.color]);
+        } else this.sfx('add', 0.35);
+    }
+    private stepFlyers(dt: number) {
+        for (let i = this.flyers.length - 1; i >= 0; i--) {
+            const f = this.flyers[i];
+            f.t += dt / f.dur;
+            if (f.t >= 1) { this.flyers.splice(i, 1); this.deliver(f.nest, f.nest.dx!); }
+        }
+    }
+
+    // ---------- boosters ----------
+    /** Activate: wake a nest waiting behind the front row, so ants work for it too. */
+    activate(ci: number, ri: number) {
+        const nest = this.cols[ci]?.[ri];
+        if (!nest || this.isActive(nest, ri) || nest.pop) return false;
+        nest.on = true; nest.bump = 1;
+        this.sfx('nest', 0.6);
+        return true;
+    }
+    /** Shuffle: the nests trade places at random. Nests with an ant on its way stay put. */
+    shuffle() {
+        const at: [number, number][] = [], nests: Nest[] = [];
+        this.cols.forEach((col, ci) => col.forEach((n, ri) => { if (!n.pop && !n.inflight) { at.push([ci, ri]); nests.push(n); } }));
+        if (new Set(nests.map((n) => n.color)).size < 2) return false;
+        const order = nests.slice();
+        // retry until at least one place shows a different colour
+        for (let tries = 0; tries < 20; tries++) {
+            for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(this.rand() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+            if (order.some((n, i) => n.color !== nests[i].color)) break;
+        }
+        at.forEach(([ci, ri], i) => { this.cols[ci][ri] = order[i]; order[i].bump = 1; });
+        this.sfx('drop', 0.8);
+        return true;
+    }
+    /** Fan: every block on the belt flies into a nest of its colour, upper rows first (any nest,
+     * woken or not). Ants still on their way to a block go home. */
+    fan() {
+        let n = 0;
+        for (let i = 0; i < SLOTS; i++) {
+            const b = this.slots[i];
+            if (!b) continue;
+            let target: Nest | null = null, bd = 1e9;
+            const [bx, by] = this.slotPos(i);
+            for (let ri = 0; !target && ri < Math.max(...this.cols.map((c) => c.length)); ri++) {
+                this.cols.forEach((col, ci) => {
+                    const nest = col[ri];
+                    if (!nest || nest.pop || nest.color !== b.k) return;
+                    // a block an ant has claimed already counts for its nest
+                    const free = nest.need - nest.got - nest.inflight + (b.claimed?.nest === nest ? 1 : 0);
+                    if (free <= 0) return;
+                    const d = Math.abs(colX(ci, this.ncols) - bx);
+                    if (d < bd) { bd = d; target = nest; }
+                });
+            }
+            if (!target) continue;
+            const ant = b.claimed;
+            if (ant) { this.ants.splice(this.ants.indexOf(ant), 1); ant.nest.inflight--; }
+            (target as Nest).inflight++;
+            this.slots[i] = null;
+            const di = this.dropping.indexOf(b);
+            if (di >= 0) this.dropping.splice(di, 1);
+            this.flyers.push({ k: b.k, sx: bx, sy: by, nest: target, t: 0, dur: 0.5 + n * 0.04 });
+            n++;
+        }
+        if (n) this.sfx('pop', 0.9);
+        return n > 0;
+    }
+
     private burst(x: number, y: number, hex: string) {
         const color = parseInt(hex.slice(1), 16);
         for (let i = 0; i < 18; i++) {
@@ -574,11 +653,9 @@ export class Sim {
         // ant is on its way, no nest is popping (the one behind it might want a block), and no
         // front nest still wants a colour that is on the belt. A short grace covers the moment
         // between one nest filling and the next being found.
-        const fits = this.slots.some((b) => b && this.cols.some((c) => {
-            const n = c[0];
-            return !!n && !n.pop && n.color === b.k && n.got + n.inflight < n.need;
-        }));
-        if (this.slots.every(Boolean) && !this.ants.length && !this.cols.some((c) => c[0]?.pop) && !fits) {
+        const fits = this.slots.some((b) => b && this.cols.some((c) => c.some((n, ri) =>
+            this.isActive(n, ri) && !n.pop && n.color === b.k && n.got + n.inflight < n.need)));
+        if (this.slots.every(Boolean) && !this.ants.length && !this.flyers.length && !this.cols.some((c) => c.some((n) => n.pop)) && !fits) {
             this.stuckT += dt;
             if (this.stuckT > 0.35) { this.state = 'lose'; this.endT = 0; this.sfx('lose', 0.8); }
         } else this.stuckT = 0;
@@ -593,6 +670,7 @@ export class Sim {
         this.stepBelt(dt);
         this.stepNests(dt);
         this.stepAnts(dt);
+        this.stepFlyers(dt);
         for (let i = this.fx.length - 1; i >= 0; i--) {
             const f = this.fx[i];
             f.t += dt; f.vy += 1400 * dt; f.x += f.vx * dt; f.y += f.vy * dt;

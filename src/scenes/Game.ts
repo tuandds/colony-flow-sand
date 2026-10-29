@@ -15,6 +15,8 @@ const PREFS_KEY = 'cf_prefs';
 type Prefs = { music: boolean; sound: boolean; vibe: boolean };
 // short buzzes for the moments that matter (Pause panel: vibration)
 const VIBES: Partial<Record<Sfx, number | number[]>> = { nest: 25, win: [60, 40, 60], lose: 200 };
+/** Uses of each booster (Activate, Shuffle, Fan) at the start of every level. */
+const BOOSTER_USES = [1, 1, 1];
 
 // Depths, back to front.
 const D = { bg: 0, chute: 1, funnel: 2, board: 3, sand: 4, belt: 5, shadows: 6, three: 7, labels: 8, fx: 9, tray: 10, hud: 11, overlay: 20 };
@@ -67,7 +69,10 @@ export class Game extends Phaser.Scene {
     private fullGfx!: Phaser.GameObjects.Graphics;
     private levelText!: Phaser.GameObjects.Text;
     private speedBtn!: Phaser.GameObjects.Image;
-    private boosters: { img: Phaser.GameObjects.Image; base: Phaser.GameObjects.Image; badge: Phaser.GameObjects.Container; bump: number }[] = [];
+    private boosters: { img: Phaser.GameObjects.Image; base: Phaser.GameObjects.Image; badge: Phaser.GameObjects.Container; count: Phaser.GameObjects.Text; bump: number; uses: number }[] = [];
+    /** Activate booster: waiting for the player to tap a nest (the game holds still meanwhile). */
+    private picking = false;
+    private pickHint!: Phaser.GameObjects.Text;
     private labels: Phaser.GameObjects.Text[] = [];
     private overlay: Overlay = null;
     private overlayBox?: Phaser.GameObjects.Container;
@@ -151,11 +156,13 @@ export class Game extends Phaser.Scene {
         this.sandImage.setTexture('sand').setPosition(this.sim.ox, this.sim.oy).setDisplaySize(G * this.sim.gs, G * this.sim.gs);
         this.closeOverlay();
         this.endAt = 0;
+        this.setPicking(false);
+        this.boosters.forEach((_b, i) => this.setUses(i, BOOSTER_USES[i]));
     }
 
     update(_time: number, delta: number) {
         const dt = Math.min(0.05, delta / 1000);
-        if (this.started && !this.paused && !(this.overlay === 'settings')) {
+        if (this.started && !this.paused && !this.picking && !(this.overlay === 'settings')) {
             const step = this.speedUp ? dt * 2 : dt;
             if (this.autoplay && this.moves) {
                 // strokes on the half second, then 30 frames of 1/60 s: the recorder's rhythm
@@ -172,7 +179,11 @@ export class Game extends Phaser.Scene {
             }
         }
         if (this.sim.state !== 'play' && this.overlay !== 'end' && this.sim.endT >= (this.sim.state === 'win' ? 0.9 : 0)) this.showEnd();
-        for (const b of this.boosters) { b.bump = Math.max(0, b.bump - dt * 5); const s = 1 + b.bump * 0.12; b.base.setScale(b.base.getData('s') * s); b.img.setScale(b.img.getData('s') * s); }
+        this.boosters.forEach((b, i) => {
+            b.bump = Math.max(0, b.bump - dt * 5);
+            const s = 1 + b.bump * 0.12 + (this.picking && i === 0 ? 0.06 + 0.04 * Math.sin(this.time.now / 120) : 0);
+            b.base.setScale(b.base.getData('s') * s); b.img.setScale(b.img.getData('s') * s);
+        });
         if (this.overlay === 'end' && this.overlayBox && !this.winScreen) {
             this.endAt += dt;
             this.overlayBox.setScale(0.8 + 0.2 * Math.min(1, this.endAt * 4));
@@ -200,6 +211,12 @@ export class Game extends Phaser.Scene {
             items.push({ ref: b, kind: 'cube', x, y: y + BLOCK * 0.36, color: s.colors[b.k], size: BLOCK });
         }
         if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: MOUTH.x, y: MOUTH.y + 16, color: s.colors[s.pipe[0]], size: 25 });
+        // Fan: blocks arc from the belt into their nests, shrinking as they drop in
+        for (const f of s.flyers) {
+            const t = Math.min(1, f.t), e = t * t * (3 - 2 * t), ex = f.nest.dx ?? f.sx, ey = (f.nest.dy ?? f.sy) - TILE * 0.2;
+            const x = f.sx + (ex - f.sx) * e, y = f.sy + (ey - f.sy) * e - Math.sin(Math.PI * t) * 150;
+            items.push({ ref: f, kind: 'cube', x, y, color: s.colors[f.k], size: BLOCK * (1 - 0.35 * t) });
+        }
 
         // nest tiles: the front row (the nests ants work for) is full height with a white
         // outline; nests queued behind are lower and paler
@@ -211,7 +228,9 @@ export class Game extends Phaser.Scene {
             if (y - TILE / 2 > H) continue;
             let sc = 1 + nest.bump * 0.07, alpha = 1;
             if (nest.pop > 0) { sc = 1 + nest.pop * 0.3; alpha = 1 - nest.pop; }
-            const front = ri === 0;
+            // woken nests look like front nests; while picking, the nests that can be woken pulse
+            const front = s.isActive(nest, ri);
+            if (this.picking && this.canWake(ci, ri)) sc *= 1.04 + 0.04 * Math.sin(this.time.now / 110);
             const hex = s.colors[nest.color];
             const squash = front ? this.three.TILE_SQUASH : this.three.TILE_SQUASH * 0.55;
             const w = TILE * 0.92 * sc, face = this.three.tileFace(TILE) * sc, lift = this.three.tileTopLift(TILE, squash) * sc;
@@ -370,12 +389,49 @@ export class Game extends Phaser.Scene {
             const badge = this.add.container(x + 46, y + 44).setDepth(D.tray + 0.3);
             const bg = this.add.graphics();
             bg.fillStyle(0x5cbf2a).fillCircle(0, 0, 26).lineStyle(6, 0xffffff).strokeCircle(0, 0, 26);
-            badge.add([bg, this.text(0, 1, '1', 34, '#ffffff', '#2e6b12', 6)]);
-            const b = { img, base, badge, bump: 0 };
-            // boosters are only for show for now: tapping makes them bounce
-            base.setInteractive({ useHandCursor: true }).on('pointerdown', () => { if (!this.overlay) { this.sfx('click'); b.bump = 1; } });
+            const count = this.text(0, 1, '1', 34, '#ffffff', '#2e6b12', 6);
+            badge.add([bg, count]);
+            const b = { img, base, badge, count, bump: 0, uses: BOOSTER_USES[i] };
+            base.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.useBooster(i));
             this.boosters.push(b);
         });
+        this.pickHint = this.text(540, BOOSTER_POS[0].y + 108, 'Tap a waiting nest to wake it up', 40, '#ffffff', '#3a3550', 8)
+            .setDepth(D.hud).setVisible(false);
+    }
+
+    private setUses(i: number, n: number) {
+        const b = this.boosters[i];
+        b.uses = n;
+        b.count.setText(String(n));
+        b.badge.setVisible(n > 0);
+        b.base.setAlpha(n > 0 ? 1 : 0.55); b.img.setAlpha(n > 0 ? 1 : 0.45);
+    }
+
+    private setPicking(on: boolean) {
+        this.picking = on;
+        this.pickHint?.setVisible(on);
+    }
+
+    /** A nest the Activate booster can wake: waiting behind the front row, and on screen. */
+    private canWake(ci: number, ri: number) {
+        const nest = this.sim.cols[ci]?.[ri];
+        return !!nest && !this.sim.isActive(nest, ri) && !nest.pop && nest.dy !== null && nest.dy < H - 60;
+    }
+
+    /** Booster buttons: Activate waits for a nest to be tapped; Shuffle and Fan act at once. A
+     * booster that would do nothing (nothing to wake, swap or blow) only bounces. */
+    private useBooster(i: number) {
+        if (this.overlay || this.sim.state !== 'play') return;
+        const b = this.boosters[i];
+        this.sfx('click'); b.bump = 1;
+        if (i === 0 && this.picking) { this.setPicking(false); return; }
+        if (b.uses <= 0) return;
+        if (i === 0) {
+            if (this.sim.cols.some((col, ci) => col.some((_n, ri) => this.canWake(ci, ri)))) this.setPicking(true);
+            return;
+        }
+        this.setPicking(false);
+        if (i === 1 ? this.sim.shuffle() : this.sim.fan()) this.setUses(i, b.uses - 1);
     }
 
     private buildHud() {
@@ -699,6 +755,16 @@ export class Game extends Phaser.Scene {
 
     private onDown(p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) {
         if (this.overlay || over.length || this.sim.state !== 'play') return;
+        if (this.picking) {
+            // Activate: wake the nest under the finger; a tap anywhere else cancels
+            const s = this.sim;
+            s.cols.forEach((col, ci) => col.forEach((n, ri) => {
+                if (!this.picking || !this.canWake(ci, ri) || Math.abs(p.x - n.dx!) > TILE / 2 || Math.abs(p.y - n.dy!) > TILE / 2) return;
+                if (s.activate(ci, ri)) this.setUses(0, this.boosters[0].uses - 1);
+            }));
+            this.setPicking(false);
+            return;
+        }
         this.swiping = true;
         this.sim.endSwipe();
         this.sim.swipeTo(p.x, p.y);
@@ -731,6 +797,8 @@ export class Game extends Phaser.Scene {
                 scene.moves = moves ?? null; scene.moveAt = 0; scene.replayAcc = 0; scene.replayFrame = 0;
                 if (on) { if (moves) scene.startLevel(scene.levelIndex); scene.started = true; scene.closeOverlay(); }
             },
+            /** Use a booster: 0 Activate (with `ci`, `ri`: the nest to wake), 1 Shuffle, 2 Fan. */
+            booster(i: number, ci = 0, ri = 1) { return i === 0 ? scene.sim.activate(ci, ri) : i === 1 ? scene.sim.shuffle() : scene.sim.fan(); },
             swipeCells(pts: [number, number][]) {
                 const s = scene.sim;
                 s.endSwipe();

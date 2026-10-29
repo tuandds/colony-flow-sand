@@ -19,7 +19,8 @@
 ### M2: Boosters
 | Item | Chapter |
 |---|---|
-| Add slot, shuffle, claw and flower boosters | [Core loop](./core-loop) |
+| ~~Activate, Shuffle and Fan boosters~~ (done) | [Rules](./rules) |
+| Earn or buy more booster uses | [Core loop](./core-loop) |
 
 ## 4.3 Known issues {#known-issues}
 
@@ -29,7 +30,6 @@
 | Garden Snail, Rocket and Penguin were edited without a recorded win; the test bot gets stuck on them | They may not be winnable | Run Auto-generate nests for them in the editor |
 | The editor's check is a bot that digs from the bottom; it is not a human playtest | A level can still feel hard or unfair to people | Playtest editor levels with people |
 | The 3D layer is copied into Phaser every frame | Extra GPU upload on low-end phones | Lower its resolution or move to a Phaser-native renderer later |
-| Boosters do nothing | Visual only | M2 |
 
 ## 4.4 Open questions {#open-questions}
 

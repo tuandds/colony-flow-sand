@@ -17,4 +17,4 @@ A level takes about 30 to 150 seconds. Win → *Next*. Lose (the conveyor is ful
 
 ## 2.3 Long term <Badge type="warning" text="Coming soon" />
 
-Boosters, coins and more levels are planned; see the [Roadmap](./roadmap).
+Boosters work (Activate, Shuffle, Fan; one use each per level, see [Rules](./rules)). Coins, earning more booster uses and more levels are planned; see the [Roadmap](./roadmap).

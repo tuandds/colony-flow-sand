@@ -47,9 +47,10 @@ export const ROW_GAP = 130;
 export const FRONT_GAP = 28;
 export const ROW_TOP = BELT.cy + 190; // two rows show, the third down to its number, the rest wait below the screen
 export const TILE = 126;
-export const BOOSTER_IMAGES = ['bst_add', 'bst_shuffle', 'bst_claw', 'bst_flower'];
+/** Activate (wake a waiting nest), Shuffle (nests trade places), Fan (blow the belt's blocks into nests). */
+export const BOOSTER_IMAGES = ['bst_claw', 'bst_shuffle', 'bst_flower'];
 /** Boosters: a row under the HUD, above the picture frame (as in Sand Drop). */
-export const BOOSTER_POS = BOOSTER_IMAGES.map((_, i) => ({ x: 540 + (i - 1.5) * 160, y: 222 }));
+export const BOOSTER_POS = BOOSTER_IMAGES.map((_, i) => ({ x: 540 + (i - (BOOSTER_IMAGES.length - 1) / 2) * 160, y: 222 }));
 export const PAUSE_BTN = { x: 36, y: 40, w: 104, h: 108 };
 export const SPEED_BTN = { x: 852, y: 44, w: 190, h: 104 };
 
