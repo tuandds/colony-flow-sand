@@ -4,6 +4,7 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
+- **Boosters unlock one by one:** Activate at level 3, Shuffle at level 6, Fan at level 9 (the Fan was at level 5).
 - **Fan unlocks at level 5:** in levels 1–4 the third booster is a grey button with a padlock; tapping it shows "Unlocks at Level 5".
 - **Booster buttons like Sand Drop:** green square buttons with new pictures (magnet for Activate, arrows for Shuffle, ball cannon for Fan), a red badge with the uses left and a green plus when none are left; Activate gets a yellow frame while it waits for a nest. The falling fan is unchanged.
 - **Fan animation:** using the Fan dims the screen and drops the ball cannon into the middle; it sucks the conveyor's blocks into its mouth one by one, then shoots them one at a time, 0.2 s apart and 1.5 times their size in flight, into their nests. The game holds still until the last block is in its nest; the rules are unchanged.

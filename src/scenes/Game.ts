@@ -18,7 +18,7 @@ const VIBES: Partial<Record<Sfx, number | number[]>> = { nest: 25, win: [60, 40,
 /** Uses of each booster (Activate, Shuffle, Fan) at the start of every level. */
 const BOOSTER_USES = [1, 1, 1];
 /** The level (1-based) from which each booster can be used; before it the booster shows locked. */
-const BOOSTER_UNLOCK = [1, 1, 5];
+const BOOSTER_UNLOCK = [3, 6, 9];
 
 // Depths, back to front.
 const D = { bg: 0, chute: 1, funnel: 2, board: 3, sand: 4, belt: 5, shadows: 6, three: 7, labels: 8, fx: 9, tray: 10, hud: 11, overlay: 20 };
