@@ -13,10 +13,11 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 |---|---|
 | Grains per picture cell | 8 × 8 = 64 (one *unit*) |
 | Block size | 1 unit = 64 grains of one colour |
-| Board frame | inside 824 × 744 px at (128, 197) |
-| Picture scale | the same in every level: the frame is 22 cells (176 grains) tall, so a cell is 33.5 px and a grain about 4.2 px; a smaller picture sits centred in the frame |
-| Picture area | 22 cells: 738 × 738 px at (171, 200); level editor pictures can use the whole frame (196 × 176 grains) |
-| Swipe radius | max(1.1 × cell size, 34 px) = 37 px |
+| Screen layout | like Sand Drop: Color Sort Puzzle: HUD row (pause left, level, x2 right), the boosters under it, the picture frame nearly as wide as the screen, then the funnel, the conveyor and the nests |
+| Board frame | inside 864 × 820 px at (108, 330) |
+| Picture scale | the same in every level: the frame is 22 cells (176 grains) tall, so a cell is 37 px and a grain about 4.6 px; a smaller picture sits centred in the frame |
+| Picture area | 22 cells: 814 × 814 px at (133, 333); level editor pictures can use the whole frame (186 × 176 grains) |
+| Swipe radius | max(1.1 × cell size, 34 px) = 41 px |
 
 - Sand is **fixed** until swiped. Swiped sand becomes **loose** and is drawn 22 % brighter.
 - Loose sand falls with gravity 0.09 grains/step² up to 3.5 grains/step, at 110 steps per second. Blocked below, it slides down-left or down-right; on gentle slopes it creeps sideways toward a drop within 2 grains, with friction 0.82 bleeding off momentum.
@@ -27,7 +28,7 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 ## 3.3 Funnel and hole <Badge type="tip" text="Live" />
 
 - Sand leaving the board falls into the funnel in clumps of up to 6 grains.
-- The funnel is as wide as the sand frame at the top (824 px) and narrows to the hole (92 px) over 110 px. It is its own sand pile (6 px cells, 40 steps/s): clumps fall straight down, and on the gentle walls they slide one cell toward the hole every step.
+- The funnel is as wide as the sand frame at the top (864 px) and narrows to the hole (92 px) over 120 px. It is its own sand pile (6 px cells, 40 steps/s): clumps fall straight down, and on the gentle walls they slide one cell toward the hole every step.
 - **First in, first out.** The clumps move in the order they arrived, oldest first, so a gap at the bottom is filled by the sand that has waited longest (often beside it on the wall), not by newer sand straight above. The hole also takes the oldest clumps in its bottom row first. Sand that lands far out on a wall still has to slide in, so it can reach the hole after sand that landed right above it.
 - The hole takes 90 clumps per second, but **only while no finished block is waiting in it**. A waiting block plugs the hole until it drops onto the conveyor.
 - Each colour is pressed on its own: a colour's sand waits under the hole until it has 64 grains, so a colour that comes in small amounts can make its block after a colour that came later.
@@ -38,16 +39,17 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 | Rule | Value |
 |---|---|
 | Slots | 30 |
-| Speed | 300 px/s, stadium loop around (300–780, 1192), radius 62 px |
+| Speed | 300 px/s, stadium loop around (236–844, 1404), radius 62 px |
 | Blocks | 32 px cubes |
 | Bar in the middle | Fullness: green, yellow from 60 %, red from 85 % |
 
 ## 3.5 Nests and ants <Badge type="tip" text="Live" />
 
-- 4 columns of nests (levels from the level editor can have 2 to 6). Two rows show above the booster tray, the third about two thirds; the rest wait below it.
+- 4 columns of nests (levels from the level editor can have 2 to 6). Two rows show at the bottom of the screen and the third down to its number (rows 130 px apart); the rest wait below it.
 - Only the front nest of each column is active. Nests never change column: when the front nest fills it pops and the column slides up.
 - Nest sizes and order are generated from the picture: the blocks are listed in the order the sand naturally comes out (bottom rows first, or outside-in for pictures with enclosed colours), cut into nests of `chunk × 2` blocks, and dealt to the column with the least sand still queued. Levels can pin a seed that a test player could solve.
 - An ant leaves an active nest every 0.12 s while that nest still needs blocks and a matching block is on the belt. Ants walk at 420 px/s, are 74 px long and carry 26 px cubes.
+- **Ant paths:** each ant leaves from its own spot on the nest's top edge (up to ±38 px from the centre) and comes back to it. On the way out it heads off its block: it aims at the point on the belt where it would meet the block running straight, a random 25–100 % of the way there from the block, so some ants chase their block and others cut across to meet it. Both come from the level's seeded random numbers, so a recorded play still replays the same.
 
 ## 3.6 Controls <Badge type="tip" text="Live" />
 
@@ -56,7 +58,7 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 | Swipe on the picture | Free the sand under the finger |
 | Pause button | Pause panel: close (✕, resume), music / sound / vibration switches (kept in the browser), Restart, Home (the site's landing page; level 1's start screen elsewhere), cheat to jump to any level. Vibration buzzes when a nest fills, on a win and on a loss (phones that support it) |
 | ▶▶ x2 | Toggle double speed |
-| Boosters | Visual only for now (they bounce) |
+| Boosters | A row of four under the HUD, above the picture frame. Visual only for now (they bounce) |
 | Keys N / P / R | Next / previous level, restart (desktop testing) |
 
 ## 3.7 Levels <Badge type="tip" text="Live" />

@@ -17,7 +17,7 @@ Casual mobile players who like calm, tactile puzzles: short sessions, one finger
 
 ## 1.3 Look and feel <Badge type="tip" text="Live" />
 
-- Colony Flow art: beige board, checker background, blue booster tray, Lilita One font.
+- Colony Flow art: checker background, Lilita One font; a white-rimmed blue picture frame and conveyor, and a booster row under the level title, laid out like Sand Drop: Color Sort Puzzle.
 - The nests, ants and sand blocks are Colony Flow's 3D models (the lidded nest box `Box_v2_T` + `Box_v2_B`, `Ant_VAT_Mesh`, `Cube_v3.1`), rendered live with three.js and shown inside the Phaser scene.
 - The sand is fine: every picture cell is split into 8 × 8 grains with a little colour noise each.
 - Pictures are original pixel art in a bold style: flat colours with a dark outline around each picture.

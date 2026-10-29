@@ -18,6 +18,10 @@ export interface Block { k: string; claimed: Ant | null; drop: number }
 export interface Ant {
     x: number; y: number; slot: number; block: Block; nest: Nest; col: number;
     carry: string | null; ang: number; t: number;
+    /** How far ahead of its block the ant aims (0 = chase it, 1 = run to where they meet). */
+    lead: number;
+    /** Where on the nest's top edge the ant leaves from and comes back to (px from its centre). */
+    ox: number;
 }
 export interface Particle { k: string; n: number; c: number; sx: number; sy: number; mx: number; my: number; ex: number; ey: number; t: number; dur: number }
 export interface Spark { x: number; y: number; vx: number; vy: number; life: number; t: number; color: number; s: number }
@@ -491,7 +495,10 @@ export class Sim {
                 }
                 if (best >= 0) {
                     const b = this.slots[best]!;
-                    const ant: Ant = { x: nx, y: ny - TILE / 2, slot: best, block: b, nest: front, col: ci, carry: null, ang: -Math.PI / 2, t: Math.random() * 6 };
+                    // each ant takes its own line: it leaves from its own spot on the nest and
+                    // heads off the block by its own amount, from chasing it to cutting across
+                    const ox = (this.rand() - 0.5) * TILE * 0.6, lead = 0.25 + this.rand() * 0.75;
+                    const ant: Ant = { x: nx + ox, y: ny - TILE / 2, slot: best, block: b, nest: front, col: ci, carry: null, ang: -Math.PI / 2, t: Math.random() * 6, lead, ox };
                     b.claimed = ant;
                     front.inflight++;
                     front.cool = 0.12;
@@ -500,21 +507,33 @@ export class Sim {
             }
         }
     }
+    /** Where an ant going for the block at (bx, by) aims: the point on the belt where it would
+     * meet the block running straight, `lead` of the way there from the block. */
+    private intercept(a: Ant, bx: number, by: number): [number, number] {
+        let t = Math.hypot(bx - a.x, by - a.y) / ANT_SPEED;
+        let p: [number, number] = [bx, by];
+        for (let k = 0; k < 4; k++) {
+            p = beltPoint((((this.beltOff + BELT_SPEED * t * a.lead + a.slot * SLOT_GAP) % BELT_LEN) + BELT_LEN) % BELT_LEN);
+            t = Math.hypot(p[0] - a.x, p[1] - a.y) / ANT_SPEED;
+        }
+        return p;
+    }
     private stepAnts(dt: number) {
         for (let i = this.ants.length - 1; i >= 0; i--) {
             const a = this.ants[i];
             a.t += dt;
-            let tx: number, ty: number;
-            if (!a.carry) [tx, ty] = this.slotPos(a.slot);
-            else { [tx, ty] = nestPos(a.col, 0, this.ncols); ty -= TILE / 2; }
-            const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy);
-            const step = ANT_SPEED * dt;
+            let tx: number, ty: number, ax: number, ay: number;
+            if (!a.carry) { [tx, ty] = this.slotPos(a.slot); [ax, ay] = this.intercept(a, tx, ty); }
+            else { [tx, ty] = nestPos(a.col, 0, this.ncols); tx += a.ox; ty -= TILE / 2; ax = tx; ay = ty; }
+            // it runs toward its aim point and arrives when it reaches the block (or the nest)
+            const dx = ax - a.x, dy = ay - a.y, d = Math.hypot(dx, dy), step = ANT_SPEED * dt;
+            const left = Math.hypot(tx - a.x, ty - a.y);
             if (d > 1) {
                 let da = Math.atan2(dy, dx) - a.ang;
                 da = Math.atan2(Math.sin(da), Math.cos(da));
                 a.ang += da * Math.min(1, dt * 18);
             }
-            if (d <= step + 6) {
+            if (left <= step + 6) {
                 a.x = tx; a.y = ty;
                 if (!a.carry) {
                     a.carry = a.block.k;
@@ -530,8 +549,9 @@ export class Sim {
                         this.burst(colX(a.col, this.ncols), nest.dy!, this.colors[nest.color]);
                     } else this.sfx('add', 0.35);
                 }
-            } else {
-                a.x += (dx / d) * step; a.y += (dy / d) * step;
+            } else if (d > 0.001) {
+                const k = Math.min(step, d) / d;
+                a.x += dx * k; a.y += dy * k;
             }
         }
     }

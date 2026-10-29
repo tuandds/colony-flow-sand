@@ -1,9 +1,10 @@
 import * as Phaser from 'phaser';
 import { ThreeLayer } from '../game/three-layer';
 
-/** Colony Flow's win-screen "Victory!" atlas (packed by Spine; see cutWinFrames). */
-const WIN_ATLASES = ['win_text'];
-const IMAGES = ['bg', 'btn_green', 'mascot', 'btn_blue_sq', 'pause', 'circle_cream', 'bst_add', 'bst_shuffle', 'bst_claw', 'bst_flower'];
+/** Colony Flow's win-screen atlases (packed by Spine; see cutWinFrames): the "Victory!"
+ * letters, and the two cheering ants as loose body parts. */
+const WIN_ATLASES = ['win_text', 'win_char'];
+const IMAGES = ['bg', 'btn_green', 'mascot', 'btn_blue_sq', 'pause', 'btn_speed_on', 'btn_speed_off', 'icon_ff', 'circle_cream', 'bst_add', 'bst_shuffle', 'bst_claw', 'bst_flower'];
 /** The Pause panel's art (public/assets/settings), loaded as `set_<name>`. */
 const SETTINGS = ['board', 'btn_blue', 'btn_gray', 'btn_close', 'btn_green', 'btn_red', 'music_on', 'music_off', 'sound_on', 'sound_off', 'vibe_on', 'vibe_off', 'icon_retry', 'icon_home'];
 const SOUNDS: Record<string, string> = {
@@ -31,7 +32,9 @@ export class Boot extends Phaser.Scene {
         // Colony Flow's win screen: the "Victory!" letters (texture atlas converted from the
         // game's Spine atlas), plus glow and the button
         for (const a of WIN_ATLASES) { this.load.image(`${a}_page`, `win/${a}.png`); this.load.json(`${a}_map`, `win/${a}.json`); }
-        for (const n of ['glow_rays', 'glow', 'btn_next']) this.load.image(n, `win/${n}.png`);
+        for (const n of ['glow_rays', 'glow', 'btn_yellow', 'icon_coin', 'icon_ads', 'confetti_ribbon', 'confetti_star']) this.load.image(n, `win/${n}.png`);
+        // Colony Flow's confetti sheet: 5 x 5 shapes
+        this.load.spritesheet('confetti', 'win/confetti.png', { frameWidth: 102, frameHeight: 102 });
     }
 
     /**

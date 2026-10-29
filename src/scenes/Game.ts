@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import {
     BELT, BELT_LEN, BLOCK, BOOSTER_IMAGES, BOOSTER_POS, FMASK, FRAME, FUNNEL, H, INNER, MOUTH, PAUSE_BTN, PIC,
-    SLOTS, SPEED_BTN, TILE, TRAY_Y, W, beltPoint,
+    SLOTS, SPEED_BTN, TILE, W, beltPoint,
 } from '../game/layout';
 import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useLevels } from '../game/levels';
 import { type Recording, botStep, playBot, replayStep } from '../game/bot';
@@ -34,6 +34,8 @@ export class Game extends Phaser.Scene {
     private speedUp = false;
     /** The win screen animates itself (the lose panel scales in from update). */
     private winScreen = false;
+    /** Counter tweens that drive the win screen's ants (stopped with the overlay). */
+    private winFx: Phaser.Tweens.Tween[] = [];
     /** Auto Play (level editor): the test bot plays in front of you; botT counts to its next move. */
     private autoplay = false;
     private botT = 0;
@@ -357,20 +359,15 @@ export class Game extends Phaser.Scene {
         return this.labels[i];
     }
 
+    // boosters: a row under the HUD, above the picture frame (as in Sand Drop)
     private buildTray() {
-        const g = this.add.graphics().setDepth(D.tray);
-        g.fillStyle(0xffffff).fillRoundedRect(6, TRAY_Y, W - 12, H - TRAY_Y + 60, 56);
-        g.fillStyle(0x4f6fc4).fillRoundedRect(20, TRAY_Y + 14, W - 40, H - TRAY_Y + 60, 46);
-        g.fillStyle(0xffffff, 0.07);
-        for (let y = TRAY_Y + 30, r = 0; y < H; y += 46, r++)
-            for (let x = 40 + (r % 2) * 46; x < W - 40; x += 92) g.fillRect(x, y, 46, 46);
         BOOSTER_IMAGES.forEach((key, i) => {
             const { x, y } = BOOSTER_POS[i];
             const base = this.add.image(x, y, 'circle_cream').setDepth(D.tray + 0.1);
-            base.setData('s', 150 / base.width).setScale(base.getData('s'));
+            base.setData('s', 128 / base.width).setScale(base.getData('s'));
             const img = this.add.image(x, y - 2, key).setDepth(D.tray + 0.2);
-            img.setData('s', 99 / Math.max(img.width, img.height)).setScale(img.getData('s'));
-            const badge = this.add.container(x + 54, y + 54).setDepth(D.tray + 0.3);
+            img.setData('s', 86 / Math.max(img.width, img.height)).setScale(img.getData('s'));
+            const badge = this.add.container(x + 46, y + 44).setDepth(D.tray + 0.3);
             const bg = this.add.graphics();
             bg.fillStyle(0x5cbf2a).fillCircle(0, 0, 26).lineStyle(6, 0xffffff).strokeCircle(0, 0, 26);
             badge.add([bg, this.text(0, 1, '1', 34, '#ffffff', '#2e6b12', 6)]);
@@ -387,43 +384,44 @@ export class Game extends Phaser.Scene {
             .setInteractive({ useHandCursor: true }).on('pointerdown', () => { if (!this.overlay) { this.sfx('click'); this.showSettings(); } });
         this.add.image(p.x + p.w / 2, p.y + p.h / 2 - 4, 'pause').setDisplaySize(44, 48).setDepth(D.hud + 0.1);
         this.levelText = this.text(540, 98, 'Level 1', 78, '#7a4a24', '#fff0dc', 6).setDepth(D.hud);
-        this.speedBtn = this.add.image(sp.x, sp.y, 'btn_green').setOrigin(0).setDisplaySize(sp.w, sp.h).setDepth(D.hud)
+        // x2 speed: Colony Flow's speed button, grey when off and green when on, with its
+        // fast-forward icon and "x2"
+        this.speedBtn = this.add.image(sp.x, sp.y, 'btn_speed_off').setOrigin(0).setDisplaySize(sp.w, sp.h).setDepth(D.hud)
             .setInteractive({ useHandCursor: true }).on('pointerdown', () => {
                 if (this.overlay) return;
                 this.sfx('click');
                 this.speedUp = !this.speedUp;
-                this.speedBtn.setAlpha(this.speedUp ? 1 : 0.75);
+                this.speedBtn.setTexture(this.speedUp ? 'btn_speed_on' : 'btn_speed_off').setDisplaySize(sp.w, sp.h);
             });
-        this.speedBtn.setAlpha(0.75);
-        // fast-forward glyph and "x2"
-        const g = this.add.graphics().setDepth(D.hud + 0.1);
-        const gx = sp.x + 30, gy = sp.y + sp.h * 0.44;
-        for (const o of [0, 26]) {
-            const tri = [new Phaser.Math.Vector2(gx + o, gy - 18), new Phaser.Math.Vector2(gx + o + 26, gy), new Phaser.Math.Vector2(gx + o, gy + 18)];
-            g.lineStyle(5, 0x2e6b12).strokePoints(tri, true);
-            g.fillStyle(0xffffff).fillPoints(tri, true);
-        }
-        this.text(sp.x + sp.w - 50, gy + 2, 'x2', 50, '#ffffff', '#2e6b12', 8).setDepth(D.hud + 0.1);
+        const ix = sp.x + 58, iy = sp.y + sp.h * 0.46;
+        this.add.image(ix, iy, 'icon_ff').setDisplaySize(59, 42).setDepth(D.hud + 0.1);
+        this.text(sp.x + sp.w - 52, iy + 1, 'x2', 50, '#ffffff', '#2e5a12', 8).setDepth(D.hud + 0.1);
     }
 
     /** A region of the win atlases, cut out upright when the game loaded (Boot.cutWinFrames). */
-    private winImage(x: number, y: number, atlas: 'win_text', frame: string) {
+    private winImage(x: number, y: number, atlas: 'win_text' | 'win_char', frame: string) {
         return this.add.image(x, y, `${atlas}:${frame}`);
     }
 
-    /** Colony Flow's win screen: glow and turning rays, "VICTORY!" popping in letter by letter
-     * and a big green Next button (the Spine animation rebuilt with tweens). */
+    /** Colony Flow's win screen, as in its game: "Level N" over "VICTORY!" popping in letter by
+     * letter, the two cheering ants jumping either side of a pile of coins in a glow with turning
+     * rays, confetti raining down, and the two reward buttons (both go on to the next level: the
+     * prototype has no coins yet). */
     private showWin() {
-        const last = this.levelIndex >= levelCount() - 1;
         const box = this.add.container(0, 0).setDepth(D.overlay);
         this.winScreen = true;
-        box.add(this.add.rectangle(0, 0, W, H, 0x1c0f08, 0.72).setOrigin(0).setInteractive());
-        const glow = this.add.image(540, 640, 'glow').setScale(2.6).setTint(0xffd58a).setAlpha(0);
-        const rays = this.add.image(540, 640, 'glow_rays').setScale(6.5).setTint(0xfff1c2).setAlpha(0);
+        box.add(this.add.rectangle(0, 0, W, H, 0x1c0f08, 0.86).setOrigin(0).setInteractive());
+        const cy = 1060;
+        const glow = this.add.image(540, cy, 'glow').setScale(2.4).setTint(0xffd58a).setAlpha(0);
+        const rays = this.add.image(540, cy, 'glow_rays').setScale(5.5).setTint(0xfff1c2).setAlpha(0);
         box.add([glow, rays]);
-        this.tweens.add({ targets: glow, alpha: 0.85, duration: 400 });
-        this.tweens.add({ targets: rays, alpha: 0.32, duration: 500 });
+        this.tweens.add({ targets: glow, alpha: 0.8, duration: 400 });
+        this.tweens.add({ targets: rays, alpha: 0.38, duration: 500 });
         this.tweens.add({ targets: rays, angle: 360, duration: 24000, repeat: -1 });
+
+        const level = this.text(540, 480, `Level ${this.levelIndex + 1}`, 64, '#ffb347', '#5a2a10', 10).setAlpha(0);
+        box.add(level);
+        this.tweens.add({ targets: level, alpha: 1, duration: 300, delay: 100 });
 
         // VICTORY!: each letter is its drop shadow, the orange body and the cream face on top
         const word = ['V', 'I', 'C', 'T', 'O', 'R', 'Y', '!'];
@@ -436,7 +434,7 @@ export class Game extends Phaser.Scene {
         word.forEach((c, i) => {
             const lx = x + widths[i] / 2;
             x += widths[i] + gaps[i];
-            const letter = this.add.container(lx, 560);
+            const letter = this.add.container(lx, 640);
             letter.add([
                 this.winImage(6, 14, 'win_text', `text/DropShadow_${c}`).setScale(scale * 0.86).setAlpha(0.35).setTint(0x000000),
                 this.winImage(0, 0, 'win_text', `text/Outline_${c}`).setScale(scale),
@@ -445,27 +443,116 @@ export class Game extends Phaser.Scene {
             letter.setScale(0);
             box.add(letter);
             this.tweens.add({ targets: letter, scale: 1, duration: 380, delay: 180 + i * 70, ease: 'Back.Out' });
-            this.tweens.add({ targets: letter, y: 548, duration: 700, delay: 900 + i * 90, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+            this.tweens.add({ targets: letter, y: 628, duration: 700, delay: 900 + i * 90, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
         });
-        const shine = this.winImage(800, 470, 'win_text', 'shine').setScale(0).setBlendMode(Phaser.BlendModes.ADD);
+        const shine = this.winImage(800, 550, 'win_text', 'shine').setScale(0).setBlendMode(Phaser.BlendModes.ADD);
         box.add(shine);
         this.tweens.add({ targets: shine, scale: 0.7, angle: 90, duration: 500, delay: 800, yoyo: true, repeat: -1, repeatDelay: 900 });
 
-        const sub = this.text(540, 700, `Level ${this.levelIndex + 1} complete`, 52, '#fff6e0', '#5a3a20', 9).setAlpha(0);
-        box.add(sub);
-        this.tweens.add({ targets: sub, alpha: 1, duration: 300, delay: 700 });
+        // the coin pile between the ants
+        const coins = this.winImage(540, cy + 30, 'win_char', 'coin').setScale(0);
+        box.add(coins);
+        this.tweens.add({ targets: coins, scale: 0.95, duration: 380, delay: 500, ease: 'Back.Out' });
+        this.addWinAnt(box, 345, cy - 20, 'yellow', 0);
+        this.addWinAnt(box, 738, cy - 20, 'pink', 0.5);
+        this.addConfetti(box);
 
-        const btn = this.add.container(540, 1400);
-        btn.add([this.add.image(0, 0, 'btn_next').setDisplaySize(290, 202), this.text(0, -10, last ? 'Replay' : 'Next', 56, '#ffffff', '#2e6b12', 10)]);
-        btn.setSize(276, 174).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-            this.sfx('click');
-            this.startLevel((this.levelIndex + 1) % levelCount());
-        });
-        btn.setScale(0);
-        box.add(btn);
-        this.tweens.add({ targets: btn, scale: 1, duration: 350, delay: 1000, ease: 'Back.Out',
-            onComplete: () => this.tweens.add({ targets: btn, scale: 1.06, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.InOut' }) });
+        // rewards: a yellow "watch an ad" button and a green one
+        const next = () => this.startLevel((this.levelIndex + 1) % levelCount());
+        box.add(this.rewardButton(300, 1440, 'btn_yellow', 80, true, next, 1100));
+        box.add(this.rewardButton(785, 1440, 'btn_green', 40, false, next, 1200));
         this.overlayBox = box;
+    }
+
+    /** A wide reward button from Colony Flow's art: a coin, the amount, and an ad badge. */
+    private rewardButton(x: number, y: number, key: string, amount: number, ad: boolean, onTap: () => void, delay: number) {
+        const w = 380, h = 150, c = this.add.container(x, y);
+        c.add(this.add.nineslice(0, 0, key, undefined, w, h, 80, 80, 70, 80));
+        c.add(this.add.image(-62, -8, 'icon_coin').setDisplaySize(78, 78));
+        c.add(this.text(38, -10, String(amount), 72, '#ffffff', '#5a3a10', 10));
+        if (ad) c.add(this.add.image(w / 2 - 22, -h / 2 + 4, 'icon_ads').setDisplaySize(84, 88).setAngle(8));
+        c.setSize(w, h).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.sfx('click'); onTap(); });
+        c.setScale(0);
+        this.tweens.add({ targets: c, scale: 1, duration: 350, delay, ease: 'Back.Out' });
+        return c;
+    }
+
+    // Colony Flow's two cheering ants (win_char), put together from their parts: [part, x, y,
+    // turn] from the middle of the ant's chest, back to front. The pink one leans toward the
+    // coins, one arm reaching for them behind its body and the other raised in front, as in Colony Flow. Their Spine skeleton is not in the
+    // extracted files, so they jump with tweens.
+    private static WIN_ANTS: Record<'yellow' | 'pink', [string, number, number, number?][]> = {
+        yellow: [['A1_thigh_R', -40, 98, -1.05], ['A1_calf_R', -2, 112, -1.05], ['A1_arm_L', 75, -40], ['A1_torso', -48, 36], ['A1_leg_L', -62, 108], ['A1_head', 6, -142], ['A1_arm_R', -75, -40]],
+        pink: [['A2_leg_L', -30, 100], ['A2_arm_R', -59, -32, -0.55], ['A2_torso', 39, 40], ['A2_leg_R', 40, 100], ['A2_head', -22, -132], ['A2_arm_L', 72, -41]],
+    };
+
+    /** One cheering ant that keeps jumping, arms waving, over its shadow; `phase` (0-1) offsets its jumps. */
+    private addWinAnt(box: Phaser.GameObjects.Container, x: number, y: number, kind: 'yellow' | 'pink', phase: number) {
+        const id = kind === 'yellow' ? 'A1' : 'A2';
+        const ANT_SCALE = 0.95;
+        const shadow = this.winImage(x + (kind === 'yellow' ? -25 : 25) * ANT_SCALE, y + 175 * ANT_SCALE, 'win_char', `${kind}/${id}_shadow`);
+        const body = this.add.container(x, y);
+        const arms: Phaser.GameObjects.Image[] = [];
+        for (const [part, px, py, turn = 0] of Game.WIN_ANTS[kind]) {
+            const img = this.winImage(px, py, 'win_char', `${kind}/${part}`).setRotation(turn);
+            if (part.includes('arm')) {
+                // arms swing from the shoulder: the lower inner corner (fists are up and out)
+                const ox = part.endsWith('_R') ? 0.88 : 0.12, oy = 0.92;
+                img.setOrigin(ox, oy).setPosition(px + (ox - 0.5) * img.width, py + (oy - 0.5) * img.height).setData('turn', turn).setData('sign', part.endsWith('_R') ? -1 : 1);
+                arms.push(img);
+            }
+            body.add(img);
+        }
+        body.setScale(0);
+        box.add([shadow, body]);
+        this.tweens.add({ targets: body, scale: ANT_SCALE, duration: 350, delay: 600 + phase * 300, ease: 'Back.Out' });
+        // one jump per second: up fast, down, a little squash on landing; arms wave twice a jump
+        this.winFx.push(this.tweens.addCounter({
+            from: 0, to: 1, duration: 900, repeat: -1, delay: 950 + phase * 450,
+            onUpdate: (tw) => {
+                const t = tw.getValue() ?? 0, h = Math.sin(Math.PI * t);
+                body.y = y - 70 * h;
+                const land = Math.max(0, 1 - h * 4);
+                body.scaleX = ANT_SCALE * (1 + 0.06 * land); body.scaleY = ANT_SCALE * (1 - 0.08 * land);
+                shadow.setScale(ANT_SCALE * (1 - 0.35 * h)).setAlpha(1 - 0.4 * h);
+                arms.forEach((a) => (a.rotation = a.getData('turn') + a.getData('sign') * 0.28 * Math.sin(Math.PI * 4 * t)));
+            },
+        }));
+    }
+
+    /** Confetti raining down over the win screen, as in Colony Flow: coloured paper strips that
+     * flip as they fall (its white confetti quad, tinted), white and yellow stars, a few of its
+     * confetti shapes and some curly streamers. */
+    private addConfetti(box: Phaser.GameObjects.Container) {
+        const colours = [0x4fd1ff, 0xff5a5a, 0xffe14d, 0x7dff6a, 0xff8ad8, 0xffffff, 0x5a7dff, 0xff9f2e];
+        if (!this.textures.exists('streamer')) {
+            const g = this.make.graphics({}, false).lineStyle(5, 0xffffff);
+            g.beginPath(); g.moveTo(10, 4);
+            for (let y = 4; y <= 156; y += 4) g.lineTo(10 + Math.sin(y / 16) * 7, y);
+            g.strokePath(); g.generateTexture('streamer', 22, 160); g.destroy();
+        }
+        const fall = (piece: Phaser.GameObjects.Image, slow = 1) => {
+            const x = piece.x, ms = Phaser.Math.Between(2600, 4800) * slow;
+            box.add(piece);
+            this.tweens.add({ targets: piece, y: H + 80, duration: ms, delay: Phaser.Math.Between(0, 3000), repeat: -1 });
+            this.tweens.add({ targets: piece, x: x + Phaser.Math.Between(-60, 60), duration: Phaser.Math.Between(700, 1300), yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+            this.tweens.add({ targets: piece, angle: Phaser.Math.Between(-400, 400), duration: ms, repeat: -1 });
+        };
+        const at = () => [Phaser.Math.Between(10, W - 10), Phaser.Math.Between(-400, -40)] as const;
+        for (let i = 0; i < 110; i++) {
+            const piece = this.add.image(...at(), 'confetti_ribbon').setTint(Phaser.Utils.Array.GetRandom(colours));
+            piece.setDisplaySize(Phaser.Math.Between(7, 11), Phaser.Math.Between(20, 34));
+            fall(piece);
+            // flutter: the strip turns over and back as it falls
+            this.tweens.add({ targets: piece, scaleX: -piece.scaleX, duration: Phaser.Math.Between(250, 500), yoyo: true, repeat: -1 });
+        }
+        for (let i = 0; i < 26; i++) {
+            const star = this.add.image(...at(), 'confetti_star').setTint(Phaser.Utils.Array.GetRandom([0xffffff, 0xffffff, 0xffe14d, 0x7fe3ff]));
+            star.setDisplaySize(...(() => { const d = Phaser.Math.Between(26, 44); return [d, d] as const; })());
+            fall(star, 1.2);
+        }
+        for (let i = 0; i < 20; i++) fall(this.add.image(...at(), 'confetti', Phaser.Math.Between(0, 24)).setScale(Phaser.Math.FloatBetween(0.4, 0.7)));
+        for (let i = 0; i < 6; i++) fall(this.add.image(...at(), 'streamer').setTint(Phaser.Utils.Array.GetRandom(colours)).setScale(1.4), 1.5);
     }
 
     private button(x: number, y: number, w: number, h: number, label: string, color: number | null, onTap: () => void) {
@@ -495,6 +582,8 @@ export class Game extends Phaser.Scene {
     }
 
     private closeOverlay() {
+        for (const t of this.winFx) t.remove();
+        this.winFx = [];
         if (this.overlayBox) this.tweens.killTweensOf(this.overlayBox.getAll());
         this.overlayBox?.each((o: Phaser.GameObjects.GameObject) => { if (o instanceof Phaser.GameObjects.Container) this.tweens.killTweensOf(o.getAll()); });
         this.winScreen = false;
