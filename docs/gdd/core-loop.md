@@ -13,7 +13,7 @@ The tension: the conveyor has 30 slots. Releasing a colour no front-row nest wan
 
 ## 2.2 Session <Badge type="tip" text="Live" />
 
-A level takes about 30 to 150 seconds. Win → *Next*. Lose (the conveyor is full and no block on it fits a nest) → *Retry*. The last level reached is remembered.
+A level takes about 30 to 150 seconds. Win → *Continue* or *Claim x2* (both go to the next level for now). Lose (the conveyor is full and no block on it fits a nest) → *Out of Space!*: revive (the cannon clears the belt and play goes on), or close it → *Level failed!* (lives shown, not used yet) → *Try Again*. The last level reached is remembered.
 
 ## 2.3 Long term <Badge type="warning" text="Coming soon" />
 

@@ -1,12 +1,15 @@
 import * as Phaser from 'phaser';
 import { ThreeLayer } from '../game/three-layer';
 
-/** Colony Flow's win-screen atlases (packed by Spine; see cutWinFrames): the "Victory!"
- * letters, and the two cheering ants as loose body parts. */
-const WIN_ATLASES = ['win_text', 'win_char'];
-const IMAGES = ['bg', 'btn_green', 'mascot', 'btn_blue_sq', 'pause', 'btn_speed_on', 'btn_speed_off', 'icon_ff', 'bst_btn', 'bst_btn_locked', 'icon_lock', 'bst_frame', 'badge_red', 'badge_plus', 'bst_magnet', 'bst_arrows', 'bst_cannon'];
+/** The win screen's art (public/assets/win): its background, the "AMAZING" title, the coin pile,
+ * the two buttons and their icons, plus the glow, rays and confetti. */
+const WIN = ['win_bg', 'amazing', 'rewards', 'btn_reward', 'btn_continue', 'icon_coin', 'icon_ads', 'glow_rays', 'glow', 'confetti_ribbon', 'confetti_star'];
+const IMAGES = ['bg', 'btn_blue_sq', 'pause', 'btn_speed_on', 'btn_speed_off', 'icon_ff', 'bst_btn', 'bst_btn_locked', 'icon_lock', 'bst_frame', 'badge_red', 'badge_plus', 'bst_magnet', 'bst_arrows', 'bst_cannon'];
 /** The Pause panel's art (public/assets/settings), loaded as `set_<name>`. */
 const SETTINGS = ['board', 'btn_blue', 'btn_gray', 'btn_close', 'btn_green', 'btn_red', 'music_on', 'music_off', 'sound_on', 'sound_off', 'vibe_on', 'vibe_off', 'icon_retry', 'icon_home'];
+/** The lose panels' art (public/assets/lose): the board, its close button, the broken heart, the
+ * revive buttons (ad, coins) and their icons, Try Again, and the lives (hearts, blank heart, refill time box). */
+const LOSE = ['lose_board', 'btn_close', 'heart_break', 'btn_rv', 'icon_rv', 'btn_purchase', 'icon_coin', 'btn_try_again', 'heart', 'heart_blank', 'heart_timebox'];
 const SOUNDS: Record<string, string> = {
     pop: 'pop.ogg', drop: 'cube_break_1.ogg', pick: 'SFX_INGAME_COIN_PICK.ogg', nest: 'count_reach.ogg',
     lose: 'sfx-Lose.wav', win: 'QuestRewardGet.ogg', click: 'ui_button_click.ogg', add: 'SFX_INGAME_ADD.ogg',
@@ -29,35 +32,10 @@ export class Boot extends Phaser.Scene {
         for (const n of IMAGES) this.load.image(n, `img/${n}.png`);
         for (const n of SETTINGS) this.load.image(`set_${n}`, `settings/${n}.png`);
         for (const [k, f] of Object.entries(SOUNDS)) this.load.audio(k, `sfx/${f}`);
-        // Colony Flow's win screen: the "Victory!" letters (texture atlas converted from the
-        // game's Spine atlas), plus glow and the button
-        for (const a of WIN_ATLASES) { this.load.image(`${a}_page`, `win/${a}.png`); this.load.json(`${a}_map`, `win/${a}.json`); }
-        for (const n of ['glow_rays', 'glow', 'btn_yellow', 'icon_coin', 'icon_ads', 'confetti_ribbon', 'confetti_star']) this.load.image(n, `win/${n}.png`);
+        for (const n of WIN) this.load.image(n, `win/${n}.png`);
+        for (const n of LOSE) this.load.image(`lose_${n}`, `lose/${n}.png`);
         // Colony Flow's confetti sheet: 5 x 5 shapes
         this.load.spritesheet('confetti', 'win/confetti.png', { frameWidth: 102, frameHeight: 102 });
-    }
-
-    /**
-     * Copy every region of the win atlases into its own texture, upright: Spine stores some
-     * regions turned 90 degrees, which Phaser's rotated atlas frames don't undo the same way.
-     * Each becomes a texture named "atlas:region" (for example "win_text:text/V").
-     */
-    private cutWinFrames() {
-        for (const a of WIN_ATLASES) {
-            const page = this.textures.get(`${a}_page`).getSourceImage() as HTMLImageElement;
-            const map = this.cache.json.get(`${a}_map`) as { frames: Record<string, { frame: { x: number; y: number; w: number; h: number }; rotated: boolean }> };
-            for (const [name, f] of Object.entries(map.frames)) {
-                const { x, y, w, h } = f.frame, tex = this.textures.createCanvas(`${a}:${name}`, w, h)!;
-                const ctx = tex.getContext();
-                if (f.rotated) {
-                    // stored turned a quarter anticlockwise (h wide, w tall): turn it back
-                    ctx.translate(w, 0);
-                    ctx.rotate(Math.PI / 2);
-                    ctx.drawImage(page, x, y, h, w, 0, 0, h, w);
-                } else ctx.drawImage(page, x, y, w, h, 0, 0, w, h);
-                tex.refresh();
-            }
-        }
     }
 
     async create() {
@@ -69,7 +47,6 @@ export class Boot extends Phaser.Scene {
                 new Promise((res) => setTimeout(res, 2500)),
             ]);
             await Promise.all([three.load(''), font]);
-            this.cutWinFrames();
             this.scene.start('Game', { three });
         } catch (e) {
             // show why the game could not start instead of hanging on the loading screen

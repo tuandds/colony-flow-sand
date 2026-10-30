@@ -47,6 +47,8 @@ export class Sim {
     key!: Uint8Array; rgb!: Uint32Array; dr!: Uint8Array; loose!: Uint8Array; vx!: Float32Array; vy!: Float32Array;
     colors: Record<string, string> = {};
     total = 0; drained = 0;
+    /** Grains still on the board (the picture frame); 0 once all its sand has fallen. */
+    left = 0;
     cell = 0; gs = 0; ox = 0; oy = 0;
     picDirty = true;
     queue: number[] = []; qHead = 0; drainCarry = 0;
@@ -110,7 +112,7 @@ export class Sim {
         this.key = key; this.rgb = rgb;
         this.dr = new Uint8Array(G * G); this.loose = new Uint8Array(G * G);
         this.vx = new Float32Array(G * G); this.vy = new Float32Array(G * G);
-        this.colors = L.colors; this.total = total; this.drained = 0;
+        this.colors = L.colors; this.total = total; this.drained = 0; this.left = total;
         this.cell = PIC.size / FRAME_N; this.gs = gs; this.ox = PIC.x - pad * gs; this.oy = PIC.y - top * gs;
         this.picDirty = true;
         this.queue = []; this.qHead = 0; this.drainCarry = 0;
@@ -263,6 +265,7 @@ export class Sim {
             const k = this.keys[key[p]]!, x = p % G, y = (p / G) | 0;
             const c = rgb[p];
             key[p] = 0; dr[p] = 0; this.loose[p] = 0; this.vx[p] = 0; this.vy[p] = 0;
+            this.left--;
             this.picDirty = true;
             // grains are too many to animate one by one, so each particle carries a few of them
             this.emitAcc[k] = (this.emitAcc[k] || 0) + 1;
@@ -633,6 +636,9 @@ export class Sim {
     }
     /** Fan: every block on the belt flies into a nest of its colour, upper rows first (any nest,
      * woken or not). Ants still on their way to a block go home. */
+    /** Back to play after a loss (revive): the caller clears the belt (the Fan). */
+    revive() { this.state = 'play'; this.endT = 0; this.stuckT = 0; }
+
     fan() {
         let n = 0;
         for (let i = 0; i < SLOTS; i++) {

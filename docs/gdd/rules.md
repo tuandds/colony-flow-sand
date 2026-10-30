@@ -58,7 +58,7 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 |---|---|
 | Swipe on the picture | Free the sand under the finger |
 | Pause button | Pause panel: close (✕, resume), music / sound / vibration switches (kept in the browser), Restart, Home (the site's landing page; level 1's start screen elsewhere), cheat to jump to any level. Vibration buzzes when a nest fills, on a win and on a loss (phones that support it) |
-| ▶▶ x2 | Toggle double speed |
+| ▶▶ x2 | Toggle double speed. Once all the sand has fallen off the picture frame, x2 turns on by itself and the button hides until the next level, which starts at the speed the player had set |
 | Boosters | A row of three under the HUD, above the picture frame: green square buttons with a magnet (Activate), arrows (Shuffle) and a ball cannon (Fan). Each has 1 use per level, shown on a red badge; a green plus replaces it when none are left. The boosters unlock one by one: Activate at level 3, Shuffle at level 6, Fan at level 9. Before that a booster's button is grey with a padlock and its level under it, and tapping it shows "Unlocks at Level N" for a moment. A booster that would do nothing (nothing to wake, swap or blow) only bounces and keeps its use |
 | Activate | Tap it, then tap a nest waiting in the second or third row: ants work for that nest too, from where it stands, until it is full. The game holds still while you pick; tap anywhere else (or the booster) to cancel. A woken nest looks like a front nest |
 | Shuffle | The nests trade places at random across all columns and rows (each keeps the blocks it has). Nests with an ant on its way stay put; a woken nest stays woken wherever it lands |

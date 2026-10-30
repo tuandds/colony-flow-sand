@@ -7,7 +7,7 @@ import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useL
 import { type Recording, botStep, playBot, replayStep } from '../game/bot';
 import { FAN_FLIGHT, FAN_SHOT_GAP, Flyer, Sfx, Sim, levelOverride } from '../game/sim';
 import { Item3D, ThreeLayer } from '../game/three-layer';
-import { abgrToRgb, greyed, shade } from '../game/util';
+import { abgrToRgb, greyed } from '../game/util';
 
 const FONT = '"Lilita One", "Arial Rounded MT Bold", sans-serif';
 /** Music, sound effects and vibration switches (Pause panel), kept in the browser. */
@@ -51,10 +51,10 @@ export class Game extends Phaser.Scene {
     private started = false;
     private paused = false;
     private speedUp = false;
-    /** The win screen animates itself (the lose panel scales in from update). */
-    private winScreen = false;
-    /** Counter tweens that drive the win screen's ants (stopped with the overlay). */
-    private winFx: Phaser.Tweens.Tween[] = [];
+    /** x2 forced on because the picture frame is empty (its button is hidden until the next level). */
+    private autoFast = false;
+    /** The x2 setting before autoFast turned it on, given back on the next level. */
+    private speedBefore = false;
     /** Auto Play (level editor): the test bot plays in front of you; botT counts to its next move. */
     private autoplay = false;
     private botT = 0;
@@ -86,6 +86,8 @@ export class Game extends Phaser.Scene {
     private fullGfx!: Phaser.GameObjects.Graphics;
     private levelText!: Phaser.GameObjects.Text;
     private speedBtn!: Phaser.GameObjects.Image;
+    /** The x2 button's image, icon and label, hidden together. */
+    private speedParts: Phaser.GameObjects.Components.Visible[] = [];
     private boosters: {
         img: Phaser.GameObjects.Image; base: Phaser.GameObjects.Image; frame: Phaser.GameObjects.Image;
         badge: Phaser.GameObjects.Container; plus: Phaser.GameObjects.Image; count: Phaser.GameObjects.Text; bump: number; uses: number;
@@ -106,11 +108,12 @@ export class Game extends Phaser.Scene {
         order: Map<number, number>; gap: number;
         /** Each shot block's turn to leave the mouth, and those already fired (for the recoil). */
         shots: Map<Flyer, number>; fired: Set<Flyer>;
+        /** A revive after a loss: it does not use up the Fan booster. */
+        free: boolean;
     } | null = null;
     private labels: Phaser.GameObjects.Text[] = [];
     private overlay: Overlay = null;
     private overlayBox?: Phaser.GameObjects.Container;
-    private endAt = 0;
 
     constructor() {
         super('Game');
@@ -189,9 +192,9 @@ export class Game extends Phaser.Scene {
         this.sandTex.setFilter(Phaser.Textures.FilterMode.NEAREST);
         this.sandImage.setTexture('sand').setPosition(this.sim.ox, this.sim.oy).setDisplaySize(G * this.sim.gs, G * this.sim.gs);
         this.closeOverlay();
-        this.endAt = 0;
         this.setPicking(false);
         this.endFan();
+        this.setAutoFast(false);
         this.boosters.forEach((_b, i) => { this.setLocked(i, this.levelIndex + 1 < BOOSTER_UNLOCK[i]); this.setUses(i, BOOSTER_USES[i]); });
     }
 
@@ -216,16 +219,13 @@ export class Game extends Phaser.Scene {
                 this.sim.update(step);
             }
         }
+        if (this.sim.left === 0 && this.sim.state === 'play') this.setAutoFast(true);
         if (this.sim.state !== 'play' && this.overlay !== 'end' && this.sim.endT >= (this.sim.state === 'win' ? 0.9 : 0)) this.showEnd();
         this.boosters.forEach((b, i) => {
             b.bump = Math.max(0, b.bump - dt * 5);
             const s = 1 + b.bump * 0.12 + (this.picking && i === 0 ? 0.06 + 0.04 * Math.sin(this.time.now / 120) : 0);
             for (const o of [b.base, b.img, b.frame, b.lockBase, b.lock, b.lockText]) o.setScale((o.getData('sx') ?? o.getData('s')) * s, (o.getData('sy') ?? o.getData('s')) * s);
         });
-        if (this.overlay === 'end' && this.overlayBox && !this.winScreen) {
-            this.endAt += dt;
-            this.overlayBox.setScale(0.8 + 0.2 * Math.min(1, this.endAt * 4));
-        }
         this.render();
     }
 
@@ -520,7 +520,7 @@ export class Game extends Phaser.Scene {
 
     // ---------- Fan booster animation ----------
     /** The screen dims (the blocks, nests and ants stay lit), and the fan drops into the middle. */
-    private startFan() {
+    private startFan(free = false) {
         // one under the 3D layer (it dims the picture and the belt, not the blocks, nests and ants)
         // and one over the HUD and boosters above the frame
         const top = INNER.y - 14;
@@ -545,7 +545,7 @@ export class Game extends Phaser.Scene {
         near.sort((p, q) => p.d - q.d);
         const gap = Math.min(0.06, 1 / Math.max(1, near.length));
         const order = new Map(near.map(({ i }, k) => [i, k * gap] as [number, number]));
-        this.fanFx = { t: 0, blown: false, leaving: false, icon, dims, wind: this.add.graphics().setDepth(D.hud + 0.9), gusts: [], gustAcc: 0, order, gap, shots: new Map(), fired: new Set() };
+        this.fanFx = { t: 0, blown: false, leaving: false, icon, dims, wind: this.add.graphics().setDepth(D.hud + 0.9), gusts: [], gustAcc: 0, order, gap, shots: new Map(), fired: new Set(), free };
         this.sfx('click');
     }
 
@@ -609,7 +609,7 @@ export class Game extends Phaser.Scene {
     /** The rules take over: every block flies from the cannon's mouth to its nest, one after another. */
     private blowFan() {
         const f = this.fanFx!, s = this.sim, before = s.flyers.length;
-        if (s.fan()) this.setUses(2, this.boosters[2].uses - 1);
+        if (s.fan() && !f.free) this.setUses(2, this.boosters[2].uses - 1);
         f.blown = true;
         s.flyers.slice(before).forEach((fl, k) => { fl.sx = FAN_MOUTH.x; fl.sy = FAN_MOUTH.y; f.shots.set(fl, k); });
     }
@@ -643,9 +643,10 @@ export class Game extends Phaser.Scene {
         }
     }
 
-    /** x2 speed on or off; the button shows which. Every game starts at normal speed. */
+    /** x2 speed on or off; the button shows which. Every game starts at normal speed. While
+     * autoFast is on, x2 stays on. */
     private setSpeed(on: boolean) {
-        this.speedUp = on;
+        this.speedUp = on || this.autoFast;
         this.speedBtn.setTexture(on ? 'btn_speed_on' : 'btn_speed_off').setDisplaySize(SPEED_BTN.w, SPEED_BTN.h);
     }
 
@@ -659,138 +660,88 @@ export class Game extends Phaser.Scene {
         // fast-forward icon and "x2"
         this.speedBtn = this.add.image(sp.x, sp.y, 'btn_speed_off').setOrigin(0).setDisplaySize(sp.w, sp.h).setDepth(D.hud)
             .setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-                if (this.overlay) return;
+                if (this.overlay || this.autoFast) return;
                 this.sfx('click');
                 this.setSpeed(!this.speedUp);
             });
         const ix = sp.x + 58, iy = sp.y + sp.h * 0.46;
-        this.add.image(ix, iy, 'icon_ff').setDisplaySize(59, 42).setDepth(D.hud + 0.1);
-        this.text(sp.x + sp.w - 52, iy + 1, 'x2', 50, '#ffffff', '#2e5a12', 8).setDepth(D.hud + 0.1);
+        this.speedParts = [
+            this.speedBtn,
+            this.add.image(ix, iy, 'icon_ff').setDisplaySize(59, 42).setDepth(D.hud + 0.1),
+            this.text(sp.x + sp.w - 52, iy + 1, 'x2', 50, '#ffffff', '#2e5a12', 8).setDepth(D.hud + 0.1),
+        ];
     }
 
-    /** A region of the win atlases, cut out upright when the game loaded (Boot.cutWinFrames). */
-    private winImage(x: number, y: number, atlas: 'win_text' | 'win_char', frame: string) {
-        return this.add.image(x, y, `${atlas}:${frame}`);
+    /** Once all the sand has fallen off the picture frame, the rest of the level (funnel, belt,
+     * ants) runs at x2 and the x2 button hides, so it cannot be turned off; the next level gives
+     * back the speed the player had. */
+    private setAutoFast(on: boolean) {
+        if (on === this.autoFast) return;
+        if (on) this.speedBefore = this.speedUp;
+        this.autoFast = on;
+        this.setSpeed(on || this.speedBefore);
+        for (const o of this.speedParts) o.setVisible(!on);
     }
 
-    /** Colony Flow's win screen, as in its game: "Level N" over "VICTORY!" popping in letter by
-     * letter, the two cheering ants jumping either side of a pile of coins in a glow with turning
-     * rays, confetti raining down, and the two reward buttons (both go on to the next level: the
-     * prototype has no coins yet). */
+    /** The win screen (public/assets/win): "Level N" and the "AMAZING" title over a pile of coins
+     * in a glow with turning rays, the coins won, confetti raining down, and two buttons: claim x2
+     * with an ad (80 coins) or continue (40). Both go on to the next level: the prototype has no
+     * coins or ads yet. */
     private showWin() {
         const box = this.add.container(0, 0).setDepth(D.overlay);
-        this.winScreen = true;
-        box.add(this.add.rectangle(0, 0, W, H, 0x1c0f08, 0.86).setOrigin(0).setInteractive());
-        const cy = 1060;
-        const glow = this.add.image(540, cy, 'glow').setScale(2.4).setTint(0xffd58a).setAlpha(0);
-        const rays = this.add.image(540, cy, 'glow_rays').setScale(5.5).setTint(0xfff1c2).setAlpha(0);
+        box.add(this.add.image(0, 0, 'win_bg').setOrigin(0).setDisplaySize(W, H).setInteractive());
+        const pop = (o: Phaser.GameObjects.Components.Transform & Phaser.GameObjects.GameObject, scale: number, delay: number) => {
+            o.setScale(0);
+            box.add(o);
+            this.tweens.add({ targets: o, scale, duration: 380, delay, ease: 'Back.Out' });
+        };
+
+        const cy = 880;
+        const glow = this.add.image(540, cy, 'glow').setScale(2.6).setTint(0xfff6c8).setAlpha(0);
+        const rays = this.add.image(540, cy, 'glow_rays').setScale(5.5).setAlpha(0);
         box.add([glow, rays]);
-        this.tweens.add({ targets: glow, alpha: 0.8, duration: 400 });
-        this.tweens.add({ targets: rays, alpha: 0.38, duration: 500 });
+        this.tweens.add({ targets: glow, alpha: 0.75, duration: 400 });
+        this.tweens.add({ targets: rays, alpha: 0.35, duration: 500 });
         this.tweens.add({ targets: rays, angle: 360, duration: 24000, repeat: -1 });
 
-        const level = this.text(540, 480, `Level ${this.levelIndex + 1}`, 64, '#ffb347', '#5a2a10', 10).setAlpha(0);
+        const level = this.text(540, 250, `Level ${this.levelIndex + 1}`, 64, '#ffffff', '#1f4fa8', 10).setAlpha(0);
         box.add(level);
         this.tweens.add({ targets: level, alpha: 1, duration: 300, delay: 100 });
+        const title = this.add.image(540, 450, 'amazing');
+        pop(title, 1.15, 150);
+        this.tweens.add({ targets: title, y: 436, duration: 900, delay: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
 
-        // VICTORY!: each letter is its drop shadow, the orange body and the cream face on top
-        const word = ['V', 'I', 'C', 'T', 'O', 'R', 'Y', '!'];
-        const fw = (f: string) => this.textures.getFrame(`win_text:${f}`);
-        const scale = 1.05, gap = -10;
-        const widths = word.map((c) => fw(`text/Outline_${c}`).realWidth * scale);
-        // the "!" sits closer to the word than the letters sit to each other
-        const gaps = word.map((_c, i) => (i === word.length - 1 ? 0 : word[i + 1] === '!' ? gap - 22 : gap));
-        let x = 540 - (widths.reduce((a, b) => a + b, 0) + gaps.reduce((a, b) => a + b, 0)) / 2;
-        word.forEach((c, i) => {
-            const lx = x + widths[i] / 2;
-            x += widths[i] + gaps[i];
-            const letter = this.add.container(lx, 640);
-            letter.add([
-                this.winImage(6, 14, 'win_text', `text/DropShadow_${c}`).setScale(scale * 0.86).setAlpha(0.35).setTint(0x000000),
-                this.winImage(0, 0, 'win_text', `text/Outline_${c}`).setScale(scale),
-                this.winImage(0, -8 * scale, 'win_text', `text/${c}`).setScale(scale),
-            ]);
-            letter.setScale(0);
-            box.add(letter);
-            this.tweens.add({ targets: letter, scale: 1, duration: 380, delay: 180 + i * 70, ease: 'Back.Out' });
-            this.tweens.add({ targets: letter, y: 628, duration: 700, delay: 900 + i * 90, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-        });
-        const shine = this.winImage(800, 550, 'win_text', 'shine').setScale(0).setBlendMode(Phaser.BlendModes.ADD);
-        box.add(shine);
-        this.tweens.add({ targets: shine, scale: 0.7, angle: 90, duration: 500, delay: 800, yoyo: true, repeat: -1, repeatDelay: 900 });
-
-        // the coin pile between the ants
-        const coins = this.winImage(540, cy + 30, 'win_char', 'coin').setScale(0);
-        box.add(coins);
-        this.tweens.add({ targets: coins, scale: 0.95, duration: 380, delay: 500, ease: 'Back.Out' });
-        this.addWinAnt(box, 345, cy - 20, 'yellow', 0);
-        this.addWinAnt(box, 738, cy - 20, 'pink', 0.5);
+        pop(this.add.image(540, cy, 'rewards'), 1, 400);
+        // the coins this level gives
+        const won = this.add.container(540, 1170);
+        won.add([this.add.image(-60, 0, 'icon_coin').setDisplaySize(84, 95), this.text(36, -4, '+40', 76, '#ffffff', '#1f4fa8', 12)]);
+        pop(won, 1, 650);
         this.addConfetti(box);
 
-        // rewards: a yellow "watch an ad" button and a green one
+        // claim x2 with an ad: the clapperboard and "Claim x2" on the orange face, the coins on
+        // its yellow tab; continue: the green button
         const next = () => this.startLevel((this.levelIndex + 1) % levelCount());
-        box.add(this.rewardButton(300, 1440, 'btn_yellow', 80, true, next, 1100));
-        box.add(this.rewardButton(785, 1440, 'btn_green', 40, false, next, 1200));
+        const claim = this.add.container(540, 1400);
+        claim.add([
+            this.add.image(0, 0, 'btn_reward'),
+            this.add.image(-150, -52, 'icon_ads').setDisplaySize(112, 109).setAngle(-6),
+            this.text(40, -56, 'Claim x2', 64, '#ffffff', '#a8480a', 10),
+            this.add.image(-38, 76, 'icon_coin').setDisplaySize(48, 54),
+            this.text(26, 74, '80', 52, '#ffffff', '#a8660a', 8),
+        ]);
+        pop(this.tapTarget(claim, 517, 304, next), 1, 900);
+        const cont = this.add.container(540, 1660);
+        cont.add([this.add.image(0, 0, 'btn_continue'), this.text(0, -8, 'Continue', 68, '#ffffff', '#1f7a12', 10)]);
+        pop(this.tapTarget(cont, 472, 210, next), 0.9, 1050);
         this.overlayBox = box;
     }
 
-    /** A wide reward button from Colony Flow's art: a coin, the amount, and an ad badge. */
-    private rewardButton(x: number, y: number, key: string, amount: number, ad: boolean, onTap: () => void, delay: number) {
-        const w = 380, h = 150, c = this.add.container(x, y);
-        c.add(this.add.nineslice(0, 0, key, undefined, w, h, 80, 80, 70, 80));
-        c.add(this.add.image(-62, -8, 'icon_coin').setDisplaySize(78, 78));
-        c.add(this.text(38, -10, String(amount), 72, '#ffffff', '#5a3a10', 10));
-        if (ad) c.add(this.add.image(w / 2 - 22, -h / 2 + 4, 'icon_ads').setDisplaySize(84, 88).setAngle(8));
-        c.setSize(w, h).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.sfx('click'); onTap(); });
-        c.setScale(0);
-        this.tweens.add({ targets: c, scale: 1, duration: 350, delay, ease: 'Back.Out' });
-        return c;
+    /** Make a button container tappable over its art's w x h (clicks go to `onTap`). */
+    private tapTarget(c: Phaser.GameObjects.Container, w: number, h: number, onTap: () => void) {
+        return c.setSize(w, h).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.sfx('click'); onTap(); });
     }
 
-    // Colony Flow's two cheering ants (win_char), put together from their parts: [part, x, y,
-    // turn] from the middle of the ant's chest, back to front. The pink one leans toward the
-    // coins, one arm reaching for them behind its body and the other raised in front, as in Colony Flow. Their Spine skeleton is not in the
-    // extracted files, so they jump with tweens.
-    private static WIN_ANTS: Record<'yellow' | 'pink', [string, number, number, number?][]> = {
-        yellow: [['A1_thigh_R', -40, 98, -1.05], ['A1_calf_R', -2, 112, -1.05], ['A1_arm_L', 75, -40], ['A1_torso', -48, 36], ['A1_leg_L', -62, 108], ['A1_head', 6, -142], ['A1_arm_R', -75, -40]],
-        pink: [['A2_leg_L', -30, 100], ['A2_arm_R', -59, -32, -0.55], ['A2_torso', 39, 40], ['A2_leg_R', 40, 100], ['A2_head', -22, -132], ['A2_arm_L', 72, -41]],
-    };
-
-    /** One cheering ant that keeps jumping, arms waving, over its shadow; `phase` (0-1) offsets its jumps. */
-    private addWinAnt(box: Phaser.GameObjects.Container, x: number, y: number, kind: 'yellow' | 'pink', phase: number) {
-        const id = kind === 'yellow' ? 'A1' : 'A2';
-        const ANT_SCALE = 0.95;
-        const shadow = this.winImage(x + (kind === 'yellow' ? -25 : 25) * ANT_SCALE, y + 175 * ANT_SCALE, 'win_char', `${kind}/${id}_shadow`);
-        const body = this.add.container(x, y);
-        const arms: Phaser.GameObjects.Image[] = [];
-        for (const [part, px, py, turn = 0] of Game.WIN_ANTS[kind]) {
-            const img = this.winImage(px, py, 'win_char', `${kind}/${part}`).setRotation(turn);
-            if (part.includes('arm')) {
-                // arms swing from the shoulder: the lower inner corner (fists are up and out)
-                const ox = part.endsWith('_R') ? 0.88 : 0.12, oy = 0.92;
-                img.setOrigin(ox, oy).setPosition(px + (ox - 0.5) * img.width, py + (oy - 0.5) * img.height).setData('turn', turn).setData('sign', part.endsWith('_R') ? -1 : 1);
-                arms.push(img);
-            }
-            body.add(img);
-        }
-        body.setScale(0);
-        box.add([shadow, body]);
-        this.tweens.add({ targets: body, scale: ANT_SCALE, duration: 350, delay: 600 + phase * 300, ease: 'Back.Out' });
-        // one jump per second: up fast, down, a little squash on landing; arms wave twice a jump
-        this.winFx.push(this.tweens.addCounter({
-            from: 0, to: 1, duration: 900, repeat: -1, delay: 950 + phase * 450,
-            onUpdate: (tw) => {
-                const t = tw.getValue() ?? 0, h = Math.sin(Math.PI * t);
-                body.y = y - 70 * h;
-                const land = Math.max(0, 1 - h * 4);
-                body.scaleX = ANT_SCALE * (1 + 0.06 * land); body.scaleY = ANT_SCALE * (1 - 0.08 * land);
-                shadow.setScale(ANT_SCALE * (1 - 0.35 * h)).setAlpha(1 - 0.4 * h);
-                arms.forEach((a) => (a.rotation = a.getData('turn') + a.getData('sign') * 0.28 * Math.sin(Math.PI * 4 * t)));
-            },
-        }));
-    }
-
-    /** Confetti raining down over the win screen, as in Colony Flow: coloured paper strips that
+    /** Confetti raining down over the win screen (Colony Flow's art): coloured paper strips that
      * flip as they fall (its white confetti quad, tinted), white and yellow stars, a few of its
      * confetti shapes and some curly streamers. */
     private addConfetti(box: Phaser.GameObjects.Container) {
@@ -825,38 +776,9 @@ export class Game extends Phaser.Scene {
         for (let i = 0; i < 6; i++) fall(this.add.image(...at(), 'streamer').setTint(Phaser.Utils.Array.GetRandom(colours)).setScale(1.4), 1.5);
     }
 
-    private button(x: number, y: number, w: number, h: number, label: string, color: number | null, onTap: () => void) {
-        const c = this.add.container(x + w / 2, y + h / 2);
-        if (color === null) {
-            c.add(this.add.image(0, 0, 'btn_green').setDisplaySize(w, h));
-        } else {
-            const g = this.add.graphics();
-            g.fillStyle(0xfff3e0).fillRoundedRect(-w / 2, -h / 2 + 4, w, h - 8, 40);
-            g.fillStyle(shade('#' + color.toString(16).padStart(6, '0'), -0.25)).fillRoundedRect(-w / 2 + 10, -h / 2 + 12, w - 20, h - 28, 32);
-            g.fillStyle(color).fillRoundedRect(-w / 2 + 10, -h / 2 + 8, w - 20, h - 34, 32);
-            c.add(g);
-        }
-        c.add(this.text(0, -h * 0.05, label, h >= 140 ? 60 : 56));
-        c.setSize(w, h).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.sfx('click'); onTap(); });
-        return c;
-    }
-
-    private panel(top: number, bottom: number, title: string, titleColor: string) {
-        const box = this.add.container(0, 0).setDepth(D.overlay);
-        const shade = this.add.rectangle(0, 0, W, H, 0x281910, 0.5).setOrigin(0).setInteractive();
-        const g = this.add.graphics();
-        g.fillStyle(0xe2bf92).fillRoundedRect(150, top, 780, bottom - top, 64);
-        g.fillStyle(0xfbf1e4).fillRoundedRect(166, top + 12, 748, bottom - top - 24, 54);
-        box.add([shade, g, this.text(540, top + 85, title, 72, titleColor, '#5a3a20', 10)]);
-        return box;
-    }
-
     private closeOverlay() {
-        for (const t of this.winFx) t.remove();
-        this.winFx = [];
         if (this.overlayBox) this.tweens.killTweensOf(this.overlayBox.getAll());
         this.overlayBox?.each((o: Phaser.GameObjects.GameObject) => { if (o instanceof Phaser.GameObjects.Container) this.tweens.killTweensOf(o.getAll()); });
-        this.winScreen = false;
         this.overlayBox?.destroy();
         this.overlayBox = undefined;
         this.overlay = null;
@@ -952,19 +874,77 @@ export class Game extends Phaser.Scene {
     private showEnd() {
         this.overlay = 'end';
         this.swiping = false;
-        const win = this.sim.state === 'win';
-        if (win) { this.showWin(); return; }
-        const last = this.levelIndex >= levelCount() - 1;
-        const box = this.panel(610, 1310, win ? (last ? 'All Done!' : 'Level Complete!') : 'Conveyor full!', win ? '#ffd23f' : '#ff6b81');
-        if (!win) box.add(this.text(540, 790, 'No block on the belt fits a nest', 36, '#7a4a24', null));
-        box.add(this.add.image(540, win ? 916 : 956, 'mascot').setDisplaySize(win ? 300 : 240, win ? 292 : 233));
-        box.add(win
-            ? this.button(360, 1130, 360, 150, last ? 'Replay' : 'Next', null, () => this.startLevel((this.levelIndex + 1) % levelCount()))
-            : this.button(360, 1130, 360, 150, 'Retry', 0xff9f43, () => this.startLevel(this.levelIndex)));
-        // scale in around the panel centre
-        box.list.forEach((o) => { const t = o as unknown as Phaser.GameObjects.Components.Transform; t.x -= 540; t.y -= 900; });
-        box.setPosition(540, 900).setScale(0.8);
+        if (this.sim.state === 'win') this.showWin();
+        else this.showOutOfSpace();
+    }
+
+    /** A lose panel (public/assets/lose): a dim, and the board popping in with its title on the
+     * blue header and a close button on its corner (board centre 540, 940; the board image is
+     * 886 x 1097, its light blue box 716 x 392 centred 433 px below its top). */
+    private losePanel(title: string, onClose: () => void) {
+        const box = this.add.container(0, 0).setDepth(D.overlay);
+        box.add(this.add.rectangle(0, 0, W, H, 0x0a1430, 0.6).setOrigin(0).setInteractive());
+        const board = this.add.container(540, 940);
+        board.add([
+            this.add.image(0, 0, 'lose_lose_board'),
+            this.text(0, -452, title, 76, '#ffffff', '#0a3a8a', 12),
+            this.add.image(408, -500, 'lose_btn_close').setScale(0.9).setInteractive({ useHandCursor: true })
+                .on('pointerdown', () => { this.sfx('click'); onClose(); }),
+        ]);
+        board.setScale(0.8);
+        this.tweens.add({ targets: board, scale: 1, duration: 300, ease: 'Back.Out' });
+        box.add(board);
         this.overlayBox = box;
+        return board;
+    }
+
+    /** Lost (the conveyor is full): revive with an ad or with coins (the cannon clears the belt and
+     * play goes on; the prototype has no ads or coins yet, so both just revive), or give up with
+     * the close button. */
+    private showOutOfSpace() {
+        const board = this.losePanel('Out of Space!', () => { this.closeOverlay(); this.overlay = 'end'; this.showFailed(); });
+        board.add(this.add.image(0, -150, 'lose_heart_break').setScale(0.85));
+        board.add(this.text(0, 20, 'The conveyor is full!', 46, '#1f4fa8', null));
+        board.add(this.text(0, 140, 'Clear it and keep playing?', 40, '#3a5a8a', null));
+        const revive = () => {
+            this.closeOverlay();
+            this.sim.revive();
+            this.startFan(true);
+        };
+        const ad = this.add.container(-170, 300);
+        ad.add([
+            this.add.image(0, 0, 'lose_btn_rv').setScale(0.66),
+            this.add.image(-70, -12, 'lose_icon_rv').setDisplaySize(84, 85),
+            this.text(42, -14, 'Free', 58, '#ffffff', '#a8480a', 10),
+        ]);
+        const coins = this.add.container(170, 300);
+        coins.add([
+            this.add.image(0, 0, 'lose_btn_purchase').setScale(0.8),
+            this.add.image(-66, -12, 'lose_icon_coin').setDisplaySize(64, 70),
+            this.text(38, -14, '900', 58, '#ffffff', '#1f7a12', 10),
+        ]);
+        board.add([this.tapTarget(ad, 323, 194, revive), this.tapTarget(coins, 319, 196, revive)]);
+    }
+
+    /** Gave up: "Level N", the lives (one of five lost, a blank heart) and the time to the next
+     * one counting down from 30:00, "Level failed!" and Try Again. Try Again and the close button
+     * both start the level over; the prototype has no lives yet, so they are only shown. */
+    private showFailed() {
+        const again = () => this.startLevel(this.levelIndex);
+        const board = this.losePanel(`Level ${this.levelIndex + 1}`, again);
+        for (let i = 0; i < 5; i++) board.add(this.add.image((i - 2) * 132, -192, i < 4 ? 'lose_heart' : 'lose_heart_blank').setDisplaySize(124, 122));
+        const clock = this.text(40, -26, '30:00', 60, '#ffffff', '#0a3a8a', 10);
+        board.add([this.add.image(0, -24, 'lose_heart_timebox').setScale(0.9), this.add.image(-110, -26, 'lose_heart').setDisplaySize(82, 81), clock]);
+        let left = 30 * 60;
+        // a do-nothing tween on the clock ticks it each second (and stops with the panel)
+        this.tweens.add({
+            targets: clock, alpha: 1, duration: 1000, repeat: -1,
+            onRepeat: () => { left = Math.max(0, left - 1); clock.setText(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`); },
+        });
+        board.add(this.text(0, 150, 'Level failed!', 58, '#1f5fc8', null));
+        const btn = this.add.container(0, 330);
+        btn.add([this.add.image(0, 0, 'lose_btn_try_again'), this.text(0, -10, 'Try Again', 70, '#ffffff', '#1f7a12', 10)]);
+        board.add(this.tapTarget(btn, 471, 210, again));
     }
 
     private onDown(p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) {
@@ -1008,9 +988,10 @@ export class Game extends Phaser.Scene {
             /** Play live with the test bot, or replay recorded winning strokes from the start, at `speed` (1 or 2). */
             autoplay(on = true, speed = 2, moves?: Recording['moves']) {
                 // Auto Play runs at `speed`; stopping it goes back to normal speed
-                scene.autoplay = on; scene.setSpeed(on && speed > 1);
+                scene.autoplay = on;
                 scene.moves = moves ?? null; scene.moveAt = 0; scene.replayAcc = 0; scene.replayFrame = 0;
                 if (on) { if (moves) scene.startLevel(scene.levelIndex); scene.started = true; scene.closeOverlay(); }
+                scene.setSpeed(on && speed > 1);
             },
             /** Hold the game still (or let it go on), without the pause panel: for screenshots. */
             hold(on = true) { scene.paused = on; },
