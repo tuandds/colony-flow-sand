@@ -85,9 +85,10 @@ export class Game extends Phaser.Scene {
     private fullText!: Phaser.GameObjects.Text;
     /** The fullness bar's fill: above the white bar track (drawBeltBase), below the % text. */
     private fullBar!: Phaser.GameObjects.NineSlice;
-    /** Nest boxes and the white frame round the front ones, reused frame to frame (like the labels). */
+    /** Nest boxes, reused frame to frame (like the labels). */
     private nestBoxes: Phaser.GameObjects.Image[] = [];
-    private nestFrames: Phaser.GameObjects.Image[] = [];
+    /** When each nest last opened (became one ants work for), for its little pop. */
+    private opened = new WeakMap<object, number>();
     private levelText!: Phaser.GameObjects.Text;
     private speedBtn!: Phaser.GameObjects.Image;
     /** The x2 button's image, icon and label, hidden together. */
@@ -145,7 +146,7 @@ export class Game extends Phaser.Scene {
         this.drawBoard();
         this.sandImage = this.add.image(0, 0, '__WHITE').setOrigin(0).setDepth(D.sand);
         this.drawBeltBase();
-        for (let i = 0; i < SLOTS; i++) this.holds.push(this.add.image(0, 0, 'conveyor_hold').setDisplaySize(30, 30).setDepth(D.belt));
+        for (let i = 0; i < SLOTS; i++) this.holds.push(this.add.image(0, 0, 'conveyor_hold').setDisplaySize(30, 30).setAlpha(0.5).setDepth(D.belt));
         this.fullText = this.text(540, BELT.cy + 1, '0%', 24, '#14203a', null).setDepth(D.belt + 0.5);
         this.shadowGfx = this.add.graphics().setDepth(D.shadows);
         // Phaser canvas textures need a 2D canvas, so each frame the WebGL output of the 3D
@@ -272,13 +273,14 @@ export class Game extends Phaser.Scene {
             items.push({ ref: f, kind: 'cube', x, y, color: s.colors[f.k], size: BLOCK, scale: sc, ang: (1 - t) * 6, centered: true });
         }
 
-        // nest boxes (img/nest_box.png in the nest's colour): the front row (the nests ants work
-        // for) is full height inside a white frame; nests queued behind are lower, under a light
-        // overlay. The box art is 302 x 387: its body is the top 368, the centre of its top face
-        // (where the nest's point and number are) at (151, 136); the frame's hole is centred at
-        // (167.5, 202) of its 335 x 404, round the box body's centre (151, 184).
+        // nest boxes in the nest's colour: the nests ants work for (the front row, and woken ones)
+        // are open boxes (img/nest_open.png) that pop a little as they open, drawn over the rows
+        // behind; nests queued behind are closed boxes (img/nest_box.png), lower, under a light
+        // overlay. Each art is placed by the centre of its top face (where the nest's point and
+        // number are): (151, 136) of the closed box's 302 x 387, (139, 174) of the open box's
+        // 279 x 415, both drawn TILE * 0.92 wide.
         let li = 0;
-        const k = (TILE * 0.92) / 302;
+        const now = this.time.now;
         for (let ri = 5; ri >= 0; ri--) for (let ci = 0; ci < s.cols.length; ci++) {
             const nest = s.cols[ci][ri];
             if (!nest || nest.dy === null || nest.dx === null) continue;
@@ -290,12 +292,16 @@ export class Game extends Phaser.Scene {
             const front = s.isActive(nest, ri);
             if (this.picking && this.canWake(ci, ri)) sc *= 1.04 + 0.04 * Math.sin(this.time.now / 110);
             const hex = s.colors[nest.color];
-            const sx = k * sc, sy = sx * (front ? 1 : 0.8), depth = D.three - 0.3 + ri * 0.01;
-            const box = (this.nestBoxes[li] ??= this.add.image(0, 0, 'nest_box').setOrigin(151 / 302, 136 / 387));
-            box.setTexture(this.nestTexture(front ? hex : '#' + greyed(hex, WAIT.a, WAIT.light).toString(16).padStart(6, '0')))
-                .setPosition(nest.dx, y).setScale(sx, sy).setAlpha(alpha).setDepth(depth).setVisible(true);
-            const frame = (this.nestFrames[li] ??= this.add.image(0, 0, 'nest_frame').setOrigin(167.5 / 335, 202 / 404));
-            frame.setPosition(nest.dx, y + 48 * sy).setScale(sx, sy).setAlpha(alpha).setDepth(depth + 0.005).setVisible(front);
+            if (front && !this.opened.has(nest)) this.opened.set(nest, now);
+            if (!front) this.opened.delete(nest);
+            const age = front ? (now - this.opened.get(nest)!) / 260 : 1;
+            if (age < 1) sc *= 1 + 0.12 * Math.sin(Math.PI * age);
+            const art = front ? 'nest_open' : 'nest_box', w = front ? 279 : 302;
+            const sx = ((TILE * 0.92) / w) * sc, sy = sx * (front ? 1 : 0.8);
+            const box = (this.nestBoxes[li] ??= this.add.image(0, 0, 'nest_box'));
+            box.setTexture(this.nestTexture(art, front ? hex : '#' + greyed(hex, WAIT.a, WAIT.light).toString(16).padStart(6, '0')))
+                .setOrigin(front ? 139 / 279 : 151 / 302, front ? 174 / 415 : 136 / 387)
+                .setPosition(nest.dx, y).setScale(sx, sy).setAlpha(alpha).setDepth(D.three - 0.3 + (front ? 0.1 : ri * 0.01)).setVisible(true);
             const label = this.label(li++);
             label.setText(String(nest.need - nest.got)).setPosition(nest.dx, y + 2).setVisible(true);
             label.setFontSize(Math.round((front ? 50 : 46) * sc));
@@ -305,7 +311,7 @@ export class Game extends Phaser.Scene {
             else label.setColor(css(greyed('#ffffff', WAIT.a, WAIT.text))).setStroke(css(greyed('#000000', 0.6, WAIT.text)), 8 * sc);
             label.setAlpha(alpha);
         }
-        for (let i = li; i < this.nestBoxes.length; i++) { this.nestBoxes[i].setVisible(false); this.nestFrames[i].setVisible(false); }
+        for (let i = li; i < this.nestBoxes.length; i++) this.nestBoxes[i].setVisible(false);
         for (; li < this.labels.length; li++) this.labels[li].setVisible(false);
 
         g.fillStyle(0x3c2814, 0.22);
@@ -395,13 +401,13 @@ export class Game extends Phaser.Scene {
         return t;
     }
 
-    /** The nest box art in colour `hex` (made once per colour): the art is red, so each pixel's
-     * hue becomes the colour's, its saturation and brightness scaled by the colour's against the
-     * red of the box's top face (outline and shading stay). */
-    private nestTexture(hex: string) {
-        const key = 'nest_box:' + hex;
+    /** A nest box art in colour `hex` (made once per art and colour): the closed box is red and the
+     * open one green, so each pixel's hue becomes the colour's, its saturation and brightness
+     * scaled by the colour's against those of the art's top face (outline and shading stay). */
+    private nestTexture(art: 'nest_box' | 'nest_open', hex: string) {
+        const key = `${art}:${hex}`;
         if (this.textures.exists(key)) return key;
-        const src = this.textures.get('nest_box').getSourceImage() as HTMLImageElement;
+        const src = this.textures.get(art).getSourceImage() as HTMLImageElement;
         const tex = this.textures.createCanvas(key, src.width, src.height)!, ctx = tex.getContext();
         ctx.drawImage(src, 0, 0);
         const img = ctx.getImageData(0, 0, src.width, src.height), d = img.data;
@@ -411,7 +417,7 @@ export class Game extends Phaser.Scene {
             return [h * 60, mx ? c / mx : 0, mx / 255];
         };
         const t = parseInt(hex.slice(1), 16), [th, ts, tv] = hsv((t >> 16) & 255, (t >> 8) & 255, t & 255);
-        const [, bs, bv] = hsv(227, 56, 58);
+        const [, bs, bv] = art === 'nest_box' ? hsv(227, 56, 58) : hsv(131, 238, 46);
         for (let p = 0; p < d.length; p += 4) {
             if (!d[p + 3]) continue;
             const [, s0, v0] = hsv(d[p], d[p + 1], d[p + 2]);

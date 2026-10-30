@@ -5,11 +5,11 @@ import { ThreeLayer } from '../game/three-layer';
  * the two buttons and their icons, plus the glow, rays and confetti. */
 const WIN = ['win_bg', 'amazing', 'rewards', 'btn_reward', 'btn_continue', 'icon_coin', 'icon_ads', 'glow_rays', 'glow', 'confetti_ribbon', 'confetti_star'];
 /** The game screen's art (public/assets/img): mostly the Sugar Drop prototype kit (background,
- * picture frame with its funnel, conveyor, fill gauge, nest box and its white frame, booster
+ * picture frame with its funnel, conveyor, fill gauge, closed and open nest boxes, booster
  * button, badge and pictures, settings and speed buttons); the padlock, the Activate frame, the
  * plus badge and the Fan's cannon are older art. */
 const IMAGES = [
-    'bg', 'frame', 'conveyor', 'conveyor_hold', 'progress_bar', 'progress', 'nest_box', 'nest_frame',
+    'bg', 'frame', 'conveyor', 'conveyor_hold', 'progress_bar', 'progress', 'nest_box', 'nest_open',
     'btn_settings', 'btn_speed_on', 'btn_speed_off', 'bst_btn', 'bst_btn_locked', 'icon_lock', 'bst_frame',
     'badge_red', 'badge_plus', 'bst_claw', 'bst_shuffle', 'bst_flower', 'bst_cannon',
 ];
