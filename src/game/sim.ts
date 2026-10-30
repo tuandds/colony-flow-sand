@@ -1,8 +1,7 @@
 // The whole game state and rules, independent of Phaser: sand picture, funnel, conveyor,
 // nests and ants. The scene calls update() every frame and reads the fields to draw them.
 import {
-    ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, BOARD, COLS, DRAIN_RATE, DROP_S, FMASK, FMASK_COUNT,
-    FUNNEL, FUNNEL_HZ, GRAINS_PER_PARTICLE, GRAINS_PER_UNIT, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS,
+    ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, COLS, DROP_S, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS,
     FRAME_N, MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colX, frameGrains, funnelHalf, grainInFrame, nestPos,
 } from './layout';
 import { Level, buildLevel, decodeSand, widenOldFrame } from './levels';
@@ -29,7 +28,6 @@ export interface Ant {
 export const FAN_SHOT_GAP = 0.2, FAN_FLIGHT = 0.5;
 /** A block the Fan booster blew off the belt, flying into a nest. */
 export interface Flyer { k: string; sx: number; sy: number; nest: Nest; t: number; dur: number }
-export interface Particle { k: string; n: number; c: number; sx: number; sy: number; mx: number; my: number; ex: number; ey: number; t: number; dur: number }
 export interface Spark { x: number; y: number; vx: number; vy: number; life: number; t: number; color: number; s: number }
 
 /** Test-only: force a nest order/seed for a level (used to search solvable layouts). */
@@ -41,11 +39,19 @@ const SMALL_ISLAND = 48, THIN_ISLAND = 4;
 export class Sim {
     levelIndex: number;
     L!: Level;
-    n = 0; G = 0;
+    /** The grain grid is G wide; its top G rows are the board (the picture square, padded above),
+     * the rows below down to GH are the funnel, whose bottom row is the hole. */
+    n = 0; G = 0; GH = 0;
     keys: (string | null)[] = [];
-    // per grain: colour key index, packed colour, draining / loose flags, velocity
-    key!: Uint8Array; rgb!: Uint32Array; dr!: Uint8Array; loose!: Uint8Array; vx!: Float32Array; vy!: Float32Array;
-    /** Cells outside the frame's rounded inside (its corners): no sand starts there or moves in. */
+    // per grain: colour key index, packed colour, loose flag, velocity
+    key!: Uint8Array; rgb!: Uint32Array; loose!: Uint8Array; vx!: Float32Array; vy!: Float32Array;
+    /** Funnel grains: when each came down into the funnel (a running count), so the sand that came
+     * down first moves first and leaves first. */
+    seq!: Uint32Array; seqN = 0;
+    /** The step each grain last moved in, so a grain moved once is not moved again that step. */
+    private stepOf!: Uint32Array; stepN = 0;
+    /** Cells outside the frame art's light blue inside: the board's rounded corners and the
+     * funnel's curved sides. No sand starts there or moves in. */
     wall!: Uint8Array;
     colors: Record<string, string> = {};
     total = 0; drained = 0;
@@ -53,14 +59,8 @@ export class Sim {
     left = 0;
     cell = 0; gs = 0; ox = 0; oy = 0;
     picDirty = true;
-    queue: number[] = []; qHead = 0; drainCarry = 0;
-    particles: Particle[] = [];
-    emitAcc: Record<string, number> = {}; emitAt: Record<string, [number, number, number]> = {};
-    // funnel cells: colour key, grain count, colour
-    fk: (string | null)[] = []; fn = new Uint8Array(FUNNEL.cols * FUNNEL.rows); fc: number[] = [];
-    /** When each funnel clump arrived (a running count), so the oldest leaves first. */
-    fs = new Uint32Array(FUNNEL.cols * FUNNEL.rows); fSeq = 0;
-    fFree = FMASK_COUNT; fT = 0; fExit = 0;
+    /** Grains the hole may still take this step (MOUTH_RATE a second, carried over). */
+    exitCarry = 0;
     hopper: Record<string, number> = {};
     pipe: string[] = []; dropping: Block[] = [];
     slots: (Block | null)[] = []; beltOff = 0;
@@ -69,7 +69,7 @@ export class Sim {
     ncols = COLS;
     simT = 0; simFlip = 0; sweepT = 0; stuckT = 0;
     state: 'play' | 'win' | 'lose' = 'play'; endT = 0; time = 0;
-    /** Random numbers for the rules (sand, funnel, particles), restarted with every level so the
+    /** Random numbers for the rules (sand and funnel), restarted with every level so the
      * same swipes at the same moments always play out the same (the level editor's replays).
      * Looks-only randomness (sparks, ant gait) uses Math.random. */
     rand: () => number = Math.random;
@@ -90,8 +90,10 @@ export class Sim {
         // loose sand on the picture's edges can still slide off and fall until the frame stops it.
         const { h: PG, gs, pad } = frameGrains(FRAME_N), top = 2 * pad;
         const G = (this.G = PG + 2 * pad);
+        // the funnel's rows: from under the board down to the hole
+        const oy = PIC.y - top * gs, GH = (this.GH = G + Math.round((MOUTH.y - (oy + G * gs)) / gs));
         const keys = (this.keys = [null, ...Object.keys(L.colors)]);
-        const key = new Uint8Array(G * G), rgb = new Uint32Array(G * G);
+        const key = new Uint8Array(G * GH), rgb = new Uint32Array(G * GH);
         // grain-level pictures (level editor) give every grain; the others one key per cell of an
         // n-cell square. Either way the picture sits centred in the frame (anything outside the
         // frame is cut off).
@@ -104,12 +106,17 @@ export class Sim {
             const x = gx + x0, y = gy + y0;
             if (k && k !== '.' && x >= 0 && x < G && y >= top && y < top + PG) key[y * G + x] = Math.max(0, keys.indexOf(k));
         }
-        // the frame's corners are rounded: sand there is cut off, and they stay empty
-        const wall = (this.wall = new Uint8Array(G * G));
+        // the frame's corners are rounded: sand there is cut off, and they stay empty; the funnel
+        // under the board curves in to the hole
+        const wall = (this.wall = new Uint8Array(G * GH));
         for (let y = top; y < G; y++) for (let x = 0; x < G; x++) {
             if (!grainInFrame(x, y - top)) { wall[y * G + x] = 1; key[y * G + x] = 0; }
         }
-        fitWholeBlocks(key, G, keys.length, top, wall);
+        for (let y = G; y < GH; y++) for (let x = 0; x < G; x++) {
+            if (Math.abs(PIC.x + (x - pad + 0.5) * gs - MOUTH.x) > funnelHalf(oy + (y + 0.5) * gs)) wall[y * G + x] = 1;
+        }
+        // the picture is the board's sand only (the funnel starts empty)
+        fitWholeBlocks(key.subarray(0, G * G), G, keys.length, top, wall.subarray(0, G * G));
         for (let p = 0; p < key.length; p++) {
             if (key[p]) rgb[p] = packColor(L.colors[keys[key[p]]!], (hash(p % G, (p / G) | 0, 7) - 0.5) * 0.16);
         }
@@ -117,15 +124,13 @@ export class Sim {
         for (const v of key) if (v) total++;
 
         this.key = key; this.rgb = rgb;
-        this.dr = new Uint8Array(G * G); this.loose = new Uint8Array(G * G);
-        this.vx = new Float32Array(G * G); this.vy = new Float32Array(G * G);
+        this.loose = new Uint8Array(G * GH);
+        this.seq = new Uint32Array(G * GH); this.seqN = 0; this.stepOf = new Uint32Array(G * GH); this.stepN = 0;
+        this.vx = new Float32Array(G * GH); this.vy = new Float32Array(G * GH);
         this.colors = L.colors; this.total = total; this.drained = 0; this.left = total;
-        this.cell = PIC.size / FRAME_N; this.gs = gs; this.ox = PIC.x - pad * gs; this.oy = PIC.y - top * gs;
+        this.cell = PIC.size / FRAME_N; this.gs = gs; this.ox = PIC.x - pad * gs; this.oy = oy;
         this.picDirty = true;
-        this.queue = []; this.qHead = 0; this.drainCarry = 0;
-        this.particles = []; this.emitAcc = {}; this.emitAt = {};
-        this.fk = new Array(FUNNEL.cols * FUNNEL.rows).fill(null); this.fn.fill(0); this.fc = new Array(FUNNEL.cols * FUNNEL.rows).fill(0); this.fs.fill(0); this.fSeq = 0;
-        this.fFree = FMASK_COUNT; this.fT = 0; this.fExit = 0;
+        this.exitCarry = 0;
         this.hopper = {}; this.pipe = []; this.dropping = [];
         this.slots = new Array(SLOTS).fill(null); this.beltOff = 0;
         this.ncols = Math.max(MIN_COLS, Math.min(MAX_COLS, L.cols ?? COLS));
@@ -149,16 +154,17 @@ export class Sim {
         const blockSeq: string[] = [], acc = new Array(keys.length).fill(0), left: Record<string, number> = {};
         const order: number[] = [];
         if (orderMode === 'onion') {
-            const dist = new Int32Array(G * G).fill(-1), bfs: number[] = [];
-            for (let p = 0; p < key.length; p++) if (!key[p]) { dist[p] = 0; bfs.push(p); }
+            // the board only: its bottom edge is not open to the funnel for this estimate
+            const N = G * G, dist = new Int32Array(N).fill(-1), bfs: number[] = [];
+            for (let p = 0; p < N; p++) if (!key[p]) { dist[p] = 0; bfs.push(p); }
             for (let h = 0; h < bfs.length; h++) {
                 const p = bfs[h], x = p % G;
                 for (const q of [x > 0 ? p - 1 : -1, x < G - 1 ? p + 1 : -1, p - G, p + G]) {
-                    if (q < 0 || q >= key.length || dist[q] >= 0) continue;
+                    if (q < 0 || q >= N || dist[q] >= 0) continue;
                     dist[q] = dist[p] + 1; bfs.push(q);
                 }
             }
-            for (let p = 0; p < key.length; p++) if (key[p]) order.push(p);
+            for (let p = 0; p < N; p++) if (key[p]) order.push(p);
             order.sort((a, b) => dist[a] - dist[b] || b - a);
         } else {
             for (let p = key.length - 1; p >= 0; p--) if (key[p]) order.push(p);
@@ -229,7 +235,7 @@ export class Sim {
     private brush(px: number, py: number) {
         const G = this.G, gs = this.gs, r = Math.max(this.cell * 1.1, 34), { key, loose } = this;
         const x0 = Math.max(0, Math.floor((px - r - this.ox) / gs)), x1 = Math.min(G - 1, Math.floor((px + r - this.ox) / gs));
-        const y0 = Math.max(0, Math.floor((py - r - this.oy) / gs)), y1 = Math.min(G - 1, Math.floor((py + r - this.oy) / gs));
+        const y0 = Math.max(0, Math.floor((py - r - this.oy) / gs)), y1 = Math.min(this.GH - 1, Math.floor((py + r - this.oy) / gs));
         if (x0 > x1 || y0 > y1) return;
         let added = 0;
         for (let y = y1; y >= y0; y--) for (let x = x0; x <= x1; x++) {
@@ -250,111 +256,101 @@ export class Sim {
     }
     endSwipe() { this.lastBrush = null; }
 
-    // ---------- sand leaving the board ----------
-    private emitParticle(k: string, c: number, x: number, y: number, n: number) {
-        // grains leave through the bottom of the board, so the falling sand starts below the frame
-        const sx = this.ox + (x + 0.5) * this.gs, sy = Math.max(this.oy + (y + 0.5) * this.gs, BOARD.y + BOARD.h - 4);
-        const half = funnelHalf(FUNNEL.top) - FUNNEL.cell;
-        const ex = Math.max(MOUTH.x - half, Math.min(MOUTH.x + half, sx)), ey = FUNNEL.top + 2;
-        const dur = 0.12 + this.rand() * 0.06;
-        this.particles.push({ k, n, c, sx, sy, mx: (sx + ex) / 2, my: (sy + ey) / 2, ex, ey, t: 0, dur });
-    }
-    private stepDrain(dt: number) {
-        const budget = DRAIN_RATE * GRAINS_PER_UNIT * dt + this.drainCarry;
-        let count = Math.floor(budget);
-        this.drainCarry = budget - count;
-        const { key, dr, rgb, G } = this;
-        let head = this.qHead;
-        // a full funnel backs up: grains wait at the bottom of the board until there is room
-        while (count-- > 0 && head < this.queue.length && this.fFree - this.particles.length > 2) {
-            const p = this.queue[head++];
-            if (!dr[p]) continue;
-            const k = this.keys[key[p]]!, x = p % G, y = (p / G) | 0;
-            const c = rgb[p];
-            key[p] = 0; dr[p] = 0; this.loose[p] = 0; this.vx[p] = 0; this.vy[p] = 0;
-            this.left--;
-            this.picDirty = true;
-            // grains are too many to animate one by one, so each particle carries a few of them
-            this.emitAcc[k] = (this.emitAcc[k] || 0) + 1;
-            this.emitAt[k] = [c, x, y];
-            if (this.emitAcc[k] >= GRAINS_PER_PARTICLE) { this.emitParticle(k, c, x, y, this.emitAcc[k]); this.emitAcc[k] = 0; }
-        }
-        if (head >= this.queue.length) {
-            this.queue.length = 0; head = 0;
-            // leftover grains (less than a clump) fall from where that colour last left the board
-            for (const k in this.emitAcc) if (this.emitAcc[k]) { const [c, x, y] = this.emitAt[k]; this.emitParticle(k, c, x, y, this.emitAcc[k]); this.emitAcc[k] = 0; }
-        }
-        this.qHead = head;
-    }
-
-    // Falling-sand step. Sand is fixed in place until swiped. Loose grains speed up as they
-    // fall, and when something is in the way they slide down-left or down-right, carrying
-    // sideways momentum down a slope until friction stops them. Grains reaching the bottom of
-    // the board leave into the chute. Rows are scanned bottom-up, alternating x direction.
+    // Falling-sand step, over the board and the funnel under it as one: sand is fixed in place
+    // until swiped. Loose grains speed up as they fall, and when something is in the way they
+    // slide down-left or down-right, carrying sideways momentum down a slope until friction stops
+    // them; grains resting on the frame's curved rim or the funnel's sides slide on toward the
+    // hole. In the funnel it is first down, first out: grains are numbered as they come down into
+    // it and move oldest first, so a gap near the hole goes to the sand that has waited longest
+    // (often beside it on the side) rather than to newer sand straight above, and the hole (the
+    // funnel's bottom row) takes its oldest grains first, MOUTH_RATE a second, while no finished
+    // block waits in it. The board's rows are scanned bottom-up, alternating x direction.
     private simStep() {
-        const { key, rgb, dr, loose, vx, vy, G, wall } = this;
-        const flip = (this.simFlip ^= 1);
+        const { key, rgb, loose, vx, vy, seq, stepOf, G, GH, wall } = this;
+        const flip = (this.simFlip ^= 1), step = ++this.stepN;
         const free = (q: number) => !key[q] && !wall[q];
+        const board = G * G, bottom = (GH - 1) * G;
         let moved = false;
-        const bottom = (G - 1) * G;
-        for (let x = 0; x < G; x++) {
-            const p = bottom + x;
-            if (key[p] && loose[p] && !dr[p]) { dr[p] = 1; this.queue.push(p); }
+        // the hole: a finished block still sitting in it plugs it, and the sand above waits
+        this.exitCarry = Math.min(this.exitCarry + MOUTH_RATE / SIM_HZ, (MOUTH_RATE / SIM_HZ) * 2);
+        if (this.exitCarry >= 1 && !this.pipe.length) {
+            const out: number[] = [];
+            for (let p = bottom; p < bottom + G; p++) if (key[p]) out.push(p);
+            out.sort((a, b) => seq[a] - seq[b]);
+            for (const p of out) {
+                if (this.exitCarry < 1 || this.pipe.length) break;
+                this.addToHopper(this.keys[key[p]]!, 1);
+                key[p] = 0; loose[p] = 0; vx[p] = 0; vy[p] = 0;
+                this.exitCarry--; moved = true;
+            }
         }
         const move = (p: number, q: number) => {
-            key[q] = key[p]; rgb[q] = rgb[p]; loose[q] = 1; vx[q] = vx[p]; vy[q] = vy[p];
+            key[q] = key[p]; rgb[q] = rgb[p]; loose[q] = 1; vx[q] = vx[p]; vy[q] = vy[p]; seq[q] = seq[p]; stepOf[q] = step;
             key[p] = 0; loose[p] = 0; vx[p] = 0; vy[p] = 0;
+            // into the funnel: it takes its place in the queue for the hole
+            if (p < board && q >= board) { this.left--; seq[q] = ++this.seqN; }
         };
-        for (let y = G - 2; y >= 0; y--) {
+        const grain = (p: number) => {
+            vy[p] = Math.min(MAX_FALL, vy[p] + GRAVITY);
+            // whole cells to travel this step; the fraction is rounded at random so slow grains still creep
+            let steps = Math.floor(vy[p]) + (this.rand() < vy[p] % 1 ? 1 : 0);
+            if (steps < 1) steps = 1;
+            for (let s = 0; s < steps; s++) {
+                const x = p % G, cy = (p / G) | 0;
+                if (cy >= GH - 1) break;
+                const below = p + G;
+                if (free(below)) { move(p, below); p = below; moved = true; continue; }
+                const l = x > 0 && free(below - 1), r = x < G - 1 && free(below + 1);
+                if (!l && !r) {
+                    // landed: turn part of the fall into a sideways push for the next slide
+                    if (vy[p] > 1) vx[p] += (this.rand() < 0.5 ? -1 : 1) * vy[p] * 0.25;
+                    vy[p] = 0;
+                    // creep sideways toward a nearby drop (gentle slopes, stair steps), or keep
+                    // sliding on momentum; friction bleeds the momentum off. On the frame's
+                    // rim or the funnel's side (gentler than the sand's own slope) a grain
+                    // keeps sliding toward the hole.
+                    const toward = x < G / 2 ? 1 : -1, onWall = wall[below] === 1;
+                    const pref = onWall ? toward : vx[p] > 0.05 ? 1 : vx[p] < -0.05 ? -1 : this.rand() < 0.5 ? -1 : 1;
+                    let side = 0;
+                    for (const d of onWall ? [toward] : [pref, -pref]) {
+                        const sx = x + d;
+                        if (sx < 0 || sx >= G || !free(p + d)) continue;
+                        const far = x + 2 * d;
+                        const drop = free(below + d) || (far >= 0 && far < G && free(p + 2 * d) && free(below + 2 * d));
+                        if (drop || onWall || Math.abs(vx[p]) > 0.6) { side = d; break; }
+                    }
+                    if (side) { vx[p] = vx[p] * FRICTION + side * 0.2; move(p, p + side); p += side; moved = true; }
+                    else vx[p] *= FRICTION;
+                    break;
+                }
+                let dir: number;
+                if (l && r) dir = vx[p] > 0.05 ? 1 : vx[p] < -0.05 ? -1 : this.rand() < 0.5 ? -1 : 1;
+                else dir = l ? -1 : 1;
+                const q = below + dir;
+                vx[p] = vx[p] * FRICTION + dir * 0.35;
+                vy[p] *= 0.7;
+                move(p, q); p = q; moved = true;
+            }
+        };
+        // the funnel first, oldest grains first (the hole's row only waits for the hole)
+        const funnel: number[] = [];
+        for (let p = board; p < bottom; p++) if (key[p]) funnel.push(p);
+        funnel.sort((a, b) => seq[a] - seq[b]);
+        for (const p of funnel) if (key[p] && stepOf[p] !== step) grain(p);
+        // then the board, bottom row up
+        for (let y = G - 1; y >= 0; y--) {
             const row = y * G;
             for (let i = 0; i < G; i++) {
-                let p = row + (flip ? i : G - 1 - i);
-                if (!key[p] || !loose[p] || dr[p]) continue;
-                vy[p] = Math.min(MAX_FALL, vy[p] + GRAVITY);
-                // whole cells to travel this step; the fraction is rounded at random so slow grains still creep
-                let steps = Math.floor(vy[p]) + (this.rand() < vy[p] % 1 ? 1 : 0);
-                if (steps < 1) steps = 1;
-                for (let s = 0; s < steps; s++) {
-                    const x = p % G, cy = (p / G) | 0;
-                    if (cy >= G - 1) break;
-                    const below = p + G;
-                    if (free(below)) { move(p, below); p = below; moved = true; continue; }
-                    const l = x > 0 && free(below - 1), r = x < G - 1 && free(below + 1);
-                    if (!l && !r) {
-                        // landed: turn part of the fall into a sideways push for the next slide
-                        if (vy[p] > 1) vx[p] += (this.rand() < 0.5 ? -1 : 1) * vy[p] * 0.25;
-                        vy[p] = 0;
-                        // creep sideways toward a nearby drop (gentle slopes, stair steps), or keep
-                        // sliding on momentum; friction bleeds the momentum off
-                        const pref = vx[p] > 0.05 ? 1 : vx[p] < -0.05 ? -1 : this.rand() < 0.5 ? -1 : 1;
-                        let side = 0;
-                        for (const d of [pref, -pref]) {
-                            const sx = x + d;
-                            if (sx < 0 || sx >= G || !free(p + d)) continue;
-                            const far = x + 2 * d;
-                            const drop = free(below + d) || (far >= 0 && far < G && free(p + 2 * d) && free(below + 2 * d));
-                            if (drop || Math.abs(vx[p]) > 0.6) { side = d; break; }
-                        }
-                        if (side) { vx[p] = vx[p] * FRICTION + side * 0.2; move(p, p + side); p += side; moved = true; }
-                        else vx[p] *= FRICTION;
-                        break;
-                    }
-                    let dir: number;
-                    if (l && r) dir = vx[p] > 0.05 ? 1 : vx[p] < -0.05 ? -1 : this.rand() < 0.5 ? -1 : 1;
-                    else dir = l ? -1 : 1;
-                    const q = below + dir;
-                    vx[p] = vx[p] * FRICTION + dir * 0.35;
-                    vy[p] *= 0.7;
-                    move(p, q); p = q; moved = true;
-                }
+                const p = row + (flip ? i : G - 1 - i);
+                if (key[p] && loose[p] && stepOf[p] !== step) grain(p);
             }
         }
         if (moved) this.picDirty = true;
     }
     // Small islands of fixed sand (thin slivers, specks) are too fiddly to swipe, so they come loose by themselves.
     private sweepDebris() {
-        const { key, loose, G } = this;
-        const seen = new Uint8Array(G * G), stack: number[] = [], comp: number[] = [];
+        const { key, loose, G, GH } = this;
+        const seen = new Uint8Array(G * GH), stack: number[] = [], comp: number[] = [];
         for (let s0 = 0; s0 < key.length; s0++) {
             if (!key[s0] || loose[s0] || seen[s0]) continue;
             seen[s0] = 1; stack.push(s0); comp.length = 0;
@@ -363,7 +359,7 @@ export class Sim {
                 const x = p % G, y = (p / G) | 0;
                 for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
                     const nx = x + dx, ny = y + dy;
-                    if ((!dx && !dy) || nx < 0 || ny < 0 || nx >= G || ny >= G) continue;
+                    if ((!dx && !dy) || nx < 0 || ny < 0 || nx >= G || ny >= GH) continue;
                     const q = ny * G + nx;
                     if (key[q] && !loose[q] && !seen[q]) { seen[q] = 1; stack.push(q); }
                 }
@@ -385,85 +381,24 @@ export class Sim {
         if (this.sweepT > 0.5) { this.sweepT = 0; this.sweepDebris(); }
     }
 
-    // ---------- falling clumps, funnel, hole ----------
-    private stepParticles(dt: number) {
-        for (let i = this.particles.length - 1; i >= 0; i--) {
-            const p = this.particles[i];
-            p.t += dt / p.dur;
-            if (p.t >= 1) {
-                this.particles.splice(i, 1);
-                if (!this.funnelInsert(p)) this.addToHopper(p.k, p.n);
-            }
-        }
-    }
-    particlePos(p: Particle): [number, number] {
-        const t = Math.pow(Math.min(1, p.t), 1.5), u = 1 - t;
-        return [u * u * p.sx + 2 * u * t * p.mx + t * t * p.ex, u * u * p.sy + 2 * u * t * p.my + t * t * p.ey];
-    }
+    // ---------- the hole ----------
     // sand that has gone down the hole: BLOCK_GRAINS of a colour make a block in the pipe
     private addToHopper(k: string, n: number) {
         this.drained += n;
         this.hopper[k] = (this.hopper[k] || 0) + n;
         while (this.hopper[k] >= BLOCK_GRAINS) { this.hopper[k] -= BLOCK_GRAINS; this.pipe.push(k); }
     }
-    private funnelInsert(p: Particle) {
-        const W = FUNNEL.cols, col = Math.round((p.ex - FUNNEL.x0) / FUNNEL.cell - 0.5);
-        for (let j = 0; j < 3; j++) for (let d = 0; d < W; d++) for (const i of d ? [col - d, col + d] : [col]) {
-            const q = j * W + i;
-            if (i < 0 || i >= W || !FMASK[q] || this.fk[q]) continue;
-            this.fk[q] = p.k; this.fn[q] = p.n; this.fc[q] = p.c; this.fs[q] = ++this.fSeq; this.fFree--;
-            return true;
-        }
-        return false;
+    /** Loose sand of each colour (falling, sliding, or piled in the funnel), in grains. */
+    looseByColour() {
+        const out: Record<string, number> = {}, { key, loose } = this;
+        for (let p = 0; p < key.length; p++) if (key[p] && loose[p]) { const k = this.keys[key[p]]!; out[k] = (out[k] || 0) + 1; }
+        return out;
     }
-    // Funnel sand: clumps slide down the slanted walls and leave through the hole at a steady
-    // rate, so a big pour piles up and drains slowly.
-    private stepFunnel(dt: number) {
-        this.fT += dt;
-        const W = FUNNEL.cols, Hh = FUNNEL.rows, { fk, fn, fc, fs } = this;
-        while (this.fT >= 1 / FUNNEL_HZ) {
-            this.fT -= 1 / FUNNEL_HZ;
-            this.fExit = Math.min(this.fExit + MOUTH_RATE / FUNNEL_HZ, 6);
-            const bottom = (Hh - 1) * W;
-            // a finished block still sitting in the hole (not yet dropped onto the conveyor)
-            // plugs it: the sand above waits until the block is gone. The oldest sand at the
-            // bottom goes first; taking cells left to right let newer sand falling into the
-            // left cells jump ahead of older sand lying further along.
-            if (this.fExit >= 1 && !this.pipe.length) {
-                const out: number[] = [];
-                for (let i = 0; i < W; i++) if (fk[bottom + i]) out.push(bottom + i);
-                out.sort((a, b) => fs[a] - fs[b]);
-                for (const q of out) {
-                    if (this.fExit < 1 || this.pipe.length) break;
-                    this.addToHopper(fk[q]!, fn[q]);
-                    fk[q] = null; this.fFree++; this.fExit--;
-                }
-            }
-            // the oldest clumps move first, so a gap at the bottom goes to the sand that has
-            // waited longest (often on the walls beside it) rather than to newer sand above it
-            const moving: number[] = [];
-            for (let q = 0; q < bottom; q++) if (fk[q]) moving.push(q);
-            moving.sort((a, b) => fs[a] - fs[b]);
-            for (const q of moving) {
-                const i = q % W;
-                let t = q + W;
-                if (!FMASK[t] || fk[t]) {
-                    const l = i > 0 && FMASK[t - 1] && !fk[t - 1], r = i < W - 1 && FMASK[t + 1] && !fk[t + 1];
-                    if (l && r) t += this.rand() < 0.5 ? -1 : 1;
-                    else if (l) t -= 1;
-                    else if (r) t += 1;
-                    else {
-                        // the funnel walls are much gentler than 45 degrees (the funnel is as wide as
-                        // the frame), so sand resting on them slides sideways toward the hole
-                        const toward = FUNNEL.x0 + (i + 0.5) * FUNNEL.cell < MOUTH.x ? 1 : -1;
-                        const side = q + toward;
-                        if (i + toward < 0 || i + toward >= W || !FMASK[side] || fk[side]) continue;
-                        t = side;
-                    }
-                }
-                fk[t] = fk[q]; fn[t] = fn[q]; fc[t] = fc[q]; fs[t] = fs[q]; fk[q] = null;
-            }
-        }
+    /** Whether loose sand is still falling on the board (not yet down in the funnel). */
+    boardFalling() {
+        const { key, loose } = this, N = this.G * this.G;
+        for (let p = 0; p < N; p++) if (key[p] && loose[p]) return true;
+        return false;
     }
 
     // ---------- conveyor ----------
@@ -709,10 +644,7 @@ export class Sim {
 
     update(dt: number) {
         this.time += dt;
-        this.stepDrain(dt);
         this.stepSand(dt);
-        this.stepParticles(dt);
-        this.stepFunnel(dt);
         this.stepBelt(dt);
         this.stepNests(dt);
         this.stepAnts(dt);

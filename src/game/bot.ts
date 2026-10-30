@@ -19,10 +19,8 @@ export function playBot(sim: Sim, maxSec = 300): 'win' | 'lose' | 'stuck' {
 export function botStep(sim: Sim) {
     const s = sim;
     {
-        if (s.queue.length - s.qHead <= 0) {
-            let grains = 0;
-            for (let q = 0; q < s.fk.length; q++) if (s.fk[q]) grains += s.fn[q];
-            for (const p of s.particles) grains += p.n;
+        if (!s.boardFalling()) {
+            const grains = Object.values(s.looseByColour()).reduce((a, b) => a + b, 0);
             const used = s.slots.filter(Boolean).length + s.pipe.length + Math.round(grains / 64);
             const need = new Set(s.cols.map((c) => c[0]).filter(Boolean).map((n) => n.color));
             // lowest fixed grain in every 4th column, as a screen point
@@ -119,8 +117,9 @@ export function recordPlay(sim: Sim, variant: number, maxSec = 1500): Recording 
 
     for (let t = 0; t < maxSec && s.state !== 'lose'; t += 0.5) {
         let pending = s.slots.filter((b) => b && !b.claimed).length + s.pipe.length;
-        for (let q = 0; q < s.fk.length; q++) if (s.fk[q]) pending += s.fn[q] / BLOCK_GRAINS;
-        if (s.queue.length - s.qHead <= 0 && pending < PACE) {
+        const falling = s.boardFalling();
+        if (!falling) for (const n of Object.values(s.looseByColour())) pending += n / BLOCK_GRAINS;
+        if (!falling && pending < PACE) {
             // the lowest fixed grain of every 4th column; swipe a few of the lowest ones
             const G = s.G, pts: [number, number, number][] = [];
             const wanted = new Set(s.cols.map((c) => c[0]).filter((n) => n && !n.pop && n.got + n.inflight < n.need).map((n) => n.color));
@@ -167,13 +166,12 @@ export function replayStep(sim: Sim, moves: Recording['moves'], m: number, t: nu
     return m;
 }
 
-/** Grains of each colour on their way to the hole (hopper, funnel, in the air), plus the lowest
- * sand of the picture, which a bottom-up dig frees next. */
+/** Grains of each colour on their way to the hole (hopper, loose sand falling or in the funnel),
+ * plus the lowest sand of the picture, which a bottom-up dig frees next. */
 function upcoming(s: Sim) {
     const out: Record<string, number> = {};
     for (const k in s.hopper) out[k] = (out[k] || 0) + s.hopper[k] * 4;
-    for (let q = 0; q < s.fk.length; q++) { const k = s.fk[q]; if (k) out[k] = (out[k] || 0) + s.fn[q] * 4; }
-    for (const p of s.particles) out[p.k] = (out[p.k] || 0) + p.n * 4;
+    for (const [k, n] of Object.entries(s.looseByColour())) out[k] = (out[k] || 0) + n * 4;
     for (let x = 0; x < s.G; x += 2) {
         for (let y = s.G - 1; y >= 0; y--) {
             const p = y * s.G + x;

@@ -31,11 +31,6 @@ export function packColor(hex: string, f: number): number {
     return ((255 << 24) | (mix(b, f) << 16) | (mix(g, f) << 8) | mix(r, f)) >>> 0;
 }
 
-/** ABGR pixel -> 0xRRGGBB. */
-export function abgrToRgb(c: number): number {
-    return ((c & 255) << 16) | (((c >> 8) & 255) << 8) | ((c >> 16) & 255);
-}
-
 export function mulberry32(a: number): () => number {
     return function () {
         a |= 0; a = (a + 0x6d2b79f5) | 0;
