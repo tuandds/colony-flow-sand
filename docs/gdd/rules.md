@@ -23,7 +23,7 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 - Loose sand falls with gravity 0.09 grains/step² up to 3.5 grains/step, at 110 steps per second. Blocked below, it slides down-left or down-right; on gentle slopes it creeps sideways toward a drop within 2 grains, with friction 0.82 bleeding off momentum.
 - Loose sand on the picture's edges can slide past the picture and fall until the board frame stops it.
 - Small or thin islands of fixed sand (≤ 48 grains, or narrower than 4 grains) come loose by themselves every 0.5 s.
-- **Exact fit:** when a level loads, each colour is trimmed to a whole number of blocks (edge grains removed, enclosed grains handed to a neighbouring colour), so no sand is ever left over.
+- **Exact fit:** when a level loads, each colour is trimmed to a whole number of blocks (extra edge grains removed one here, one there, spread evenly along the colour's outline so they leave no visible gap; enclosed grains handed to a neighbouring colour), so no sand is ever left over.
 
 ## 3.3 Funnel and hole <Badge type="tip" text="Live" />
 

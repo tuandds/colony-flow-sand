@@ -695,7 +695,8 @@ export class Sim {
 }
 
 // Trim every colour to a whole number of blocks so no sand is left over.
-// Extra grains on the picture's outer edge are removed (top edge first); extra grains of a
+// Extra grains on the picture's outer edge are removed, spread evenly along the colour's whole
+// outline (taking them in a run from the top left left a visible gap); extra grains of a
 // colour enclosed by others are handed to a neighbouring colour that is settled later.
 // Enclosed colours go first and edge colours last, since an edge colour can always shed
 // grains off its own outline.
@@ -734,7 +735,9 @@ function fitWholeBlocks(key: Uint8Array, G: number, nColors: number) {
                 }
             }
             let changed = 0;
-            for (const p of edge) { if (!extra) break; key[p] = 0; count[c]--; extra--; changed++; }
+            // every (edge / extra)-th grain of the outline, so no two removed grains sit together
+            const take = Math.min(extra, edge.length), step = edge.length / Math.max(1, take);
+            for (let i = 0; i < take; i++) { key[edge[Math.floor((i + 0.5) * step)]] = 0; count[c]--; extra--; changed++; }
             for (const [p, o] of free) { if (!extra) break; key[p] = o; count[c]--; count[o]++; extra--; changed++; }
             // boxed in by settled colours only: hand the grains over and settle that colour again
             if (extra && !changed && taken.length) {

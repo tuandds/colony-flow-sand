@@ -1,9 +1,10 @@
 // Screen layout and tuning, in game pixels (the game is 1080 x 1920, scaled to fit).
 
 export const W = 1080, H = 1920;
-/** Bumped when the board, funnel, conveyor or picture scale change, or the funnel's or ants' rules change:
- * recorded swipes from an older version no longer replay, so the level editor asks for new ones. */
-export const LAYOUT_VERSION = 8;
+/** Bumped when the board, funnel, conveyor or picture scale change, the funnel's or ants' rules change,
+ * or the whole-block trim takes different grains: recorded swipes from an older version no longer
+ * replay, so the level editor asks for new ones. */
+export const LAYOUT_VERSION = 9;
 
 // Laid out like Sand Drop: Color Sort Puzzle: a HUD row, the boosters under it, a big picture
 // frame nearly as wide as the screen, then the funnel, the conveyor and the nests.
