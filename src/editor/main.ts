@@ -8,7 +8,7 @@
 import type { Recording } from '../game/bot';
 import { COLS, FRAME_N, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
 import EDITS from '../game/level-edits.json';
-import { BANK_COLOURS, CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, builtinDefs, decodeSand, encodeSand, loadCustomLevels, useLevels } from '../game/levels';
+import { BANK_COLOURS, CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, builtinDefs, decodeSand, encodeSand, loadCustomLevels, useLevels, widenOldFrame } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
 import { BANK, type BankColour, type ConvertOpts, HEX, NAME, countKeys, drawSand, fitToFrame, hexLab, imageToSand, moveRange, nearestKey, rowsToGrains, setBank } from './sand';
 import type { SolveJob, SolveResult } from './solver.worker';
@@ -139,7 +139,7 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
     let sand: Sand, cut = false;
     if (L.sand && L.sand.size === FH && (L.sand.w ?? FH) === FW) sand = L.sand;
     else {
-        const old = L.sand ? { keys: decodeSand(L.sand), w: L.sand.w ?? L.sand.size, h: L.sand.size }
+        const old = L.sand ? { ...widenOldFrame(decodeSand(L.sand), L.sand.w ?? L.sand.size, L.sand.size), h: L.sand.size }
             : { keys: rowsToGrains(L.rows || [], L.n || 20, (c) => keyOf.get(c) ?? BANK[0].key), ...frameGrains(L.n || 20) };
         const fit = fitToFrame(old.keys, old.w, old.h);
         sand = encodeSand(FH, fit.keys, FW);

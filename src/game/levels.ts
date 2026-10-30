@@ -309,6 +309,19 @@ export function decodeSand(s: Sand): string[] {
     return Array.from(out, (k) => k ?? '.');
 }
 
+/** The frame used to be 186 grains wide; it is 188 now (a full frame is then a whole number of
+ * blocks). A picture made for the old frame fills the new one: its outer columns are doubled. */
+export function widenOldFrame(keys: string[], w: number, h: number) {
+    const { w: FW, h: FH } = frameGrains(FRAME_N);
+    if (w !== FW - 2 || h !== FH) return { keys, w };
+    const out: string[] = [];
+    for (let y = 0; y < h; y++) {
+        const row = keys.slice(y * w, y * w + w);
+        out.push(row[0], ...row, row[w - 1]);
+    }
+    return { keys: out, w: FW };
+}
+
 /** Where the level editor keeps its levels; the game plays them with ?custom=1. */
 export const CUSTOM_KEY = 'cf_custom_levels';
 /** The single level the editor's play button opens (?custom=preview). */

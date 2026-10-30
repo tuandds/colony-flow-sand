@@ -4,12 +4,13 @@ export const W = 1080, H = 1920;
 /** Bumped when the board, funnel, conveyor or picture scale change, the funnel's or ants' rules change,
  * or the whole-block trim takes different grains: recorded swipes from an older version no longer
  * replay, so the level editor asks for new ones. */
-export const LAYOUT_VERSION = 9;
+export const LAYOUT_VERSION = 11;
 
 // Laid out like Sand Drop: Color Sort Puzzle: a HUD row, the boosters under it, a big picture
 // frame nearly as wide as the screen, then the funnel, the conveyor and the nests.
-/** Inner edge of the board frame; sand never goes outside it. */
-export const INNER = { x: 108, y: 330, w: 864, h: 820 };
+/** Inner edge of the board frame; sand never goes outside it. Its width makes the frame 188 grains
+ * wide (frameGrains), so a full frame, 188 x 176 grains, is exactly 517 blocks. */
+export const INNER = { x: 105, y: 330, w: 870, h: 820 };
 export const BOARD = { x: INNER.x - 23, y: INNER.y - 25, w: INNER.w + 46, h: INNER.h + 54 };
 /** The FRAME_N-cell picture square: as tall as the frame's inside, centred across it. */
 export const PIC = { x: 540 - 407, y: INNER.y + 3, size: 814 };

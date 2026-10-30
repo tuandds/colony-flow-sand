@@ -14,21 +14,22 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 | Grains per picture cell | 8 × 8 = 64 (one *unit*) |
 | Block size | 1 unit = 64 grains of one colour |
 | Screen layout | like Sand Drop: Color Sort Puzzle: HUD row (pause left, level, x2 right), the boosters under it, the picture frame nearly as wide as the screen, then the funnel, the conveyor and the nests |
-| Board frame | inside 864 × 820 px at (108, 330) |
+| Board frame | inside 870 × 820 px at (105, 330) |
 | Picture scale | the same in every level: the frame is 22 cells (176 grains) tall, so a cell is 37 px and a grain about 4.6 px; a smaller picture sits centred in the frame |
-| Picture area | 22 cells: 814 × 814 px at (133, 333); level editor pictures can use the whole frame (186 × 176 grains) |
+| Picture area | 22 cells: 814 × 814 px at (133, 333); level editor pictures can use the whole frame (188 × 176 grains, exactly 517 blocks) |
 | Swipe radius | max(1.1 × cell size, 34 px) = 41 px |
 
 - Sand is **fixed** until swiped. Swiped sand becomes **loose** and is drawn 22 % brighter.
 - Loose sand falls with gravity 0.09 grains/step² up to 3.5 grains/step, at 110 steps per second. Blocked below, it slides down-left or down-right; on gentle slopes it creeps sideways toward a drop within 2 grains, with friction 0.82 bleeding off momentum.
 - Loose sand on the picture's edges can slide past the picture and fall until the board frame stops it.
 - Small or thin islands of fixed sand (≤ 48 grains, or narrower than 4 grains) come loose by themselves every 0.5 s.
-- **Exact fit:** when a level loads, each colour is trimmed to a whole number of blocks (extra edge grains removed one here, one there, spread evenly along the colour's outline so they leave no visible gap; enclosed grains handed to a neighbouring colour), so no sand is ever left over.
+- **Exact fit:** when a level loads, each colour is made a whole number of blocks while changing as little sand as possible. First the picture's total is made a whole number of blocks: if the frame has empty room next to the sand, the missing grains are added there (each in a neighbour's colour), spread evenly round the outline, so nothing is cut; if the frame is full, the remainder (fewer than 64 grains) is removed, one grain here and one there, spread evenly round the picture's whole outer edge. Then each colour's extra grains are handed to a neighbouring colour: a run of grains along their border changes colour, so the border moves over by a grain there, passed on from colour to colour until all colours are whole. No sand is ever left over.
+- **Nests that are a little off:** nests set in the Level Editor are used as they are when they hold exactly the picture's blocks; when a colour's block count is off by a little (up to 5% of the blocks), the nests are resized: missing blocks go to that colour's smallest nests, extra ones come off its largest.
 
 ## 3.3 Funnel and hole <Badge type="tip" text="Live" />
 
 - Sand leaving the board falls into the funnel in clumps of up to 6 grains.
-- The funnel is as wide as the sand frame at the top (864 px) and narrows to the hole (92 px) over 120 px. It is its own sand pile (6 px cells, 40 steps/s): clumps fall straight down, and on the gentle walls they slide one cell toward the hole every step.
+- The funnel is as wide as the sand frame at the top (870 px) and narrows to the hole (92 px) over 120 px. It is its own sand pile (6 px cells, 40 steps/s): clumps fall straight down, and on the gentle walls they slide one cell toward the hole every step.
 - **First in, first out.** The clumps move in the order they arrived, oldest first, so a gap at the bottom is filled by the sand that has waited longest (often beside it on the wall), not by newer sand straight above. The hole also takes the oldest clumps in its bottom row first. Sand that lands far out on a wall still has to slide in, so it can reach the hole after sand that landed right above it.
 - The hole takes 90 clumps per second, but **only while no finished block is waiting in it**. A waiting block plugs the hole until it drops onto the conveyor.
 - Each colour is pressed on its own: a colour's sand waits under the hole until it has 64 grains, so a colour that comes in small amounts can make its block after a colour that came later.
