@@ -223,6 +223,10 @@
   .drop.over { border-color: var(--gold); color: var(--gold); background: #2a2208; }
   .drop img { display: block; max-width: 100%; max-height: 150px; margin: 0 auto 8px; border-radius: 8px;
     background: repeating-conic-gradient(#1e293b 0 25%, #0f172a 0 50%) 0 0 / 16px 16px; }
+  .move-pad { display: flex; gap: 3px; }
+  .move-pad .btn { min-width: 28px; padding: 4px 0; justify-content: center; }
+  .move-v { margin-left: 6px; font-size: 11px; font-weight: 800; white-space: nowrap; color: var(--gold); }
+  #gen-preview { cursor: grab; touch-action: none; }
   #gen-preview { display: block; width: min(64vh, 560px); height: auto; background: #f0dcb4; border-radius: 12px; image-rendering: pixelated; border: 10px solid #b07a46; }
   .gen-summary { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
   .dialog-bar { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
@@ -449,9 +453,10 @@
         <div class="setting-row"><label for="g-bg">Xoá nền (màu góc)</label><input type="range" id="g-bg" min="0" max="40" step="1" /><span class="setting-val" id="g-bg-v"></span></div>
         <div class="setting-row"><label for="g-smooth">Làm mịn vệt</label><input type="range" id="g-smooth" min="0" max="4" step="1" /><span class="setting-val" id="g-smooth-v"></span></div>
         <div class="setting-row"><label for="g-fit">Đặt ảnh vào khung</label><select id="g-fit"><option value="contain">Vừa khung (giữ cả ảnh)</option><option value="cover">Lấp đầy khung (cắt bớt)</option></select></div>
+        <div class="setting-row"><label>Vị trí trong khung</label><span class="move-pad"><button class="btn" id="g-left" title="Sang trái 1 ô">←</button><button class="btn" id="g-up" title="Lên 1 ô">↑</button><button class="btn" id="g-down" title="Xuống 1 ô">↓</button><button class="btn" id="g-right" title="Sang phải 1 ô">→</button><button class="btn" id="g-center" title="Về giữa">⊙</button></span><span class="move-v" id="g-move-v">giữa</span></div>
         <div class="setting-row"><label for="g-outline">Thêm viền tối</label><input type="checkbox" id="g-outline" /></div>
         <div class="setting-row"><label for="g-active">Chỉ dùng Active Palette</label><input type="checkbox" id="g-active" /></div>
-        <div class="hint">Mỗi hạt cát lấy màu gần nhất (theo mắt người, CIELAB) trong bảng màu có sẵn. Quá số màu thì màu ít hạt nhất được gộp vào màu gần nó. Đốm cát rời quá nhỏ (tự rơi khi chơi) được bỏ.</div>
+        <div class="hint">Mỗi hạt cát lấy màu gần nhất (theo mắt người, CIELAB) trong bảng màu có sẵn. Quá số màu thì màu ít hạt nhất được gộp vào màu gần nó. Đốm cát rời quá nhỏ (tự rơi khi chơi) được bỏ. Dời tranh bằng các nút mũi tên (1 ô mỗi lần) hoặc kéo trên hình xem trước; cát không bao giờ ra khỏi khung.</div>
       </div>
       <div>
         <canvas id="gen-preview"></canvas>

@@ -217,9 +217,24 @@ export function rowsToGrains(rows: string[], n: number, keyOf: (c: string) => st
 /** Put a picture `oldW` x `oldH` grains (a smaller picture, an earlier editor level's square or
  * frame) centred in the game's frame (FRAME_N cells), where the game shows it; returns the
  * grains and whether any sand fell outside the frame and was cut. */
-export function fitToFrame(keys: string[], oldW: number, oldH: number) {
-    const { w, h } = frameGrains(FRAME_N), out = new Array<string>(w * h).fill('.');
+/** How far a picture (oldW x oldH grains, centred in the frame) can move each way, in grains,
+ * before its sand would leave the frame: empty grains round it don't count. */
+export function moveRange(keys: string[], oldW: number, oldH: number) {
+    const { w, h } = frameGrains(FRAME_N);
+    let x0 = oldW, x1 = -1, y0 = oldH, y1 = -1;
+    for (let y = 0; y < oldH; y++) for (let x = 0; x < oldW; x++) {
+        if ((keys[y * oldW + x] ?? '.') === '.') continue;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    if (x1 < 0) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
     const dx = Math.floor((w - oldW) / 2), dy = Math.floor((h - oldH) / 2);
+    return { minX: -(dx + x0), maxX: w - 1 - (dx + x1), minY: -(dy + y0), maxY: h - 1 - (dy + y1) };
+}
+
+export function fitToFrame(keys: string[], oldW: number, oldH: number, ox = 0, oy = 0) {
+    const { w, h } = frameGrains(FRAME_N), out = new Array<string>(w * h).fill('.');
+    // centred, then moved (ox, oy) grains
+    const dx = Math.floor((w - oldW) / 2) + ox, dy = Math.floor((h - oldH) / 2) + oy;
     let cut = false;
     for (let y = 0; y < oldH; y++) for (let x = 0; x < oldW; x++) {
         const k = keys[y * oldW + x] ?? '.', nx = x + dx, ny = y + dy;

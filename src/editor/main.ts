@@ -10,7 +10,7 @@ import { COLS, FRAME_N, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, fra
 import EDITS from '../game/level-edits.json';
 import { BANK_COLOURS, CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, builtinDefs, decodeSand, encodeSand, loadCustomLevels, useLevels } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
-import { BANK, type BankColour, type ConvertOpts, HEX, NAME, countKeys, drawSand, fitToFrame, hexLab, imageToSand, nearestKey, rowsToGrains, setBank } from './sand';
+import { BANK, type BankColour, type ConvertOpts, HEX, NAME, countKeys, drawSand, fitToFrame, hexLab, imageToSand, moveRange, nearestKey, rowsToGrains, setBank } from './sand';
 import type { SolveJob, SolveResult } from './solver.worker';
 
 type Status = 'WIP' | 'REVIEW' | 'LIVE';
@@ -1027,6 +1027,8 @@ function showBackups() {
 const gen: ConvertOpts = { n: 20, colors: 6, bg: 12, outline: false, smooth: 1, fit: 'contain' };
 let genActiveOnly = false;
 let genImage: HTMLImageElement | null = null, genName = '', genResult: string[] | null = null, genTimer = 0;
+/** Where the picture sits in the frame: grains right / down from centred (kept so its sand stays in the frame). */
+const genOff = { x: 0, y: 0 };
 
 function openGen() {
     $('gen-modal').classList.add('on');
@@ -1041,7 +1043,8 @@ function openGen() {
 function runGen() {
     clearTimeout(genTimer);
     genTimer = window.setTimeout(() => {
-        // the preview is the whole frame at the game's scale, the picture (gen.n cells tall) centred in it
+        // the preview is the whole frame at the game's scale, the picture (gen.n cells tall) centred in
+        // it, then moved by genOff
         const cv = $<HTMLCanvasElement>('gen-preview'), { w: FW, h: FH } = frameGrains(FRAME_N), dpr = window.devicePixelRatio || 1;
         cv.style.aspectRatio = `${FW} / ${FH}`;
         const w = cv.clientWidth || 480;
@@ -1050,7 +1053,11 @@ function runGen() {
         g.fillStyle = '#f0dcb4'; g.fillRect(0, 0, cv.width, cv.height);
         if (!genImage) { $('gen-summary').innerHTML = '<span class="hint">Chọn một ảnh để xem trước.</span>'; $<HTMLButtonElement>('gen-apply').disabled = true; return; }
         const pic = frameGrains(gen.n);
-        genResult = fitToFrame(imageToSand(genImage, { ...gen, keys: genActiveOnly ? activeKeys() : undefined }), pic.w, pic.h).keys;
+        const raw = imageToSand(genImage, { ...gen, keys: genActiveOnly ? activeKeys() : undefined }), r = moveRange(raw, pic.w, pic.h);
+        genOff.x = Math.max(r.minX, Math.min(r.maxX, genOff.x)); genOff.y = Math.max(r.minY, Math.min(r.maxY, genOff.y));
+        genResult = fitToFrame(raw, pic.w, pic.h, genOff.x, genOff.y).keys;
+        const cell = (v: number) => `${v > 0 ? '+' : ''}${+(v / 8).toFixed(1)}`;
+        $('g-move-v').textContent = genOff.x || genOff.y ? `${cell(genOff.x)}, ${cell(genOff.y)} ô` : 'giữa';
         drawSand(g, genResult, FW, FH, 0, 0, cv.width, cv.height);
         const c = [...countKeys(genResult)].sort((a, b) => b[1] - a[1]);
         const total = c.reduce((s, [, n]) => s + Math.floor(n / 64), 0);
@@ -1064,6 +1071,7 @@ function loadImage(file: File) {
     const url = URL.createObjectURL(file), img = new Image();
     img.onload = () => {
         genImage = img; genName = file.name.replace(/\.[^.]+$/, '').slice(0, 40);
+        genOff.x = genOff.y = 0;
         const shown = $<HTMLImageElement>('src-img');
         shown.src = url; shown.hidden = false;
         $('drop-text').innerHTML = 'Bấm hoặc thả ảnh khác để đổi';
@@ -1094,6 +1102,23 @@ for (const [id, key] of [['g-size', 'n'], ['g-colors', 'colors'], ['g-bg', 'bg']
 $<HTMLInputElement>('g-outline').onchange = (e) => { gen.outline = (e.target as HTMLInputElement).checked; runGen(); };
 $<HTMLInputElement>('g-active').onchange = (e) => { genActiveOnly = (e.target as HTMLInputElement).checked; runGen(); };
 $<HTMLSelectElement>('g-fit').onchange = (e) => { gen.fit = (e.target as HTMLSelectElement).value as ConvertOpts['fit']; runGen(); };
+// move the picture in the frame: a cell (8 grains) a press, ⊙ back to the middle, or drag the preview
+for (const [id, dx, dy] of [['g-left', -8, 0], ['g-right', 8, 0], ['g-up', 0, -8], ['g-down', 0, 8]] as const) {
+    $(id).onclick = () => { genOff.x += dx; genOff.y += dy; runGen(); };
+}
+$('g-center').onclick = () => { genOff.x = genOff.y = 0; runGen(); };
+{
+    const cv = $<HTMLCanvasElement>('gen-preview');
+    let drag: { x: number; y: number; ox: number; oy: number } | null = null;
+    cv.onpointerdown = (e) => { if (!genImage) return; drag = { x: e.clientX, y: e.clientY, ox: genOff.x, oy: genOff.y }; cv.setPointerCapture(e.pointerId); };
+    cv.onpointermove = (e) => {
+        if (!drag) return;
+        const k = frameGrains(FRAME_N).w / cv.clientWidth;
+        genOff.x = drag.ox + Math.round((e.clientX - drag.x) * k); genOff.y = drag.oy + Math.round((e.clientY - drag.y) * k);
+        runGen();
+    };
+    cv.onpointerup = cv.onpointercancel = () => { drag = null; };
+}
 $('gen-cancel').onclick = () => $('gen-modal').classList.remove('on');
 $('gen-apply').onclick = applyGen;
 $('btn-gen-sand').onclick = openGen;

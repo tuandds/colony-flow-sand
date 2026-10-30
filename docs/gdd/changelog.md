@@ -4,6 +4,7 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
+- **Level Editor: move the picture in the frame:** when making a sand picture from an image, arrow buttons (a cell at a time), a centre button and dragging the preview move the picture up, down, left or right; its sand never leaves the frame.
 - **Background zoomed in:** the wooden planks are about 2.6 times wider (about 140 px, was 54), like the reference.
 - **Boosters unlock one by one:** Activate at level 3, Shuffle at level 6, Fan at level 9 (the Fan was at level 5).
 - **Fan unlocks at level 5:** in levels 1–4 the third booster is a grey button with a padlock; tapping it shows "Unlocks at Level 5".
