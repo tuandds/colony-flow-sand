@@ -112,8 +112,9 @@
   .tool.on { border-color: var(--gold); background: #2a2208; }
   /* the game's frame around the sand: the canvas is exactly the frame's inside */
   .sand-wrap { margin-top: 8px; display: grid; place-items: center; }
-  .sand-frame { padding: 10px; border-radius: 22px; background: linear-gradient(180deg, #c98d55, #9c6634); box-shadow: inset 0 2px 0 rgba(255,255,255,.35), 0 4px 0 #6b4220; }
-  .sand-frame canvas { border-radius: 10px; }
+  /* like the game's frame art: a lilac-white rim with a dark navy outline (the canvas draws the
+     rim's rounded inside corners itself) */
+  .sand-frame { padding: 10px; border-radius: 22px; background: #f0f2ff; border: 3px solid #01013a; box-shadow: 0 5px 0 #c9c5ec; }
   #sand { display: block; touch-action: none; user-select: none; cursor: crosshair; image-rendering: pixelated; }
   .setting-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
   .setting-row > label { flex: 0 0 120px; font-weight: 600; color: #cbd5e1; }
@@ -174,7 +175,7 @@
   .lb-row.drop-before { box-shadow: 0 -3px 0 var(--gold); }
   .lb-id { color: var(--dim); font-weight: 800; font-size: 10px; min-width: 18px; text-align: right; }
   .lb-grip { color: var(--dim); cursor: grab; font-size: 12px; }
-  .lb-row canvas { width: 42px; height: auto; border-radius: 6px; background: #f0dcb4; flex: 0 0 auto; }
+  .lb-row canvas { width: 42px; height: auto; border-radius: 6px; background: #b5d2ff; flex: 0 0 auto; }
   .lb-name { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lb-name em { display: block; font-style: normal; color: var(--dim); font-size: 10px; font-weight: 600; }
   .lb-status { font-size: 9px; font-weight: 900; padding: 1px 5px; border-radius: 99px; }
@@ -205,7 +206,7 @@
   th { text-align: left; color: var(--mute); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; padding: 6px; border-bottom: 1px solid var(--line); position: sticky; top: -14px; background: var(--panel); }
   td { padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
   tr.drop-before td { box-shadow: 0 3px 0 var(--gold) inset; }
-  td canvas { width: 58px; height: auto; border-radius: 7px; background: #f0dcb4; display: block; }
+  td canvas { width: 58px; height: auto; border-radius: 7px; background: #b5d2ff; display: block; }
   .org-link { color: #93c5fd; font-weight: 700; cursor: pointer; }
   .org-color-chip { display: inline-block; width: 13px; height: 13px; border-radius: 4px; margin-right: 2px; vertical-align: middle; }
   .org-more { color: var(--dim); font-weight: 700; font-size: 10px; }
@@ -228,7 +229,7 @@
   .move-pad .btn { min-width: 28px; padding: 4px 0; justify-content: center; }
   .move-v { margin-left: 6px; font-size: 11px; font-weight: 800; white-space: nowrap; color: var(--gold); }
   #gen-preview { cursor: grab; touch-action: none; }
-  #gen-preview { display: block; width: min(64vh, 560px); height: auto; background: #f0dcb4; border-radius: 12px; image-rendering: pixelated; border: 10px solid #b07a46; }
+  #gen-preview { display: block; width: min(64vh, 560px); height: auto; background: #b5d2ff; border-radius: 12px; image-rendering: pixelated; border: 10px solid #f0f2ff; outline: 3px solid #01013a; }
   .gen-summary { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
   .dialog-bar { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
   .hist-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 9px; margin-bottom: 5px; }
@@ -261,8 +262,8 @@
     .org-side { flex: 1 1 100%; }
   }
 </style>
-  <script type="module" crossorigin src="./assets/editor-DJtEXYJJ.js"></script>
-  <link rel="modulepreload" crossorigin href="./assets/sim-CMX6X5IZ.js">
+  <script type="module" crossorigin src="./assets/editor-Bsui1_aj.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/sim-sCVUTYD-.js">
 </head>
 <body>
 <div class="edit-header">
