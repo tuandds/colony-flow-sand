@@ -4,6 +4,7 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
+- **Nest numbers and waiting nests:** every nest's number is white with a black stroke. Nests waiting behind the front row sit under a grey overlay (they were a paler shade of their colour), which also greys their number and stroke.
 - **Redrawn pictures:** levels 1–4, 6, 7, 8 and 10 are drawn again from round shapes and curves instead of square cells, with an even outline (cherries with curved stems and a leaf, a wavy ice cream scoop on a criss-cross cone, a goldfish with curved fins, a pleated cupcake case, a balloon with curved panels and a woven basket, a cactus with a flower, a snail with a spiral shell, a penguin with a scarf). Same layout, colours and frame size. Cherries, Ice Cream and Penguin no longer have hand-set nests, so the game builds all eight levels' nests (not re-checked with the test bot).
 - **Level 9 (Rocket):** a new version from the Level Editor made for the 188-wide frame; it has no set nests, so the game builds them (rows order, seed 0).
 - **Frame holds a whole number of blocks:** the sand frame is 188 grains wide (was 186; 870 px inside, was 864), so a full frame, 188 × 176 grains, is exactly 517 blocks and loses nothing to the trim. Pictures made for the old 186-wide frame fill the new one (their outer columns are doubled), so Little Owl and Rocket stay edge to edge with no sand cut. Recorded wins in the Level Editor need to be made again.
