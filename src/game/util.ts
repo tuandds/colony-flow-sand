@@ -13,8 +13,9 @@ export function shade(hex: string, f: number): number {
     return (mix(r, f) << 16) | (mix(g, f) << 8) | mix(b, f);
 }
 
-/** A hex colour seen through a grey overlay of opacity `a` (waiting nests); returns 0xRRGGBB. */
-export function greyed(hex: string, a: number, grey = 0x60): number {
+/** A hex colour seen through a grey overlay of opacity `a` and brightness `grey` (0 to 255);
+ * returns 0xRRGGBB. */
+export function greyed(hex: string, a: number, grey: number): number {
     const [r, g, b] = hexToRgb(hex).map((c) => Math.round(c * (1 - a) + grey * a));
     return (r << 16) | (g << 8) | b;
 }

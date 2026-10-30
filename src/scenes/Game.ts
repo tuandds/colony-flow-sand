@@ -19,8 +19,9 @@ const VIBES: Partial<Record<Sfx, number | number[]>> = { nest: 25, win: [60, 40,
 const BOOSTER_USES = [1, 1, 1];
 /** The level (1-based) from which each booster can be used; before it the booster shows locked. */
 const BOOSTER_UNLOCK = [3, 6, 9];
-/** Opacity of the grey overlay on nests waiting behind the front row. */
-const WAIT_GREY = 0.5;
+/** Nests waiting behind the front row sit under a light, half-clear overlay: its opacity on the
+ * tile, its brightness, and the darker grey it gives the number's white fill and black stroke. */
+const WAIT = { a: 0.45, light: 0xe0, text: 0xb0 };
 
 // Depths, back to front.
 const D = { bg: 0, chute: 1, funnel: 2, board: 3, sand: 4, belt: 5, shadows: 6, three: 7, labels: 8, fx: 9, tray: 10, hud: 11, overlay: 20 };
@@ -269,7 +270,7 @@ export class Game extends Phaser.Scene {
         }
 
         // nest tiles: the front row (the nests ants work for) is full height with a white
-        // outline; nests queued behind are lower, under a grey overlay
+        // outline; nests queued behind are lower, under a light overlay
         let li = 0;
         for (let ri = 5; ri >= 0; ri--) for (let ci = 0; ci < s.cols.length; ci++) {
             const nest = s.cols[ci][ri];
@@ -286,14 +287,14 @@ export class Game extends Phaser.Scene {
             const w = TILE * 0.92 * sc, face = this.three.tileFace(TILE) * sc, lift = this.three.tileTopLift(TILE, squash) * sc;
             g.fillStyle(0x5a3719, (front ? 0.2 : 0.1) * alpha);
             g.fillRoundedRect(nest.dx - w / 2 + 4, y - face / 2 + 10, w, face + lift, 26);
-            items.push({ ref: nest, kind: 'tile', x: nest.dx, y, color: front ? hex : greyed(hex, WAIT_GREY), size: TILE, alpha, scale: sc, squash, outline: front });
+            items.push({ ref: nest, kind: 'tile', x: nest.dx, y, color: front ? hex : greyed(hex, WAIT.a, WAIT.light), size: TILE, alpha, scale: sc, squash, outline: front });
             const label = this.label(li++);
             label.setText(String(nest.need - nest.got)).setPosition(nest.dx, y + 2).setVisible(true);
             label.setFontSize(Math.round((front ? 50 : 46) * sc));
-            // white number with a black stroke; on waiting nests the grey overlay covers it too
+            // white number with a black stroke; on waiting nests the light overlay covers it too
             const css = (c: number) => '#' + c.toString(16).padStart(6, '0');
             if (front) label.setColor('#ffffff').setStroke('#000000', 9 * sc);
-            else label.setColor(css(greyed('#ffffff', WAIT_GREY * 0.6))).setStroke(css(greyed('#000000', WAIT_GREY * 0.6)), 8 * sc);
+            else label.setColor(css(greyed('#ffffff', WAIT.a, WAIT.text))).setStroke(css(greyed('#000000', 0.6, WAIT.text)), 8 * sc);
             label.setAlpha(alpha);
         }
         for (; li < this.labels.length; li++) this.labels[li].setVisible(false);
