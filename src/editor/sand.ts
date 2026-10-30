@@ -1,7 +1,7 @@
 // Image -> grain-level sand picture, and drawing sand the way the game does. A picture is one
 // palette key per grain ('.' = empty), w x h grains covering the game's whole frame
 // (frameGrains in layout.ts), so what the editor shows is what the game shows.
-import { FRAME_N, SUB, frameGrains } from '../game/layout';
+import { FRAME_N, SUB, frameGrains, grainInFrame } from '../game/layout';
 import { BANK_COLOURS, SAND_PALETTE } from '../game/levels';
 import { hash, packColor } from '../game/util';
 
@@ -244,12 +244,34 @@ export function fitToFrame(keys: string[], oldW: number, oldH: number, ox = 0, o
     return { keys: out, cut };
 }
 
-/** Draw sand like the game does: one pixel per grain with a little brightness noise per grain. */
+let frameOut: Uint8Array | null = null;
+/** The grains of a full frame picture (frameGrains(FRAME_N)) that lie outside the frame's rounded
+ * inside (its corners): the game cuts them, so the editor shows them as the frame's rim and paints
+ * nothing there. Null for any other size. */
+export function frameOutside(w: number, h: number) {
+    const F = frameGrains(FRAME_N);
+    if (w !== F.w || h !== F.h) return null;
+    if (!frameOut) {
+        frameOut = new Uint8Array(w * h);
+        for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) if (!grainInFrame(c, r)) frameOut[r * w + c] = 1;
+    }
+    return frameOut;
+}
+/** The picture without the grains in the frame's corners. */
+export function clipToFrame(keys: string[], w: number, h: number) {
+    const out = frameOutside(w, h);
+    return out ? keys.map((k, p) => (out[p] ? '.' : k)) : keys;
+}
+
+/** Draw sand like the game does: one pixel per grain with a little brightness noise per grain. The
+ * frame's rounded corners show in its white rim colour, over any sand there. */
 export function drawSand(ctx: CanvasRenderingContext2D, keys: string[], gw: number, gh: number, x: number, y: number, w: number, h: number) {
-    const img = new ImageData(gw, gh), px = new Uint32Array(img.data.buffer);
+    const img = new ImageData(gw, gh), px = new Uint32Array(img.data.buffer), out = frameOutside(gw, gh);
+    const rim = packColor('#f0f2ff', 0);
     for (let p = 0; p < keys.length; p++) {
         const k = keys[p];
-        if (k !== '.') px[p] = packColor(HEX.get(k) ?? '#ff00ff', (hash(p % gw, (p / gw) | 0, 7) - 0.5) * 0.16);
+        if (out?.[p]) px[p] = rim;
+        else if (k !== '.') px[p] = packColor(HEX.get(k) ?? '#ff00ff', (hash(p % gw, (p / gw) | 0, 7) - 0.5) * 0.16);
     }
     const cv = document.createElement('canvas');
     cv.width = gw; cv.height = gh;

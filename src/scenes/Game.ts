@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import {
-    BELT, BELT_LEN, BLOCK, BOOSTER_IMAGES, BOOSTER_POS, FMASK, FRAME, FUNNEL, H, INNER, MOUTH, PAUSE_BTN, PIC,
-    SLOTS, SPEED_BTN, TILE, W, beltPoint,
+    BELT, BLOCK, BOOSTER_IMAGES, BOOSTER_POS, FMASK, FRAME_ART, FUNNEL, H, INNER, MOUTH, PAUSE_BTN, PIC,
+    SLOTS, SPEED_BTN, TILE, W,
 } from '../game/layout';
 import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useLevels } from '../game/levels';
 import { type Recording, botStep, playBot, replayStep } from '../game/bot';
@@ -78,12 +78,16 @@ export class Game extends Phaser.Scene {
     private threeTex!: Phaser.Textures.CanvasTexture;
     private threeCtx!: CanvasRenderingContext2D;
     private funnelGfx!: Phaser.GameObjects.Graphics;
-    private beltGfx!: Phaser.GameObjects.Graphics;
+    /** The belt's holders, one under each slot (they move with the belt). */
+    private holds: Phaser.GameObjects.Image[] = [];
     private shadowGfx!: Phaser.GameObjects.Graphics;
     private fxGfx!: Phaser.GameObjects.Graphics;
     private fullText!: Phaser.GameObjects.Text;
     /** The fullness bar's fill: above the white bar track (drawBeltBase), below the % text. */
-    private fullGfx!: Phaser.GameObjects.Graphics;
+    private fullBar!: Phaser.GameObjects.NineSlice;
+    /** Nest boxes and the white frame round the front ones, reused frame to frame (like the labels). */
+    private nestBoxes: Phaser.GameObjects.Image[] = [];
+    private nestFrames: Phaser.GameObjects.Image[] = [];
     private levelText!: Phaser.GameObjects.Text;
     private speedBtn!: Phaser.GameObjects.Image;
     /** The x2 button's image, icon and label, hidden together. */
@@ -136,13 +140,12 @@ export class Game extends Phaser.Scene {
         if (qp) level = Math.max(0, Math.min(levelCount() - 1, parseInt(qp, 10) - 1));
 
         this.add.image(0, 0, 'bg').setOrigin(0).setDisplaySize(W, H).setDepth(D.bg);
-        this.drawChute();
-        this.funnelGfx = this.add.graphics().setDepth(D.funnel);
+        // the funnel's sand lies over the frame art's funnel, under the picture's sand
+        this.funnelGfx = this.add.graphics().setDepth(D.board + 0.5);
         this.drawBoard();
         this.sandImage = this.add.image(0, 0, '__WHITE').setOrigin(0).setDepth(D.sand);
         this.drawBeltBase();
-        this.beltGfx = this.add.graphics().setDepth(D.belt);
-        this.fullGfx = this.add.graphics().setDepth(D.belt + 0.2);
+        for (let i = 0; i < SLOTS; i++) this.holds.push(this.add.image(0, 0, 'conveyor_hold').setDisplaySize(30, 30).setDepth(D.belt));
         this.fullText = this.text(540, BELT.cy + 1, '0%', 24, '#14203a', null).setDepth(D.belt + 0.5);
         this.shadowGfx = this.add.graphics().setDepth(D.shadows);
         // Phaser canvas textures need a 2D canvas, so each frame the WebGL output of the 3D
@@ -269,9 +272,13 @@ export class Game extends Phaser.Scene {
             items.push({ ref: f, kind: 'cube', x, y, color: s.colors[f.k], size: BLOCK, scale: sc, ang: (1 - t) * 6, centered: true });
         }
 
-        // nest tiles: the front row (the nests ants work for) is full height with a white
-        // outline; nests queued behind are lower, under a light overlay
+        // nest boxes (img/nest_box.png in the nest's colour): the front row (the nests ants work
+        // for) is full height inside a white frame; nests queued behind are lower, under a light
+        // overlay. The box art is 302 x 387: its body is the top 368, the centre of its top face
+        // (where the nest's point and number are) at (151, 136); the frame's hole is centred at
+        // (167.5, 202) of its 335 x 404, round the box body's centre (151, 184).
         let li = 0;
+        const k = (TILE * 0.92) / 302;
         for (let ri = 5; ri >= 0; ri--) for (let ci = 0; ci < s.cols.length; ci++) {
             const nest = s.cols[ci][ri];
             if (!nest || nest.dy === null || nest.dx === null) continue;
@@ -283,11 +290,12 @@ export class Game extends Phaser.Scene {
             const front = s.isActive(nest, ri);
             if (this.picking && this.canWake(ci, ri)) sc *= 1.04 + 0.04 * Math.sin(this.time.now / 110);
             const hex = s.colors[nest.color];
-            const squash = front ? this.three.TILE_SQUASH : this.three.TILE_SQUASH * 0.55;
-            const w = TILE * 0.92 * sc, face = this.three.tileFace(TILE) * sc, lift = this.three.tileTopLift(TILE, squash) * sc;
-            g.fillStyle(0x5a3719, (front ? 0.2 : 0.1) * alpha);
-            g.fillRoundedRect(nest.dx - w / 2 + 4, y - face / 2 + 10, w, face + lift, 26);
-            items.push({ ref: nest, kind: 'tile', x: nest.dx, y, color: front ? hex : greyed(hex, WAIT.a, WAIT.light), size: TILE, alpha, scale: sc, squash, outline: front });
+            const sx = k * sc, sy = sx * (front ? 1 : 0.8), depth = D.three - 0.3 + ri * 0.01;
+            const box = (this.nestBoxes[li] ??= this.add.image(0, 0, 'nest_box').setOrigin(151 / 302, 136 / 387));
+            box.setTexture(this.nestTexture(front ? hex : '#' + greyed(hex, WAIT.a, WAIT.light).toString(16).padStart(6, '0')))
+                .setPosition(nest.dx, y).setScale(sx, sy).setAlpha(alpha).setDepth(depth).setVisible(true);
+            const frame = (this.nestFrames[li] ??= this.add.image(0, 0, 'nest_frame').setOrigin(167.5 / 335, 202 / 404));
+            frame.setPosition(nest.dx, y + 48 * sy).setScale(sx, sy).setAlpha(alpha).setDepth(depth + 0.005).setVisible(front);
             const label = this.label(li++);
             label.setText(String(nest.need - nest.got)).setPosition(nest.dx, y + 2).setVisible(true);
             label.setFontSize(Math.round((front ? 50 : 46) * sc));
@@ -297,6 +305,7 @@ export class Game extends Phaser.Scene {
             else label.setColor(css(greyed('#ffffff', WAIT.a, WAIT.text))).setStroke(css(greyed('#000000', 0.6, WAIT.text)), 8 * sc);
             label.setAlpha(alpha);
         }
+        for (let i = li; i < this.nestBoxes.length; i++) { this.nestBoxes[i].setVisible(false); this.nestFrames[i].setVisible(false); }
         for (; li < this.labels.length; li++) this.labels[li].setVisible(false);
 
         g.fillStyle(0x3c2814, 0.22);
@@ -330,27 +339,11 @@ export class Game extends Phaser.Scene {
         s.picDirty = false;
     }
 
-    /** The picture frame: a white rim around a periwinkle inside (sand is drawn on top). */
+    /** The picture frame and its funnel (one piece of art), its light blue inside scaled onto
+     * INNER (sand is drawn on top); the funnel's spout runs on under the belt. */
     private drawBoard() {
-        const g = this.add.graphics().setDepth(D.board), m = 14;
-        g.fillStyle(0x24345e, 0.12).fillRoundedRect(INNER.x - m, INNER.y - m + 6, INNER.w + 2 * m, INNER.h + 2 * m, 26);
-        g.fillStyle(0xfcfaff).fillRoundedRect(INNER.x - m, INNER.y - m, INNER.w + 2 * m, INNER.h + 2 * m, 26);
-        g.fillStyle(0x96aedd).fillRoundedRect(INNER.x, INNER.y, INNER.w, INNER.h, 12);
-    }
-
-    private drawChute() {
-        const g = this.add.graphics().setDepth(D.chute);
-        const pts = [
-            new Phaser.Math.Vector2(FRAME.x, FRAME.y), new Phaser.Math.Vector2(MOUTH.x - MOUTH.half, MOUTH.y),
-            new Phaser.Math.Vector2(MOUTH.x + MOUTH.half, MOUTH.y), new Phaser.Math.Vector2(FRAME.x + FRAME.w, FRAME.y),
-        ];
-        g.fillStyle(0x93a9d8).fillPoints(pts, true);
-        g.lineStyle(12, 0xfcfaff).strokePoints(pts, true);
-        // pipe nozzle under the hole
-        const n = this.add.graphics().setDepth(D.belt + 0.2);
-        n.fillStyle(0xfcfaff).fillRoundedRect(MOUTH.x - 56, MOUTH.y - 10, 112, 40, 14);
-        n.fillStyle(0xdfe6f7).fillRoundedRect(MOUTH.x - 50, MOUTH.y - 10, 100, 32, 12);
-        n.fillStyle(0x34466f).fillRoundedRect(MOUTH.x - 34, MOUTH.y - 2, 68, 18, 9);
+        const A = FRAME_ART, kx = INNER.w / A.w, ky = INNER.h / A.h;
+        this.add.image(INNER.x - A.x * kx, INNER.y - A.y * ky, 'frame').setOrigin(0).setDisplaySize(A.imgW * kx, A.imgH * ky).setDepth(D.board);
     }
 
     private drawFunnel() {
@@ -371,50 +364,27 @@ export class Game extends Phaser.Scene {
         }
     }
 
-    private stadium(g: Phaser.GameObjects.Graphics, r: number, color: number) {
-        g.fillStyle(color);
-        g.beginPath();
-        g.arc(BELT.cxL, BELT.cy, r, Math.PI / 2, Math.PI * 1.5);
-        g.arc(BELT.cxR, BELT.cy, r, -Math.PI / 2, Math.PI / 2);
-        g.closePath();
-        g.fillPath();
-    }
-
-    // slate-blue belt with white rims; its edges are darker than its middle
+    /** The belt art (img/conveyor.png): its slate band (x 33 to 1810, y 40 to 400 of the art)
+     * lies on the track, 2 x (BELT.r + BELT.band / 2) tall; only its middle is stretched, so the
+     * round ends keep their shape. Its fill gauge (img/progress_bar.png) runs along the middle. */
     private drawBeltBase() {
-        const g = this.add.graphics().setDepth(D.belt - 0.5), R = BELT.r + BELT.band / 2, r = BELT.r - BELT.band / 2;
-        this.stadium(g, R + 12, 0xfcfeff);
-        this.stadium(g, R + 4, 0x6f8bb2);
-        this.stadium(g, R - 6, 0x82a2cb);
-        const inner = this.add.graphics().setDepth(D.belt + 0.1);
-        this.stadium(inner, r + 10, 0x6f8bb2);
-        this.stadium(inner, r + 4, 0xf9fdff);
-        this.stadium(inner, r - 4, 0xc8d3ef);
-        inner.fillStyle(0xf1f1fa).fillRoundedRect(BELT.cxL - 6, BELT.cy - 13, BELT.cxR - BELT.cxL + 12, 26, 13);
-        inner.fillStyle(0x8a9dcc).fillRoundedRect(BELT.cxL - 3, BELT.cy - 10, BELT.cxR - BELT.cxL + 6, 20, 10);
+        const R = BELT.r + BELT.band / 2, k = (2 * R) / 360, w = (BELT.cxR - BELT.cxL + 2 * R) / k + 33 + 34;
+        this.add.nineslice(540, BELT.cy + 8 * k, 'conveyor', undefined, w, undefined, 230, 230, 0, 0).setScale(k).setDepth(D.belt - 0.5);
+        // the gauge's groove is x 22 to 1378, y 14 to 66 of its 1400 x 95 art; the green fill is
+        // exactly as tall as the groove
+        const bw = BELT.cxR - BELT.cxL + 12, gk = bw / 1400;
+        this.add.image(540, BELT.cy, 'progress_bar').setScale(gk).setDepth(D.belt + 0.1);
+        this.fullBar = this.add.nineslice(540 - bw / 2 + 22 * gk, BELT.cy + (40 - 47.5) * gk, 'progress', undefined, 52, undefined, 26, 26, 0, 0)
+            .setOrigin(0, 0.5).setScale(gk).setDepth(D.belt + 0.2).setData('max', 1356);
     }
 
     private drawBelt() {
-        const s = this.sim, g = this.beltGfx;
-        g.clear();
-        // moving chevrons along the track
-        g.lineStyle(6, 0xc9d9f2, 0.4);
-        const gap = 44;
-        for (let d = s.beltOff % gap; d < BELT_LEN; d += gap) {
-            const [x, y] = beltPoint(d), [x2, y2] = beltPoint((d + 1) % BELT_LEN);
-            const a = Math.atan2(y2 - y, x2 - x), c = Math.cos(a), sn = Math.sin(a);
-            const pt = (u: number, v: number) => [x + u * c - v * sn, y + u * sn + v * c];
-            const [ax, ay] = pt(-6, -10), [bx, by] = pt(4, 0), [cx, cy] = pt(-6, 10);
-            g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.lineTo(cx, cy); g.strokePath();
-        }
-        // how full the conveyor is; it turns yellow then red as it nears overflow
+        const s = this.sim;
+        // the holders ride round with the belt, one under each slot
+        this.holds.forEach((h, i) => { const [x, y] = s.slotPos(i); h.setPosition(x, y + 4); });
+        // how full the conveyor is
         const used = s.slots.filter(Boolean).length, pct = Math.round((100 * used) / SLOTS);
-        const fg = this.fullGfx.clear();
-        if (pct > 0) {
-            const bx = BELT.cxL - 6, bw = BELT.cxR - BELT.cxL + 12, by = BELT.cy - 13;
-            fg.fillStyle(pct >= 85 ? 0xef4b4b : pct >= 60 ? 0xf5b82e : 0x6cc53b);
-            fg.fillRoundedRect(bx + 3, by + 3, Math.max(20, ((bw - 6) * pct) / 100), 20, 10);
-        }
+        this.fullBar.setVisible(pct > 0).width = Math.max(52, (this.fullBar.getData('max') * pct) / 100);
         this.fullText.setText(pct + '%');
     }
 
@@ -425,33 +395,64 @@ export class Game extends Phaser.Scene {
         return t;
     }
 
+    /** The nest box art in colour `hex` (made once per colour): the art is red, so each pixel's
+     * hue becomes the colour's, its saturation and brightness scaled by the colour's against the
+     * red of the box's top face (outline and shading stay). */
+    private nestTexture(hex: string) {
+        const key = 'nest_box:' + hex;
+        if (this.textures.exists(key)) return key;
+        const src = this.textures.get('nest_box').getSourceImage() as HTMLImageElement;
+        const tex = this.textures.createCanvas(key, src.width, src.height)!, ctx = tex.getContext();
+        ctx.drawImage(src, 0, 0);
+        const img = ctx.getImageData(0, 0, src.width, src.height), d = img.data;
+        const hsv = (r: number, g: number, b: number) => {
+            const mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn;
+            const h = c === 0 ? 0 : mx === r ? ((g - b) / c + 6) % 6 : mx === g ? (b - r) / c + 2 : (r - g) / c + 4;
+            return [h * 60, mx ? c / mx : 0, mx / 255];
+        };
+        const t = parseInt(hex.slice(1), 16), [th, ts, tv] = hsv((t >> 16) & 255, (t >> 8) & 255, t & 255);
+        const [, bs, bv] = hsv(227, 56, 58);
+        for (let p = 0; p < d.length; p += 4) {
+            if (!d[p + 3]) continue;
+            const [, s0, v0] = hsv(d[p], d[p + 1], d[p + 2]);
+            const sat = Math.min(1, (s0 * ts) / bs), val = Math.min(1, (v0 * tv) / bv);
+            // HSV back to RGB
+            const c = val * sat, x = c * (1 - Math.abs(((th / 60) % 2) - 1)), m = val - c, sector = Math.floor(th / 60) % 6;
+            const [r, g, b] = [[c, x, 0], [x, c, 0], [0, c, x], [0, x, c], [x, 0, c], [c, 0, x]][sector];
+            d[p] = (r + m) * 255; d[p + 1] = (g + m) * 255; d[p + 2] = (b + m) * 255;
+        }
+        ctx.putImageData(img, 0, 0);
+        tex.refresh();
+        return key;
+    }
+
     private label(i: number) {
         if (!this.labels[i]) this.labels[i] = this.text(0, 0, '', 50, '#ffffff', '#2e2433', 9).setDepth(D.labels);
         return this.labels[i];
     }
 
     // boosters: a row under the HUD, above the picture frame (as in Sand Drop)
-    // as in Sand Drop: a green square button with the booster's picture, a red badge with the
-    // uses left (a green plus when there are none), and a yellow frame while it waits for a tap
+    // as in Sand Drop: a square button with the booster's picture, a red badge with the uses left
+    // (a green plus when there are none), and a yellow frame while it waits for a tap
     private buildTray() {
-        const sized = (o: Phaser.GameObjects.Image, w: number) => o.setData('s', w / o.width).setScale(w / o.width);
         BOOSTER_IMAGES.forEach((key, i) => {
             const { x, y } = BOOSTER_POS[i];
-            const base = sized(this.add.image(x, y, 'bst_btn').setDepth(D.tray + 0.1), 150);
-            // the yellow frame lies exactly over the button's white rim: the button's body (its
-            // outline included) is the top 141 of its 147 px, the rest is its drop shadow
-            const k = 150 / base.width;
-            const frame = this.add.image(x, y - 3 * k, 'bst_frame').setDepth(D.tray + 0.15).setDisplaySize(138 * k, 141 * k).setVisible(false);
+            // the button art is 408 x 442: its body is x 6 to 400, y 0 to 410 (the white rim and
+            // orange face are the top 357, a lilac lip below), the orange face y 37 to 352
+            const k = 150 / 394, at = (ay: number) => y + (ay - 221) * k;
+            const base = this.add.image(x, y, 'bst_btn').setScale(k).setData('s', k).setDepth(D.tray + 0.1);
+            // the yellow frame lies over the white rim while Activate waits for a nest
+            const frame = this.add.image(x, at(178.5), 'bst_frame').setDepth(D.tray + 0.15).setDisplaySize(394 * k, 357 * k).setVisible(false);
             frame.setData('sx', frame.scaleX).setData('sy', frame.scaleY);
-            const img = this.add.image(x, y - 6, key).setDepth(D.tray + 0.2);
-            img.setData('s', 104 / Math.max(img.width, img.height)).setScale(img.getData('s'));
+            const img = this.add.image(x, at(194.5), key).setDepth(D.tray + 0.2);
+            img.setData('s', 100 / Math.max(img.width, img.height)).setScale(img.getData('s'));
             const badge = this.add.container(x + 58, y + 58).setDepth(D.tray + 0.3);
             const count = this.text(0, 1, '1', 36, '#ffffff', '#7a1020', 6);
             badge.add([this.add.image(0, 0, 'badge_red').setDisplaySize(58, 58), count]);
             const plus = this.add.image(x + 58, y + 58, 'badge_plus').setDisplaySize(58, 58).setDepth(D.tray + 0.3).setVisible(false);
-            // locked: the grey button is square with no drop shadow, so it covers the green button's
-            // body (the top 141 of its 147 px)
-            const lockBase = sized(this.add.image(x, y - 3 * k, 'bst_btn_locked').setDepth(D.tray + 0.1), 141 * k).setVisible(false);
+            // locked: a grey square over the button's whole body
+            const lockBase = this.add.image(x, at(205), 'bst_btn_locked').setDepth(D.tray + 0.1).setDisplaySize(394 * k, 410 * k).setVisible(false);
+            lockBase.setData('sx', lockBase.scaleX).setData('sy', lockBase.scaleY);
             // the padlock sits a little high, with the level it opens at under it
             const lock = this.add.image(x, y - 24, 'icon_lock').setDepth(D.tray + 0.2).setVisible(false);
             lock.setData('s', 66 / lock.height).setScale(lock.getData('s'));
@@ -647,29 +648,25 @@ export class Game extends Phaser.Scene {
      * autoFast is on, x2 stays on. */
     private setSpeed(on: boolean) {
         this.speedUp = on || this.autoFast;
-        this.speedBtn.setTexture(on ? 'btn_speed_on' : 'btn_speed_off').setDisplaySize(SPEED_BTN.w, SPEED_BTN.h);
+        this.speedBtn.setTexture(on ? 'btn_speed_on' : 'btn_speed_off');
     }
 
     private buildHud() {
         const p = PAUSE_BTN, sp = SPEED_BTN;
-        this.add.image(p.x, p.y, 'btn_blue_sq').setOrigin(0).setDisplaySize(p.w, p.h).setDepth(D.hud)
+        // the settings button (212 x 224 art) opens the pause panel
+        this.add.image(p.x, p.y, 'btn_settings').setOrigin(0).setDisplaySize(p.w, (p.w * 224) / 212).setDepth(D.hud)
             .setInteractive({ useHandCursor: true }).on('pointerdown', () => { if (!this.overlay) { this.sfx('click'); this.showSettings(); } });
-        this.add.image(p.x + p.w / 2, p.y + p.h / 2 - 4, 'pause').setDisplaySize(44, 48).setDepth(D.hud + 0.1);
         this.levelText = this.text(540, 98, 'Level 1', 78, '#7a4a24', '#fff0dc', 6).setDepth(D.hud);
-        // x2 speed: Colony Flow's speed button, grey when off and green when on, with its
-        // fast-forward icon and "x2"
-        this.speedBtn = this.add.image(sp.x, sp.y, 'btn_speed_off').setOrigin(0).setDisplaySize(sp.w, sp.h).setDepth(D.hud)
+        // x2 speed: a white pill with a fast-forward arrow (grey when off, green when on) and "x2"
+        // on its left; the art is 291 x 150, its body the top 128
+        this.speedBtn = this.add.image(sp.x, sp.y, 'btn_speed_off').setOrigin(0).setDisplaySize(sp.w, (sp.w * 150) / 291).setDepth(D.hud)
             .setInteractive({ useHandCursor: true }).on('pointerdown', () => {
                 if (this.overlay || this.autoFast) return;
                 this.sfx('click');
                 this.setSpeed(!this.speedUp);
             });
-        const ix = sp.x + 58, iy = sp.y + sp.h * 0.46;
-        this.speedParts = [
-            this.speedBtn,
-            this.add.image(ix, iy, 'icon_ff').setDisplaySize(59, 42).setDepth(D.hud + 0.1),
-            this.text(sp.x + sp.w - 52, iy + 1, 'x2', 50, '#ffffff', '#2e5a12', 8).setDepth(D.hud + 0.1),
-        ];
+        const k = sp.w / 291;
+        this.speedParts = [this.speedBtn, this.text(sp.x + 82 * k, sp.y + 62 * k, 'x2', 50, '#2b2a6b', null).setDepth(D.hud + 0.1)];
     }
 
     /** Once all the sand has fallen off the picture frame, the rest of the level (funnel, belt,

@@ -3,7 +3,7 @@
 import {
     ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, BOARD, COLS, DRAIN_RATE, DROP_S, FMASK, FMASK_COUNT,
     FUNNEL, FUNNEL_HZ, GRAINS_PER_PARTICLE, GRAINS_PER_UNIT, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS,
-    FRAME_N, MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colX, frameGrains, funnelHalf, nestPos,
+    FRAME_N, MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colX, frameGrains, funnelHalf, grainInFrame, nestPos,
 } from './layout';
 import { Level, buildLevel, decodeSand, widenOldFrame } from './levels';
 import { hash, mulberry32, packColor } from './util';
@@ -45,6 +45,8 @@ export class Sim {
     keys: (string | null)[] = [];
     // per grain: colour key index, packed colour, draining / loose flags, velocity
     key!: Uint8Array; rgb!: Uint32Array; dr!: Uint8Array; loose!: Uint8Array; vx!: Float32Array; vy!: Float32Array;
+    /** Cells outside the frame's rounded inside (its corners): no sand starts there or moves in. */
+    wall!: Uint8Array;
     colors: Record<string, string> = {};
     total = 0; drained = 0;
     /** Grains still on the board (the picture frame); 0 once all its sand has fallen. */
@@ -102,7 +104,12 @@ export class Sim {
             const x = gx + x0, y = gy + y0;
             if (k && k !== '.' && x >= 0 && x < G && y >= top && y < top + PG) key[y * G + x] = Math.max(0, keys.indexOf(k));
         }
-        fitWholeBlocks(key, G, keys.length, top);
+        // the frame's corners are rounded: sand there is cut off, and they stay empty
+        const wall = (this.wall = new Uint8Array(G * G));
+        for (let y = top; y < G; y++) for (let x = 0; x < G; x++) {
+            if (!grainInFrame(x, y - top)) { wall[y * G + x] = 1; key[y * G + x] = 0; }
+        }
+        fitWholeBlocks(key, G, keys.length, top, wall);
         for (let p = 0; p < key.length; p++) {
             if (key[p]) rgb[p] = packColor(L.colors[keys[key[p]]!], (hash(p % G, (p / G) | 0, 7) - 0.5) * 0.16);
         }
@@ -285,8 +292,9 @@ export class Sim {
     // sideways momentum down a slope until friction stops them. Grains reaching the bottom of
     // the board leave into the chute. Rows are scanned bottom-up, alternating x direction.
     private simStep() {
-        const { key, rgb, dr, loose, vx, vy, G } = this;
+        const { key, rgb, dr, loose, vx, vy, G, wall } = this;
         const flip = (this.simFlip ^= 1);
+        const free = (q: number) => !key[q] && !wall[q];
         let moved = false;
         const bottom = (G - 1) * G;
         for (let x = 0; x < G; x++) {
@@ -310,8 +318,8 @@ export class Sim {
                     const x = p % G, cy = (p / G) | 0;
                     if (cy >= G - 1) break;
                     const below = p + G;
-                    if (!key[below]) { move(p, below); p = below; moved = true; continue; }
-                    const l = x > 0 && !key[below - 1], r = x < G - 1 && !key[below + 1];
+                    if (free(below)) { move(p, below); p = below; moved = true; continue; }
+                    const l = x > 0 && free(below - 1), r = x < G - 1 && free(below + 1);
                     if (!l && !r) {
                         // landed: turn part of the fall into a sideways push for the next slide
                         if (vy[p] > 1) vx[p] += (this.rand() < 0.5 ? -1 : 1) * vy[p] * 0.25;
@@ -322,9 +330,9 @@ export class Sim {
                         let side = 0;
                         for (const d of [pref, -pref]) {
                             const sx = x + d;
-                            if (sx < 0 || sx >= G || key[p + d]) continue;
+                            if (sx < 0 || sx >= G || !free(p + d)) continue;
                             const far = x + 2 * d;
-                            const drop = !key[below + d] || (far >= 0 && far < G && !key[p + 2 * d] && !key[below + 2 * d]);
+                            const drop = free(below + d) || (far >= 0 && far < G && free(p + 2 * d) && free(below + 2 * d));
                             if (drop || Math.abs(vx[p]) > 0.6) { side = d; break; }
                         }
                         if (side) { vx[p] = vx[p] * FRICTION + side * 0.2; move(p, p + side); p += side; moved = true; }
@@ -725,7 +733,7 @@ export class Sim {
 // border just moves over by a grain there. The extras travel from colour to colour until they
 // meet another colour's extras; as the total is now a whole number of blocks, they all cancel.
 /** `top`: the first grid row inside the frame (the rows above it are padding, not the frame). */
-function fitWholeBlocks(key: Uint8Array, G: number, nColors: number, top: number) {
+function fitWholeBlocks(key: Uint8Array, G: number, nColors: number, top: number, wall: Uint8Array) {
     const count = new Array(nColors).fill(0);
     for (let p = 0; p < key.length; p++) if (key[p]) count[key[p]]++;
     const rem = (c: number) => count[c] % BLOCK_GRAINS;
@@ -787,7 +795,7 @@ function fitWholeBlocks(key: Uint8Array, G: number, nColors: number, top: number
     const total = count.reduce((a, b) => a + b, 0), missing = (BLOCK_GRAINS - (total % BLOCK_GRAINS)) % BLOCK_GRAINS;
     if (missing) {
         const room: number[] = [];
-        for (let p = top * G; p < key.length; p++) if (!key[p] && nb(p).some((q) => key[q])) room.push(p);
+        for (let p = top * G; p < key.length; p++) if (!key[p] && !wall[p] && nb(p).some((q) => key[q])) room.push(p);
         if (room.length >= missing) {
             // the spots are chosen from the picture as it is; each new grain copies a neighbour's colour
             for (const p of spread(room, missing)) { const c = key[nb(p).find((q) => key[q])!]; key[p] = c; count[c]++; }

@@ -1,25 +1,22 @@
-// Renders the 3D nests, ants and sand blocks (Colony Flow's own meshes) with three.js into an
+// Renders the 3D ants and sand blocks (Colony Flow's own meshes) with three.js into an
 // offscreen canvas. The Phaser scene shows that canvas as a texture between the board layer
 // and the UI layer. Phaser 4 has no 3D objects of its own, so three.js does this part.
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { H, W } from './layout';
 
-const TILE_ELEV = 0.95, TILE_SQUASH = 1; // camera elevation for nests, height scale of the nest box (1 = as modelled)
 const ANT_ELEV = 1.15, ANT_LEN = 74, CARRY_CUBE = 26;
 const CUBE_ELEV = 0.95;
-const OUTLINE_PX = 9;
 /** The 3D layer renders below full resolution; it is uploaded to Phaser every frame. */
 const RES = 0.75;
 
 export interface Item3D {
     ref: object;
-    kind: 'tile' | 'ant' | 'cube';
-    /** Screen position: tiles use the centre of the top face, ants and cubes the ground point. */
+    kind: 'ant' | 'cube';
+    /** Screen position: the ground point. */
     x: number; y: number;
     color: string | number;
     size?: number; ang?: number; carry?: number | null; alpha?: number; scale?: number;
-    squash?: number; outline?: boolean;
     /** Cubes: (x, y) is the cube's centre, and it turns about its centre (blocks in flight).
      * Otherwise (x, y) is the point under the cube. */
     centered?: boolean;
@@ -28,7 +25,6 @@ export interface Item3D {
 interface Model { parts: THREE.BufferGeometry[]; size: THREE.Vector3 }
 interface Live {
     root: THREE.Group; kind: Item3D['kind']; color: Item3D['color']; mats: THREE.Material[];
-    body?: THREE.Group; s?: number; sq?: number; topLift?: number; outline?: THREE.Group;
     yaw?: THREE.Group; carry?: THREE.Group;
     /** Cubes: the tilted group, and half the cube's size. */
     tilt?: THREE.Group; half?: number;
@@ -42,18 +38,11 @@ const meshes = (group: THREE.Group) => {
 
 /** Centre the meshes on x/z, stand them on y = 0 and report their size. */
 function prep(group: THREE.Group): Model {
-    return prepShared([group])[0];
-}
-
-/** Like prep, for meshes that belong together (one shared offset, sized by the first group's set). */
-function prepShared(groups: THREE.Group[]): Model[] {
-    const sets = groups.map(meshes);
-    const box = new THREE.Box3();
-    for (const g of sets.flat()) { g.computeBoundingBox(); box.union(g.boundingBox!); }
+    const parts = meshes(group), box = new THREE.Box3();
+    for (const g of parts) { g.computeBoundingBox(); box.union(g.boundingBox!); }
     const c = box.getCenter(new THREE.Vector3());
-    for (const g of sets.flat()) { g.translate(-c.x, -box.min.y, -c.z); g.computeVertexNormals(); }
-    const size = box.getSize(new THREE.Vector3());
-    return sets.map((parts) => ({ parts, size }));
+    for (const g of parts) { g.translate(-c.x, -box.min.y, -c.z); g.computeVertexNormals(); }
+    return { parts, size: box.getSize(new THREE.Vector3()) };
 }
 
 function lambert(color: THREE.ColorRepresentation) {
@@ -80,20 +69,12 @@ function antMaterial(color: THREE.ColorRepresentation, legSpan: number) {
     return m;
 }
 
-// Outline shell: a slightly larger copy of the nest drawn in white with only its back faces,
-// so it shows as a rim around the nest. Scaling (rather than pushing vertices along their
-// normals) keeps the rim clean on the hollow lid and box meshes.
-function outlineMaterial() {
-    return new THREE.MeshBasicMaterial({ color: '#ffffff', side: THREE.BackSide, transparent: true });
-}
-
 export class ThreeLayer {
     readonly canvas = document.createElement('canvas');
-    readonly TILE_SQUASH = TILE_SQUASH;
     private renderer: THREE.WebGLRenderer;
     private scene = new THREE.Scene();
     private camera = new THREE.OrthographicCamera(0, W, 0, -H, 1, 12000);
-    private models: Record<'ant' | 'tile' | 'tileBase' | 'cube', Model> = {} as never;
+    private models: Record<'ant' | 'cube', Model> = {} as never;
     private live = new Map<object, Live>();
 
     constructor() {
@@ -110,19 +91,8 @@ export class ThreeLayer {
 
     async load(base: string) {
         const loader = new OBJLoader();
-        const names = ['ant', 'cube', 'nest_top', 'nest_base'];
-        const [ant, cube, top, baseBox] = await Promise.all(names.map((n) => loader.loadAsync(`${base}assets/models/${n}.obj`)));
-        // Colony Flow's nest is a lidded box: Box_v2_T (lid) on Box_v2_B (base)
-        const [tile, tileBase] = prepShared([top, baseBox]);
-        this.models = { ant: prep(ant), cube: prep(cube), tile, tileBase };
-    }
-
-    /** Screen height of a tile's top face. */
-    tileFace(size: number) { return size * 0.92 * Math.sin(TILE_ELEV); }
-    /** How far a tile's side shows below its top face. */
-    tileTopLift(size: number, squash = TILE_SQUASH) {
-        const M = this.models.tile;
-        return M.size.y * ((size * 0.92) / M.size.x) * squash * Math.cos(TILE_ELEV);
+        const [ant, cube] = await Promise.all(['ant', 'cube'].map((n) => loader.loadAsync(`${base}assets/models/${n}.obj`)));
+        this.models = { ant: prep(ant), cube: prep(cube) };
     }
 
     private cubeMesh(color: THREE.ColorRepresentation, size: number) {
@@ -136,22 +106,7 @@ export class ThreeLayer {
     private make(it: Item3D): Live {
         const root = new THREE.Group();
         const o: Live = { root, kind: it.kind, color: it.color, mats: [] };
-        if (it.kind === 'tile') {
-            const M = this.models.tile, s = ((it.size ?? 100) * 0.92) / M.size.x;
-            const tilt = new THREE.Group(); tilt.rotation.x = TILE_ELEV;
-            const sq = it.squash ?? TILE_SQUASH;
-            const body = new THREE.Group(); body.scale.set(s, s * sq, s);
-            for (const p of [...M.parts, ...this.models.tileBase.parts]) { const m = lambert(it.color); o.mats.push(m); body.add(new THREE.Mesh(p, m)); }
-            // white outline that hugs the nest: an inflated copy showing only its inside faces
-            const om = outlineMaterial();
-            o.mats.push(om);
-            const outline = new THREE.Group();
-            for (const p of [...M.parts, ...this.models.tileBase.parts]) outline.add(new THREE.Mesh(p, om));
-            body.add(outline);
-            tilt.add(body); root.add(tilt);
-            Object.assign(o, { body, s, sq, outline, topLift: M.size.y * s * sq * Math.cos(TILE_ELEV) });
-            this.fitOutline(o);
-        } else if (it.kind === 'ant') {
+        if (it.kind === 'ant') {
             const M = this.models.ant, s = ANT_LEN / M.size.z;
             const tilt = new THREE.Group(); tilt.rotation.x = ANT_ELEV;
             const yaw = new THREE.Group();
@@ -183,14 +138,6 @@ export class ThreeLayer {
         for (const m of o.mats) m.dispose();
     }
 
-    /** Size the outline copy so its rim is OUTLINE_PX wide on every side at the nest's current height. */
-    private fitOutline(o: Live) {
-        const M = this.models.tile, w = M.size.x, h = M.size.y;
-        const padX = OUTLINE_PX / o.s!, padY = OUTLINE_PX / (o.s! * o.sq!);
-        o.outline!.scale.set((w + 2 * padX) / w, (h + 2 * padY) / h, (M.size.z + 2 * padX) / M.size.z);
-        o.outline!.position.y = -padY;
-    }
-
     /** Draw this frame's objects; anything not listed is removed. */
     render(items: Item3D[], time: number) {
         const seen = new Set<object>();
@@ -200,16 +147,8 @@ export class ThreeLayer {
             if (!o) { o = this.make(it); this.live.set(it.ref, o); }
             seen.add(it.ref);
             const sc = it.scale ?? 1, alpha = it.alpha ?? 1;
-            let layer = 0, y = it.y;
-            if (it.kind === 'tile') {
-                // height eases between the tall front-row tile and the low tiles queued behind
-                o.sq! += ((it.squash ?? TILE_SQUASH) - o.sq!) * 0.2;
-                o.body!.scale.y = o.s! * o.sq!;
-                o.topLift = this.models.tile.size.y * o.s! * o.sq! * Math.cos(TILE_ELEV);
-                this.fitOutline(o);
-                o.outline!.visible = !!it.outline;
-                y = it.y + o.topLift * sc; layer = 2000;
-            }
+            let layer = 0;
+            const y = it.y;
             if (it.kind === 'ant') { layer = 4000; o.yaw!.rotation.y = Math.PI / 2 - (it.ang ?? 0); }
             // cubes turn about the screen axis (the Fan's whirl); 0 when not given
             if (it.kind === 'cube') {

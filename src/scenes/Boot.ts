@@ -4,7 +4,15 @@ import { ThreeLayer } from '../game/three-layer';
 /** The win screen's art (public/assets/win): its background, the "AMAZING" title, the coin pile,
  * the two buttons and their icons, plus the glow, rays and confetti. */
 const WIN = ['win_bg', 'amazing', 'rewards', 'btn_reward', 'btn_continue', 'icon_coin', 'icon_ads', 'glow_rays', 'glow', 'confetti_ribbon', 'confetti_star'];
-const IMAGES = ['bg', 'btn_blue_sq', 'pause', 'btn_speed_on', 'btn_speed_off', 'icon_ff', 'bst_btn', 'bst_btn_locked', 'icon_lock', 'bst_frame', 'badge_red', 'badge_plus', 'bst_magnet', 'bst_arrows', 'bst_cannon'];
+/** The game screen's art (public/assets/img): mostly the Sugar Drop prototype kit (background,
+ * picture frame with its funnel, conveyor, fill gauge, nest box and its white frame, booster
+ * button, badge and pictures, settings and speed buttons); the padlock, the Activate frame, the
+ * plus badge and the Fan's cannon are older art. */
+const IMAGES = [
+    'bg', 'frame', 'conveyor', 'conveyor_hold', 'progress_bar', 'progress', 'nest_box', 'nest_frame',
+    'btn_settings', 'btn_speed_on', 'btn_speed_off', 'bst_btn', 'bst_btn_locked', 'icon_lock', 'bst_frame',
+    'badge_red', 'badge_plus', 'bst_claw', 'bst_shuffle', 'bst_flower', 'bst_cannon',
+];
 /** The Pause panel's art (public/assets/settings), loaded as `set_<name>`. */
 const SETTINGS = ['board', 'btn_blue', 'btn_gray', 'btn_close', 'btn_green', 'btn_red', 'music_on', 'music_off', 'sound_on', 'sound_off', 'vibe_on', 'vibe_off', 'icon_retry', 'icon_home'];
 /** The lose panels' art (public/assets/lose): the board, its close button, the broken heart, the
