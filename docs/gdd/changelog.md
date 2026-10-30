@@ -4,6 +4,7 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
+- **Level Editor: recolour by drag:** drop a Bank colour on a colour in Counts (or on the picture) to turn that whole colour into it; nests follow the new colour when it is not already in the picture.
 - **Level 5 (Little Owl):** a new picture, a dog, with hand-set nests from the Level Editor; its lilac sand is purple (no recorded win yet).
 - **No gap from the exact-fit trim:** the extra grains that make each colour a whole number of blocks are now taken spread evenly along the colour's outline. Before, they were taken in a run from the top left, which left a gap in the corner (level 9 lost 31 green grains there). Every picture changes by a few grains, so recorded wins in the Level Editor need to be made again (not re-checked with the test bot).
 - **Edited levels:** level 9 (Rocket) has a new picture, a butterfly, with hand-set nests from the Level Editor (no recorded win yet; the test bot gets stuck on it); Ice Cream was edited too.

@@ -275,6 +275,27 @@ function pictureChanged() {
     if (l.verified) l.verified = false;
     renderEditor();
 }
+/** Turn every grain of colour `from` into `to` (a Bank colour dropped on a colour of the picture).
+ * To a colour the picture doesn't use yet, the blocks stay the same, so the nests are kept with
+ * their colour renamed; into a colour already used, the blocks change and the nests go. */
+function recolour(from: string, to: string) {
+    if (!from || !to || from === to || from === '.') return;
+    const merge = grains.includes(to), l = L();
+    sandSnapshot();
+    grains = grains.map((k) => (k === from ? to : k));
+    addToPalette(to);
+    if (!merge && l.nests) {
+        commitGrains();
+        l.nests = l.nests.map((col) => col.map(([k, n]) => [k === from ? to : k, n] as [string, number]));
+        delete l.moves;
+        nestsChanged();
+    } else pictureChanged();
+    toast(`Đã đổi cả màu ${NAME.get(from)} → ${NAME.get(to)}${merge ? ' (gộp vào màu đã có: tổ cần sinh lại)' : ''}`);
+}
+/** The colour a drag carries: a Bank colour or an Active Palette colour. */
+const draggedColour = (e: DragEvent) => e.dataTransfer?.getData('text/x-cf-colour') || e.dataTransfer?.getData('text/x-cf-active') || '';
+const carriesColour = (e: DragEvent) => !!e.dataTransfer && (e.dataTransfer.types.includes('text/x-cf-colour') || e.dataTransfer.types.includes('text/x-cf-active'));
+
 /** Nest settings changed: the bot check no longer counts. */
 function nestsChanged() {
     const l = L();
@@ -359,6 +380,18 @@ function flood(x: number, y: number, k: string) {
 }
 
 sandCv.addEventListener('contextmenu', (e) => e.preventDefault());
+// drop a colour on the picture: every grain of the colour under the pointer takes it
+sandCv.addEventListener('dragover', (e) => {
+    if (!carriesColour(e)) return;
+    const c = grainAt(e as unknown as PointerEvent);
+    if (c && grains[c[1] * dims().w + c[0]] !== '.') { e.preventDefault(); hover = c; drawSandCanvas(); }
+});
+sandCv.addEventListener('drop', (e) => {
+    const c = grainAt(e as unknown as PointerEvent), k = draggedColour(e);
+    if (!c || !k) return;
+    e.preventDefault(); e.stopPropagation();
+    recolour(grains[c[1] * dims().w + c[0]], k);
+});
 sandCv.addEventListener('pointerdown', (e) => {
     const c = grainAt(e);
     if (!c) return;
@@ -578,8 +611,14 @@ function renderSandInfo() {
     v.className = 'edit-validation ' + (notes.some(([t]) => t === 'err') ? 'err' : notes.some(([t]) => t === 'warn') ? 'warn' : 'ok');
     $('sand-notes').innerHTML = notes.map(([t, m]) => `<div class="${t}">${m}</div>`).join('');
     $('color-summary').innerHTML = [...a.blocks].sort((x, y) => y[1] - x[1]).map(([k, b]) =>
-        `<div class="cs-row"><div class="cs-dot" style="background:${HEX.get(k)}"></div><span class="cs-n">(${b})</span><span class="cs-label">${NAME.get(k)}</span><span class="cs-grains">${(b * 64).toLocaleString('vi-VN')} hạt</span></div>`).join('')
+        `<div class="cs-row" data-key="${k}" title="Kéo một màu từ Colour Bank thả vào đây để đổi cả màu này"><div class="cs-dot" style="background:${HEX.get(k)}"></div><span class="cs-n">(${b})</span><span class="cs-label">${NAME.get(k)}</span><span class="cs-grains">${(b * 64).toLocaleString('vi-VN')} hạt</span></div>`).join('')
         || '<div class="hint">Chưa có màu nào</div>';
+    // drop a Bank (or Active Palette) colour on a row: the whole colour becomes the new one
+    $('color-summary').querySelectorAll<HTMLElement>('.cs-row').forEach((row) => {
+        row.ondragover = (e) => { if (carriesColour(e)) { e.preventDefault(); row.classList.add('drop'); } };
+        row.ondragleave = () => row.classList.remove('drop');
+        row.ondrop = (e) => { e.preventDefault(); e.stopPropagation(); row.classList.remove('drop'); recolour(row.dataset.key!, draggedColour(e)); };
+    });
 }
 function renderSettings() {
     const l = L();
