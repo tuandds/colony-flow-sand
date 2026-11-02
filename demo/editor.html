@@ -47,7 +47,7 @@
 
   /* ---------- panels ---------- */
   .edit-panels { flex: 1; display: flex; padding: 10px; min-height: 0; }
-  .edit-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px; overflow: auto; min-width: 0; }
+  .edit-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px; overflow: auto; min-width: 0; scrollbar-gutter: stable; }
   .edit-panel.min { flex: 0 0 46px !important; overflow: hidden; padding: 12px 6px; }
   .edit-panel.min > :not(.panel-title):not(.lb-sticky) { display: none !important; }
   .edit-panel.min .lb-sticky > :not(.panel-title) { display: none !important; }
@@ -262,8 +262,8 @@
     .org-side { flex: 1 1 100%; }
   }
 </style>
-  <script type="module" crossorigin src="./assets/editor-dHICXQaf.js"></script>
-  <link rel="modulepreload" crossorigin href="./assets/sim-D5tCWdC3.js">
+  <script type="module" crossorigin src="./assets/editor-DULI3Zyd.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/sim-DLVQjbiL.js">
 </head>
 <body>
 <div class="edit-header">
@@ -312,6 +312,10 @@
     <button class="btn primary btn-gen" id="btn-gen-sand">🖼️ Tạo tranh cát từ ảnh…</button>
     <div class="elabel">Tranh cát
       <span class="spacer"></span>
+      <button class="btn" id="pic-left" title="Dời cả tranh sang trái 0,2 ô">←</button>
+      <button class="btn" id="pic-up" title="Dời cả tranh lên 0,2 ô">↑</button>
+      <button class="btn" id="pic-down" title="Dời cả tranh xuống 0,2 ô">↓</button>
+      <button class="btn" id="pic-right" title="Dời cả tranh sang phải 0,2 ô">→</button>
       <button class="btn" id="btn-undo" title="Hoàn tác (Ctrl+Z)">↶</button>
       <button class="btn" id="btn-redo" title="Làm lại (Ctrl+Shift+Z)">↷</button>
     </div>
