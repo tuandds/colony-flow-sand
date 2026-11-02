@@ -4,7 +4,7 @@ export const W = 1080, H = 1920;
 /** Bumped when the board, funnel, conveyor or picture scale change, the funnel's or ants' rules change,
  * or the whole-block trim takes different grains: recorded swipes from an older version no longer
  * replay, so the level editor asks for new ones. */
-export const LAYOUT_VERSION = 14;
+export const LAYOUT_VERSION = 15;
 
 // Laid out like the Sugar Drop prototype: a HUD row, big boosters under it with the x2 button
 // beside them, the picture frame with its funnel ending in a gate on the conveyor, then the nests.
@@ -17,17 +17,20 @@ export const INNER = { x: 540 - 412, y: PIC.y - 3, w: 824, h: PIC.size + 6 };
 /** Top of the funnel: as wide as the sand frame, right under it (the frame art's light blue runs on
  * into the funnel, so sand leaving the board drops straight in). */
 export const FRAME = { x: INNER.x, y: INNER.y + INNER.h, w: INNER.w };
-/** The hole at the bottom of the funnel: at the top of the gate (GATE), where the spout meets it. */
-export const MOUTH = { x: 540, y: FRAME.y + 159 };
+/** The hole at the bottom of the funnel: where the frame art's spout ends, over its gate. */
+export const MOUTH = { x: 540, y: FRAME.y + 183 };
 
 // The funnel is part of the sand grid (Sim): sand leaving the board falls on into it, piles up
 // against its curved sides and goes down the hole at MOUTH_RATE grains a second.
 export const MOUTH_RATE = 540;
-/** The picture frame art (img/frame.png, 1844 x 2260): its light blue inside is 1750 px wide from
- * x 44 and its straight sides end at y 1745 (inside top at 43), so it is drawn scaled to fit INNER;
- * its funnel then curves in under the frame. */
-export const FRAME_ART = { x: 44, y: 43, w: 1750, h: 1702, imgW: 1844, imgH: 2260 };
-// the frame art is drawn with its inside's straight part on INNER (a few per cent taller than wide)
+/** The picture frame art (img/frame.png, 1627 x 2000): its inside is 1521 px wide from x 52; a
+ * grey band runs along its top (art y 52 to 92) and the light blue under it starts at y 92 with
+ * rounded corners of its own. The board, INNER, is drawn on the light blue from y 92 down to
+ * y 1484, where its bottom corners have just begun to round (so the art is about 3 % taller than
+ * wide on screen); the funnel then curves in under the frame to the spout (art y 1813), and the
+ * art's gate is under the spout, just above the conveyor. */
+export const FRAME_ART = { x: 52, y: 92, w: 1521, h: 1392, imgW: 1627, imgH: 2000 };
+// the frame art is drawn with its inside's board part on INNER
 const ART_KX = INNER.w / FRAME_ART.w, ART_KY = INNER.h / FRAME_ART.h;
 const artY = (y: number) => FRAME_ART.y + (y - INNER.y) / ART_KY;
 /** Linear lookup in a [art y, value] table (clamped at its ends). */
@@ -39,14 +42,17 @@ function lookup(t: [number, number][], ay: number) {
 }
 // half the funnel's inside width at art y, measured from the frame art (its sides curve in)
 const FUNNEL_SIDES: [number, number][] = [
-    [1745, 688], [1770, 614], [1795, 552.5], [1820, 497.5], [1845, 447], [1870, 399], [1895, 353.5], [1920, 309],
-    [1945, 267], [1970, 225.5], [1995, 186], [2020, 148], [2045, 115], [2070, 93], [2095, 79.5], [2120, 71], [2145, 66.5],
+    [1484, 751], [1496, 743.5], [1508, 731], [1520, 647], [1532, 590.5], [1544, 548.5], [1556, 512.5], [1568, 480.5],
+    [1580, 450.5], [1592, 421.5], [1604, 394.5], [1616, 368.5], [1628, 343.5], [1640, 319.5], [1652, 295.5], [1664, 272.5],
+    [1676, 250.5], [1688, 229], [1700, 208.5], [1712, 187.5], [1724, 168], [1736, 149], [1748, 130.5], [1760, 114],
+    [1772, 99.5], [1784, 87.5], [1796, 79.5], [1808, 72.5], [1813, 67],
 ];
-// how far the frame art's rim reaches into its inside on each side at art y: its rounded top
-// corners, and at the bottom where its rim curves in toward the funnel
+// how far the frame art's rim reaches into its inside on each side at art y: the rounded top
+// corners of the light blue under the grey band, and at the bottom where its corners begin to
+// round toward the funnel
 const RIM_IN: [number, number][] = [
-    [43, 49], [47, 32], [51, 24], [55, 19], [59, 14], [63, 11], [67, 8], [71, 6], [75, 4], [79, 3], [83, 2], [87, 1],
-    [91, 0], [1678, 0], [1686, 2], [1694, 5], [1702, 10], [1710, 17], [1718, 29], [1726, 113], [1734, 158], [1742, 189], [1745, 200],
+    [92, 39], [93, 36], [94, 33], [96, 29], [98, 25], [100, 22], [102, 20], [104, 17], [106, 15], [108, 13], [110, 12],
+    [113, 10], [116, 8], [120, 6], [125, 4], [130, 2], [135, 0], [1443, 0], [1454, 1.5], [1466, 4], [1474, 6], [1480, 8], [1484, 9],
 ];
 /** Whether screen point (x, y) of the picture area is inside the frame art's light blue: sand
  * outside it (the rounded corners) would show over the rim. */
@@ -66,9 +72,9 @@ export function funnelHalf(y: number) {
     return lookup(FUNNEL_SIDES, artY(y)) * ART_KX;
 }
 
-export const BELT = { cxL: 236, cxR: 844, cy: 1404, r: 62, band: 76 };
-/** The gate where the funnel's spout meets the belt (img/box_gate.png, 320 x 124), drawn this wide. */
-export const GATE = { x: 540, y: BELT.cy - BELT.r - BELT.band / 2 - 8, w: 150 };
+/** The conveyor's track (its straight runs from cxL to cxR, round ends of radius r) and its band:
+ * under the frame's gate with a small gap, as in the Sugar Drop layout. */
+export const BELT = { cxL: 203, cxR: 877, cy: 1492, r: 50, band: 52 };
 export const BELT_LEN = 2 * (BELT.cxR - BELT.cxL) + 2 * Math.PI * BELT.r;
 export const SLOTS = 30;
 export const SLOT_GAP = BELT_LEN / SLOTS;
@@ -85,7 +91,7 @@ export function colX(ci: number, n = COLS) {
 export const ROW_GAP = 130;
 /** Extra space below the front row, so the queued nests clear its white outline. */
 export const FRONT_GAP = 28;
-export const ROW_TOP = BELT.cy + 190; // two rows show, the third down to its number, the rest wait below the screen
+export const ROW_TOP = BELT.cy + 166; // two rows show, the third down to its number, the rest wait below the screen
 export const TILE = 126;
 /** The nest box art (Sugar Drop kit) in a few colours, with the colour of its top face; a nest
  * takes the art nearest its colour, recoloured to it. */
@@ -98,9 +104,9 @@ export const BOOSTER_IMAGES = ['bst_claw', 'bst_shuffle', 'bst_flower'];
 /** Boosters: a row under the HUD, above the picture frame (as in Sand Drop). */
 /** Booster buttons: BOOSTER_SIZE wide, in a row under the HUD with the x2 button beside them. */
 export const BOOSTER_SIZE = 126;
-export const BOOSTER_POS = BOOSTER_IMAGES.map((_, i) => ({ x: 380 + i * 160, y: 232 }));
+export const BOOSTER_POS = BOOSTER_IMAGES.map((_, i) => ({ x: 380 + i * 160, y: 209 }));
 export const PAUSE_BTN = { x: 36, y: 40, w: 104, h: 108 };
-export const SPEED_BTN = { x: 850, y: 196, w: 140, h: 72 };
+export const SPEED_BTN = { x: 850, y: 173, w: 140, h: 72 };
 
 export const ANT_SPEED = 420; // px/s, matched to Colony Flow
 export const SUB = 8; // sand grains per picture cell, per side

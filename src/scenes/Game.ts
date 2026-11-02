@@ -1,6 +1,6 @@
 import * as Phaser from 'phaser';
 import {
-    BELT, BLOCK, BOOSTER_IMAGES, BOOSTER_POS, BOOSTER_SIZE, GATE, FRAME_ART, H, INNER, MOUTH, NEST_BOXES, PAUSE_BTN, PIC,
+    BELT, BLOCK, BOOSTER_IMAGES, BOOSTER_POS, BOOSTER_SIZE, FRAME_ART, H, INNER, MOUTH, NEST_BOXES, PAUSE_BTN, PIC,
     SLOTS, SPEED_BTN, TILE, W,
 } from '../game/layout';
 import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useLevels } from '../game/levels';
@@ -159,9 +159,7 @@ export class Game extends Phaser.Scene {
         this.drawBoard();
         this.sandImage = this.add.image(0, 0, '__WHITE').setOrigin(0).setDepth(D.sand);
         this.drawBeltBase();
-        // the gate where the funnel's spout meets the belt, over the belt's rim
-        this.add.image(GATE.x, GATE.y, 'box_gate').setScale(GATE.w / 320).setDepth(D.belt + 0.3);
-        for (let i = 0; i < SLOTS; i++) this.holds.push(this.add.image(0, 0, 'conveyor_hold').setDisplaySize(30, 30).setAlpha(0.5).setDepth(D.belt));
+        for (let i = 0; i < SLOTS; i++) this.holds.push(this.add.image(0, 0, 'conveyor_hold').setDisplaySize(22, 22).setDepth(D.belt));
         this.fullText = this.text(540, BELT.cy + 1, '0%', 24, '#14203a', null).setDepth(D.belt + 0.5);
         this.shadowGfx = this.add.graphics().setDepth(D.shadows);
         // Phaser canvas textures need a 2D canvas, so each frame the WebGL output of the 3D
@@ -385,19 +383,24 @@ export class Game extends Phaser.Scene {
         s.picDirty = false;
     }
 
-    /** The picture frame and its funnel (one piece of art), its light blue inside scaled onto
-     * INNER (sand is drawn on top); the funnel's spout runs on under the belt. */
+    /** The picture frame and its funnel (one piece of art, its spout ending in a gate just above
+     * the belt), its light blue inside scaled onto INNER (sand is drawn on top). The dark stroke
+     * along the inside's edge (img/frame_stroke.png, the same size as the frame art) is drawn over
+     * the sand, so it shows even where a picture fills the frame. */
     private drawBoard() {
-        const A = FRAME_ART, kx = INNER.w / A.w, ky = INNER.h / A.h;
-        this.add.image(INNER.x - A.x * kx, INNER.y - A.y * ky, 'frame').setOrigin(0).setDisplaySize(A.imgW * kx, A.imgH * ky).setDepth(D.board);
+        const A = FRAME_ART, kx = INNER.w / A.w, ky = INNER.h / A.h, x = INNER.x - A.x * kx, y = INNER.y - A.y * ky;
+        this.add.image(x, y, 'frame').setOrigin(0).setDisplaySize(A.imgW * kx, A.imgH * ky).setDepth(D.board);
+        this.add.image(x, y, 'frame_stroke').setOrigin(0).setDisplaySize(A.imgW * kx, A.imgH * ky).setDepth(D.sand + 0.5);
     }
 
-    /** The belt art (img/conveyor.png): its slate band (x 33 to 1810, y 40 to 400 of the art)
-     * lies on the track, 2 x (BELT.r + BELT.band / 2) tall; only its middle is stretched, so the
-     * round ends keep their shape. Its fill gauge (img/progress_bar.png) runs along the middle. */
+    /** The belt art (img/conveyor.png, 1884 x 496): its slate band with its dark outline (x 71 to
+     * 1814, y 82 to 414 of the art, centred on its middle row) lies on the track, 2 x (BELT.r +
+     * BELT.band / 2) tall; only its middle is stretched, so the round ends keep their shape. Round
+     * it, a wall shaded dark at the top and light at the bottom sets the belt into the wood. Its
+     * fill gauge (img/progress_bar.png) runs along the middle. */
     private drawBeltBase() {
-        const R = BELT.r + BELT.band / 2, k = (2 * R) / 360, w = (BELT.cxR - BELT.cxL + 2 * R) / k + 33 + 34;
-        this.add.nineslice(540, BELT.cy + 8 * k, 'conveyor', undefined, w, undefined, 230, 230, 0, 0).setScale(k).setDepth(D.belt - 0.5);
+        const R = BELT.r + BELT.band / 2, k = (2 * R) / 332, w = (BELT.cxR - BELT.cxL + 2 * R) / k + 71 + 70;
+        this.add.nineslice(540, BELT.cy, 'conveyor', undefined, w, undefined, 250, 250, 0, 0).setScale(k).setDepth(D.belt - 0.5);
         // the gauge's groove is x 22 to 1378, y 14 to 66 of its 1400 x 95 art; the green fill is
         // exactly as tall as the groove
         const bw = BELT.cxR - BELT.cxL + 12, gk = bw / 1400;

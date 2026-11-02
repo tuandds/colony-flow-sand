@@ -55,87 +55,74 @@ export type Step =
     /** The hand moves off screen. */
     | { hide: true };
 
+/** The hand's kinds of stroke (see Demo.varied): down from the middle, diagonally down from the
+ * left or the right, up from the bottom, along the bottom to the right or the left, a zigzag down. */
+export type StrokeKind = 'down' | 'diagL' | 'diagR' | 'up' | 'sweepR' | 'sweepL' | 'zigzag';
+const ALL_STROKES: StrokeKind[] = ['down', 'diagL', 'up', 'sweepR', 'diagR', 'sweepL', 'zigzag'];
+
 /** A reel: the level it opens on, its length in seconds (from the tap that starts it, end card
- * included) and its steps. When the steps run out before the end card, the hand keeps swiping. */
-export interface DemoScene { title: string; level: number; length: number; steps: Step[] }
+ * included), the kinds of stroke the hand takes in turn (a kind listed twice comes twice as
+ * often; all of them by default) and its steps. When the steps run out before the end card, the
+ * hand keeps swiping. */
+export interface DemoScene { title: string; level: number; length: number; strokes?: StrokeKind[]; steps: Step[] }
 
 /**
- * The marketing reels, four of 30 seconds and three of 60: short shots of different levels, cut
- * together, none played to the win. Levels are 0-based; the boosters unlock at levels 3, 6 and 9
- * (0-based 2, 5 and 8): 0 Activate (the claw), 1 Shuffle, 2 Fan (the ball cannon).
+ * The marketing reels, five of 30 seconds and two of 60: gameplay only, at x2 from the start, no
+ * boosters, none played to the win. Each shows its own levels (0-based: level_1 is 0) with its
+ * own mix of strokes.
  */
 export const DEMO_SCENES: Record<string, DemoScene> = {
-    // the core loop: the first swipes on level 1, then three more levels
-    play30: {
-        title: 'Gameplay, 30 s', level: 0, length: 30, steps: [
-            { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.4 }, { swipe: 'varied' }, { auto: 5 },
-            { cut: 4, ff: 20 }, { auto: 6.5 },
-            { cut: 8, ff: 10 }, { speed: true }, { auto: 6.5 },
-            { cut: 6, ff: 35 }, { auto: 12 },
+    // mostly straight drops: levels 1, 4, 7, 9
+    drops30: {
+        title: 'Drops, 30 s', level: 0, length: 30, strokes: ['down', 'diagL', 'down', 'zigzag', 'down', 'diagR'], steps: [
+            { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
+            { cut: 3, ff: 15 }, { auto: 5 }, { cut: 6, ff: 20 }, { auto: 5 }, { cut: 8, ff: 10 }, { auto: 12 },
         ],
     },
-    // quick cuts through seven levels at x2
-    speed30: {
-        title: 'Speed montage, 30 s', level: 2, length: 30, steps: [
-            { wait: 0.2 }, { speed: true }, { auto: 3.2 },
-            { cut: 9, ff: 8 }, { auto: 3.2 }, { cut: 0, ff: 6 }, { auto: 3.2 },
-            { cut: 6, ff: 30 }, { auto: 3.2 }, { cut: 7, ff: 15 }, { auto: 3.2 },
-            { cut: 5, ff: 50 }, { auto: 3.2 }, { cut: 3, ff: 20 }, { auto: 8 },
+    // mostly sweeps along the bottom: levels 2, 5, 8, 10
+    sweeps30: {
+        title: 'Sweeps, 30 s', level: 1, length: 30, strokes: ['sweepR', 'up', 'sweepL', 'down', 'sweepR', 'sweepL'], steps: [
+            { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
+            { cut: 4, ff: 10 }, { auto: 5 }, { cut: 7, ff: 12 }, { auto: 5 }, { cut: 9, ff: 8 }, { auto: 12 },
         ],
     },
-    // the Fan: a full belt blown into the nests by the ball cannon, twice
-    fan30: {
-        title: 'Fan booster, 30 s', level: 8, length: 30, steps: [
-            { wait: 0.2 }, { cut: 8, ff: 60, ffMode: 'jam', ffBelt: 9 }, { auto: 5, mode: 'jam', belt: 12 }, { until: 'belt', max: 2, belt: 12 },
-            { tap: 'booster:2' }, { hide: true }, { until: 'calm', max: 7 }, { auto: 1.5 },
-            { cut: 9, ff: 60, ffMode: 'jam', ffBelt: 9 }, { auto: 3, mode: 'jam', belt: 12 }, { until: 'belt', max: 2, belt: 12 },
-            { tap: 'booster:2' }, { hide: true }, { until: 'calm', max: 7 }, { auto: 8 },
+    // mostly zigzags: levels 3, 6, 9, 1
+    zigzag30: {
+        title: 'Zigzags, 30 s', level: 2, length: 30, strokes: ['zigzag', 'up', 'zigzag', 'diagR', 'zigzag', 'down'], steps: [
+            { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
+            { cut: 5, ff: 20 }, { auto: 5 }, { cut: 8, ff: 10 }, { auto: 5 }, { cut: 0 }, { auto: 12 },
         ],
     },
-    // the claw wakes a waiting nest, Shuffle swaps the nests, on two levels
-    boost30: {
-        title: 'Claw and Shuffle, 30 s', level: 5, length: 30, steps: [
-            { wait: 0.2 }, { cut: 5, ff: 15 }, { auto: 2 },
-            { tap: 'booster:0' }, { wait: 0.3 }, { tap: 'nest:1,1' }, { wait: 1 }, { auto: 2.5 },
-            { tap: 'booster:1' }, { until: 'calm', max: 2 }, { auto: 2.5 },
-            { cut: 7, ff: 15 }, { auto: 1.5 },
-            { tap: 'booster:0' }, { wait: 0.3 }, { tap: 'nest:2,1' }, { wait: 1 }, { auto: 2 },
-            { tap: 'booster:1' }, { until: 'calm', max: 2 }, { auto: 8 },
+    // mostly diagonals: levels 4, 10, 2, 7
+    diagonals30: {
+        title: 'Diagonals, 30 s', level: 3, length: 30, strokes: ['diagL', 'diagR', 'sweepR', 'diagR', 'diagL', 'up'], steps: [
+            { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
+            { cut: 9, ff: 8 }, { auto: 5 }, { cut: 1, ff: 3 }, { auto: 5 }, { cut: 6, ff: 20 }, { auto: 12 },
         ],
     },
-    // seven levels, about seven seconds each
-    play60: {
-        title: 'Gameplay, 60 s', level: 0, length: 60, steps: [
-            { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.4 }, { swipe: 'varied' }, { auto: 6 },
-            { cut: 2, ff: 15 }, { auto: 7 },
-            { cut: 9, ff: 10 }, { speed: true }, { auto: 7 },
-            { cut: 4, ff: 30 }, { auto: 7 },
-            { cut: 6, ff: 25 }, { auto: 7 },
-            { cut: 1, ff: 4 }, { auto: 7 },
-            { cut: 7, ff: 30 }, { auto: 15 },
+    // mostly up from the bottom: levels 5, 8, 3, 6
+    rises30: {
+        title: 'Rises, 30 s', level: 4, length: 30, strokes: ['up', 'sweepL', 'up', 'down', 'up', 'zigzag'], steps: [
+            { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
+            { cut: 7, ff: 12 }, { auto: 5 }, { cut: 2, ff: 12 }, { auto: 5 }, { cut: 5, ff: 20 }, { auto: 12 },
         ],
     },
-    // every booster: the Fan, the claw waking a nest and Shuffle, the claw again, then the Fan again
-    boosters60: {
-        title: 'Boosters, 60 s', level: 8, length: 60, steps: [
-            { wait: 0.2 }, { cut: 8, ff: 60, ffMode: 'jam', ffBelt: 9 }, { auto: 3, mode: 'jam', belt: 12 }, { until: 'belt', max: 1.5, belt: 12 },
-            { tap: 'booster:2' }, { hide: true }, { until: 'calm', max: 7 }, { auto: 1.5 },
-            { cut: 5, ff: 15 }, { auto: 1.5 }, { tap: 'booster:0' }, { wait: 0.3 }, { tap: 'nest:1,1' }, { wait: 1 }, { auto: 2.5 },
-            { tap: 'booster:1' }, { until: 'calm', max: 2 }, { auto: 3 },
-            { cut: 7, ff: 15 }, { auto: 1.5 }, { tap: 'booster:0' }, { wait: 0.3 }, { tap: 'nest:2,1' }, { wait: 1 }, { auto: 3 },
-            { cut: 9, ff: 60, ffMode: 'jam', ffBelt: 9 }, { auto: 3, mode: 'jam', belt: 12 }, { until: 'belt', max: 1.5, belt: 12 },
-            { tap: 'booster:2' }, { hide: true }, { until: 'calm', max: 7 }, { auto: 10 },
+    // every kind of stroke in turn: levels 1, 3, 5, 7, 9, 2, 4, 6
+    mix60: {
+        title: 'Mix, 60 s', level: 0, length: 60, steps: [
+            { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
+            { cut: 2, ff: 12 }, { auto: 5.5 }, { cut: 4, ff: 10 }, { auto: 5.5 }, { cut: 6, ff: 20 }, { auto: 5.5 },
+            { cut: 8, ff: 10 }, { auto: 5.5 }, { cut: 1, ff: 3 }, { auto: 5.5 }, { cut: 3, ff: 15 }, { auto: 5.5 },
+            { cut: 5, ff: 20 }, { auto: 12 },
         ],
     },
-    // every level, about five seconds each, at x2
-    montage60: {
-        title: 'Level montage, 60 s', level: 0, length: 60, steps: [
-            { wait: 0.2 }, { speed: true }, { auto: 5 },
-            { cut: 2, ff: 10 }, { auto: 5 }, { cut: 9, ff: 6 }, { auto: 5 },
-            { cut: 4, ff: 25 }, { auto: 5 }, { cut: 6, ff: 30 }, { auto: 5 },
-            { cut: 1, ff: 3 }, { auto: 5 }, { cut: 7, ff: 15 }, { auto: 5 },
-            { cut: 3, ff: 20 }, { auto: 5 }, { cut: 5, ff: 60 }, { auto: 5 },
-            { cut: 8, ff: 20 }, { auto: 10 },
+    // all ten levels, last to first, about five seconds each
+    tour60: {
+        title: 'Tour, 60 s', level: 9, length: 60, strokes: ['zigzag', 'sweepL', 'diagR', 'up', 'down', 'sweepR', 'diagL'], steps: [
+            { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
+            { cut: 8, ff: 10 }, { auto: 4 }, { cut: 7, ff: 12 }, { auto: 4 }, { cut: 6, ff: 20 }, { auto: 4 },
+            { cut: 5, ff: 20 }, { auto: 4 }, { cut: 4, ff: 10 }, { auto: 4 }, { cut: 3, ff: 15 }, { auto: 4 },
+            { cut: 2, ff: 12 }, { auto: 4 }, { cut: 1, ff: 3 }, { auto: 4 }, { cut: 0 }, { auto: 10 },
         ],
     },
 };
@@ -276,9 +263,9 @@ export class Demo {
     }
 
     /**
-     * A stroke in the next of several directions, so the play looks varied: down from the middle
-     * to the bottom, diagonally down to the bottom (from the left, then the right), up from the
-     * bottom, along the bottom left to right and right to left, and a zigzag down to the bottom.
+     * A stroke of the reel's next kind (see StrokeKind), so the play looks varied: down from the
+     * middle to the bottom, diagonally down to the bottom from the left or the right, up from the
+     * bottom, along the bottom left to right or right to left, or a zigzag down to the bottom.
      * Every stroke reaches the bottom of the sand under it, so the sand it frees runs out at once
      * (freed sand with fixed sand under it would only rest there). Of a dozen such strokes placed
      * at random over the picture's fixed sand, the one crossing the most sand that a front nest
@@ -288,7 +275,7 @@ export class Demo {
         // blocks on the belt, waiting in the pipe, and still to come from loose sand
         const loose = Object.values(s.looseByColour()).reduce((a, b) => a + b, 0);
         const used = s.slots.filter(Boolean).length + s.pipe.length + loose / 64;
-        if (!now && used > 10) return null;
+        if (!now && used > 8) return null;
         const G = s.G, want = new Set(s.cols.map((c) => c[0]).filter(Boolean).map((n) => n.color));
         // the picture's fixed sand, as a box on screen, and its lowest grain in each column
         let x0 = G, x1 = -1, y0 = G, y1 = -1;
@@ -314,28 +301,28 @@ export class Demo {
             for (let k = 0; k <= n; k++) { const x = a + ((b - a) * k) / n; pts.push([x, bottom(x) - s.gs * 4]); }
             return pts;
         };
-        const shapes: (() => [number, number][])[] = [
+        const shapes: Record<StrokeKind, () => [number, number][]> = {
             // down from the middle
-            () => { const x = L + w * (0.25 + 0.5 * r()), y = T + h * (0.1 + 0.35 * r()), x2 = x + 30 * (r() - 0.5); return [[x, y], [x2, bottom(x2)]]; },
+            down: () => { const x = L + w * (0.25 + 0.5 * r()), y = T + h * (0.1 + 0.35 * r()), x2 = x + 30 * (r() - 0.5); return [[x, y], [x2, bottom(x2)]]; },
             // diagonally down from the left
-            () => { const x = L + w * (0.05 + 0.3 * r()), y = T + h * (0.1 + 0.3 * r()), x2 = x + w * (0.25 + 0.2 * r()); return [[x, y], [x2, bottom(x2)]]; },
+            diagL: () => { const x = L + w * (0.05 + 0.3 * r()), y = T + h * (0.1 + 0.3 * r()), x2 = x + w * (0.25 + 0.2 * r()); return [[x, y], [x2, bottom(x2)]]; },
             // up from the bottom
-            () => { const x = L + w * (0.1 + 0.8 * r()), b = bottom(x); return [[x, b], [x + 30 * (r() - 0.5), b - h * (0.45 + 0.3 * r())]]; },
+            up: () => { const x = L + w * (0.1 + 0.8 * r()), b = bottom(x); return [[x, b], [x + 30 * (r() - 0.5), b - h * (0.45 + 0.3 * r())]]; },
             // along the bottom, left to right
-            () => { const x = L + w * 0.3 * r(); return along(x, x + w * (0.45 + 0.25 * r())); },
+            sweepR: () => { const x = L + w * 0.3 * r(); return along(x, x + w * (0.45 + 0.25 * r())); },
             // diagonally down from the right
-            () => { const x = R - w * (0.05 + 0.3 * r()), y = T + h * (0.1 + 0.3 * r()), x2 = x - w * (0.25 + 0.2 * r()); return [[x, y], [x2, bottom(x2)]]; },
+            diagR: () => { const x = R - w * (0.05 + 0.3 * r()), y = T + h * (0.1 + 0.3 * r()), x2 = x - w * (0.25 + 0.2 * r()); return [[x, y], [x2, bottom(x2)]]; },
             // along the bottom, right to left
-            () => { const x = R - w * 0.3 * r(); return along(x, x - w * (0.45 + 0.25 * r())); },
+            sweepL: () => { const x = R - w * 0.3 * r(); return along(x, x - w * (0.45 + 0.25 * r())); },
             // a zigzag down to the bottom
-            () => {
+            zigzag: () => {
                 const x = L + w * (0.25 + 0.5 * r()), y = T + h * (0.1 + 0.2 * r()), k = 70, pts: [number, number][] = [];
                 const b = bottom(x);
                 for (let i = 0, n = 5; i <= n; i++) { const px = x + (i % 2 ? k : -k) / 2; pts.push([px, i === n ? bottom(px) : y + ((b - y) * i) / n]); }
                 return pts;
             },
-        ];
-        const shape = shapes[this.kind++ % shapes.length];
+        };
+        const kinds = this.demo.strokes ?? ALL_STROKES, shape = shapes[kinds[this.kind++ % kinds.length]];
         // how good a stroke is: wanted sand along it counts, unwanted sand counts against it
         const score = (pts: [number, number][]) => {
             let v = 0;

@@ -1,26 +1,26 @@
 # Demo Videos
 
-The game can play itself for marketing clips. A hand swipes the sand and taps the boosters, as a player would: every swipe really frees the sand under the fingertip, so what the clip shows is real play. Each reel is short shots of different levels; between shots the next level slides in from the right and pushes the last one out to the left. No reel plays a level to the win, and none lets the conveyor fill up (no Out of Space).
+The game can play itself for marketing clips. A hand swipes the sand as a player would: every swipe really frees the sand under the fingertip, so what the clip shows is real play. The clips show gameplay only: x2 is on from the start, no booster is used, no level is played to the win, and the conveyor never fills up (no Out of Space).
 
-Every reel runs a set length from the tap that starts it. Its last 3 seconds are the end card: the last frame blurs and dims, the Sugar Drop logo pops in, and a green **PLAY NOW** button keeps growing and shrinking.
+Each reel is a few short shots of different levels; between shots the next level slides in from the right and pushes the last one out to the left. The reels differ in their levels and in how the hand swipes. Every reel runs a set length from the tap that starts it, and its last 3 seconds are the end card: the last frame blurs and dims, the Sugar Drop logo pops in, and a green **PLAY NOW** button keeps growing and shrinking.
 
 ## The reels
 
-Add `?demo=<reel>` to the game's address, for example [demo/?demo=play30](https://tuandds.github.io/colony-flow-sand/demo/?demo=play30) (on the dev server: http://localhost:8080/?demo=play30).
+Add `?demo=<reel>` to the game's address, for example [demo/?demo=drops30](https://tuandds.github.io/colony-flow-sand/demo/?demo=drops30) (on the dev server: http://localhost:8080/?demo=drops30).
 
-| Reel | Length | What it shows |
-|---|---|---|
-| `play30` | 30 s | Level 1 from the first swipes, then levels 5, 9 (x2) and 7 |
-| `speed30` | 30 s | Quick shots of seven levels at x2 (3, 10, 1, 7, 8, 6, 4) |
-| `fan30` | 30 s | The Fan twice: the conveyor fills with blocks (levels 9 and 10), the ball cannon blows them into their nests |
-| `boost30` | 30 s | Activate (the claw) wakes a waiting nest and Shuffle swaps the nests, on levels 6 and 8 |
-| `play60` | 60 s | Seven levels, about seven seconds each (1, 3, 10, 5, 7, 2, 8), x2 from the third |
-| `boosters60` | 60 s | Every booster: the Fan (level 9), the claw and Shuffle (level 6), the claw (level 8), the Fan again (level 10) |
-| `montage60` | 60 s | All ten levels, about five seconds each, at x2 |
+| Reel | Length | Levels, in order | Swipes |
+|---|---|---|---|
+| `drops30` | 30 s | 1, 4, 7, 9 | Mostly straight down from the middle to the bottom, with diagonals and zigzags |
+| `sweeps30` | 30 s | 2, 5, 8, 10 | Mostly along the bottom, left to right and right to left, with some up and down |
+| `zigzag30` | 30 s | 3, 6, 9, 1 | Mostly zigzags down to the bottom, with up, down and diagonal strokes |
+| `diagonals30` | 30 s | 4, 10, 2, 7 | Mostly diagonals down from the left and from the right, with sweeps and rises |
+| `rises30` | 30 s | 5, 8, 3, 6 | Mostly up from the bottom, with sweeps, drops and zigzags |
+| `mix60` | 60 s | 1, 3, 5, 7, 9, 2, 4, 6 | Every kind of stroke in turn |
+| `tour60` | 60 s | All ten, from 10 down to 1 | Every kind of stroke, in a different turn from `mix60` |
 
-The hand's strokes take turns: down from the middle to the bottom, diagonally down from the left and from the right, up from the bottom, along the bottom left to right and right to left, and a zigzag down to the bottom. Every stroke reaches the bottom of the sand under it, so the sand it frees runs out at once. Each one is placed over the sand the front nests want, and the hand waits while the conveyor is busy. Shots stop with about a third of the picture left.
+The kinds of stroke are: down from the middle to the bottom, diagonally down to the bottom from the left or from the right, up from the bottom, along the bottom left to right or right to left, and a zigzag down to the bottom. Every stroke reaches the bottom of the sand under it, so the sand it frees runs out at once. Each one is placed over the sand the front nests want, and the hand waits while the conveyor is busy. A shot stops swiping with about a third of its picture left.
 
-A reel does not save progress or change the levels a player has unlocked. Each run differs a little (the strokes are placed at random), so record a few takes and keep the best.
+A reel does not save progress or change the levels a player has unlocked. Each run differs a little (the strokes are placed at random), so record a few takes, or record frame by frame (below).
 
 ## Recording
 
@@ -32,21 +32,19 @@ Music and sound play as in the game. For a silent clip, turn them off in the pau
 
 ### Frame by frame
 
-Add `&capture` (for example `?demo=play30&capture`) to record without dropped frames: the reel starts at once (no **Tap to play**), the game loop stops, and each call of `window.__capture.step()` in the page moves the game on exactly 1/30 s, however long drawing takes; `window.__capture.frames` is the reel's frame count. A recorder (for example headless Chrome driven over the DevTools protocol) grabs a 1080 × 1920 screenshot after each step and joins them into a 30 fps video. Such clips have no sound.
+Add `&capture` (for example `?demo=drops30&capture`) to record without dropped frames: the reel starts at once (no **Tap to play**), the game loop stops, and each call of `window.__capture.step()` in the page moves the game on exactly 1/30 s, however long drawing takes; `window.__capture.frames` is the reel's frame count. A recorder (for example headless Chrome driven over the DevTools protocol) grabs a 1080 × 1920 screenshot after each step and joins them into a 30 fps video. Such clips have no sound.
 
 ## Making a reel
 
-The reels are in `DEMO_SCENES` in `src/scenes/demo.ts`. Each has a start level (0-based), a length in seconds (end card included) and a list of steps run in order. If the steps run out before the end card, the hand keeps swiping; if they run long, the end card cuts them off.
+The reels are in `DEMO_SCENES` in `src/scenes/demo.ts`. Each has a start level (0-based: level 1 is `0`), a length in seconds (end card included), the kinds of stroke the hand takes in turn (`strokes`: `down`, `diagL`, `diagR`, `up`, `sweepR`, `sweepL`, `zigzag`; a kind listed twice comes twice as often; all of them by default) and a list of steps run in order. If the steps run out before the end card, the hand keeps swiping; if they run long, the end card cuts them off.
 
 | Step | What it does |
 |---|---|
+| `{ speed: true }` | Turn x2 on (`false`: off); it stays on across cuts |
 | `{ wait: s }` | Wait `s` seconds |
-| `{ swipe: 'varied' }` | One stroke now (`'auto'`: where the test bot would; `'jam'`: over colours no nest wants; or a list of screen points) |
-| `{ auto: s }` | Keep swiping for `s` seconds (stops early with 30% of the picture left, unless `finish: true`); `mode: 'jam'` fills the conveyor up to `belt` blocks |
-| `{ cut: n, ff: s }` | Slide to level `n` (0-based), played on for `s` seconds behind the cut so the shot starts mid-level; `ffMode: 'jam'` with `ffBelt: k` plays on until `k` blocks are on the conveyor or on their way |
-| `{ speed: true }` | Turn x2 on (`false`: off) |
-| `{ tap: name }` | Tap a booster (`'booster:0'` claw, `'booster:1'` Shuffle, `'booster:2'` Fan) or a nest (`'nest:column,row'`, 0-based, row 1 is the first waiting row) |
-| `{ until: 'calm', max: s }` | Wait until no booster is at work (the Fan's cannon, Shuffle); also `'belt'` (the conveyor holds `belt` blocks), `'win'`, `'lose'`, `'end'`; at most `s` seconds |
+| `{ swipe: 'varied' }` | One stroke of the reel's next kind, now |
+| `{ auto: s }` | Keep swiping for `s` seconds (stops early with 30% of the picture left) |
+| `{ cut: n, ff: s }` | Slide to level `n` (0-based), played on for `s` seconds behind the cut so the shot starts mid-level |
 | `{ hide: true }` | The hand slides off the right edge |
 
-Boosters unlock at levels 3, 6 and 9 (0-based 2, 5 and 8), so taps on a booster only work from those levels on. A shot that is fast-forwarded too far (`ff`) can start with less than 30% of the picture left and end at once; use a smaller `ff` for small pictures.
+A shot that is fast-forwarded too far (`ff`) can start with less than 30% of the picture left and end at once; use a smaller `ff` for small pictures (levels 1 and 2). The script also has steps for tapping boosters and buttons (`tap`, `until`), which these reels do not use.

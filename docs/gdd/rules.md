@@ -13,8 +13,8 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 |---|---|
 | Grains per picture cell | 8 × 8 = 64 (one *unit*) |
 | Block size | 1 unit = 64 grains of one colour |
-| Screen layout | like the Sugar Drop prototype: HUD row (settings left, level in the middle), the three boosters (126 px) under it with the x2 button beside them, the picture frame, its funnel ending in a gate on the conveyor, then the nests |
-| Board frame | inside 824 × 776 px at (128, 330); the corners are rounded like the frame art's, and no sand goes there |
+| Screen layout | like the Sugar Drop prototype: HUD row (settings left, level in the middle), the three boosters (126 px) under it with the x2 button beside them, the picture frame, its funnel ending in a gate just above the conveyor, then the conveyor (track 674 px straight with round ends of radius 50, centred at y 1492) and the nests |
+| Board frame | inside 824 × 776 px at (128, 330); the corners are rounded like the frame art's (the top corners of the light blue under the art's grey top band, and its bottom corners where they begin to curve into the funnel), and no sand goes there; the grey band is above the sand. The frame art includes the funnel's spout and its gate, just above the conveyor |
 | Picture scale | the same in every level: the frame is 22 cells (176 grains) tall, so a cell is 35 px and a grain about 4.4 px; a smaller picture sits centred in the frame |
 | Picture area | 22 cells: 814 × 814 px at (133, 333); level editor pictures can use the whole frame (188 × 176 grains, exactly 517 blocks) |
 | Swipe radius | max(1.1 × cell size, 34 px) = 41 px |
@@ -29,7 +29,7 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 ## 3.3 Funnel and hole <Badge type="tip" text="Live" />
 
 - The board and the funnel under it are **one sand pile**: the same grains, with the same rules, fall from the board straight on into the funnel, so there is no floor between them.
-- The funnel is as wide as the sand frame at the top (824 px) and curves in, as the frame art's does, to the hole (about 75 px) 159 px lower, at the top of the gate on the conveyor. Its curved sides, and the curved rim of the board's bottom corners, are walls: loose sand resting directly on them keeps sliding toward the hole (they are gentler than sand's own slope), and sand on top of it piles up and follows.
+- The funnel is as wide as the sand frame at the top (824 px) and curves in, as the frame art's does, to the hole (about 75 px) 183 px lower, where the frame art's spout ends over its gate. Its curved sides, and the curved rim of the board's bottom corners, are walls: loose sand resting directly on them keeps sliding toward the hole (they are gentler than sand's own slope), and sand on top of it piles up and follows.
 - **First down, first out.** Grains are numbered as they come down into the funnel, and the funnel's grains move oldest first: a gap near the hole is filled by the sand that has waited longest (often beside it on the side), not by newer sand straight above. The hole also takes the oldest grains in its row first. Sand comes out within about 3 blocks of the order it came down in.
 - The hole is the funnel's bottom row. It takes 540 grains per second, but **only while no finished block is waiting in it**. A waiting block plugs the hole until it drops onto the conveyor.
 - Each colour is pressed on its own: a colour's sand waits under the hole until it has 64 grains (or until its last grain is down: then what is left makes its last block), so a colour that comes in small amounts can make its block after a colour that came later.

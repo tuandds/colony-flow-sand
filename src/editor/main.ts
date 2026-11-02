@@ -296,6 +296,40 @@ function recolour(from: string, to: string) {
     } else pictureChanged();
     toast(`Đã đổi cả màu ${NAME.get(from)} → ${NAME.get(to)}${merge ? ' (gộp vào màu đã có: tổ cần sinh lại)' : ''}`);
 }
+/** Moving the whole picture in the frame: each press moves it PIC_STEP of a cell (8 grains).
+ * Grains are whole, so the steps take turns (2, 1, 2, 1, 2 grains) and five presses make a cell.
+ * Sand that goes past the frame's edge (or into its rounded corners) is cut off, and the strip
+ * left behind on the other side stays empty. */
+const PIC_STEP = 0.2;
+let picMove = { id: '', x: 0, y: 0 };
+function movePicture(sx: number, sy: number) {
+    const l = L(), { w, h } = dims(), out = frameOutside(w, h);
+    if (picMove.id !== l.id) picMove = { id: l.id ?? '', x: 0, y: 0 };
+    const nx = picMove.x + sx * PIC_STEP, ny = picMove.y + sy * PIC_STEP;
+    const dx = Math.round(nx * SUB) - Math.round(picMove.x * SUB), dy = Math.round(ny * SUB) - Math.round(picMove.y * SUB);
+    const next = new Array<string>(w * h).fill('.');
+    let lost = 0;
+    for (let p = 0; p < w * h; p++) {
+        if (grains[p] === '.') continue;
+        const x = (p % w) + dx, y = ((p / w) | 0) + dy, q = y * w + x;
+        if (x < 0 || y < 0 || x >= w || y >= h || out?.[q]) { lost++; continue; }
+        next[q] = grains[p];
+    }
+    sandSnapshot();
+    grains = next;
+    picMove.x = nx; picMove.y = ny;
+    if (lost) {
+        // fewer grains: the blocks change, so the nests must be made again
+        pictureChanged();
+        toast(`Đã cắt ${lost} hạt tràn ra ngoài khung · cần sinh lại tổ`);
+        return;
+    }
+    // the same grains, so the nests still fit; the recorded win was for the old place
+    commitGrains();
+    delete l.moves;
+    nestsChanged();
+}
+
 /** The colour a drag carries: a Bank colour or an Active Palette colour. */
 const draggedColour = (e: DragEvent) => e.dataTransfer?.getData('text/x-cf-colour') || e.dataTransfer?.getData('text/x-cf-active') || '';
 const carriesColour = (e: DragEvent) => !!e.dataTransfer && (e.dataTransfer.types.includes('text/x-cf-colour') || e.dataTransfer.types.includes('text/x-cf-active'));
@@ -314,11 +348,23 @@ const sandArt = document.createElement('canvas');
 let hover: [number, number] | null = null, painting: 'paint' | 'erase' | null = null;
 
 // The canvas is exactly the game's frame interior: a picture that touches its edge here touches
-// the frame in the game.
+// the frame in the game. The frame fills the Sand Editor panel's width; its size changes only
+// when the panel itself is resized (the panels keep room for their scrollbar, so one coming or
+// going does not change it), never while you paint.
+const sandWrap = sandCv.parentElement!.parentElement!;
+/** Screen pixels a grain; 26 px of the panel's width go to the frame's rim (padding and border). */
+let sandPx = 0;
+function fitSand() {
+    const px = Math.max(1, (sandWrap.clientWidth - 26) / dims().w);
+    if (Math.abs(px - sandPx) < 0.01) return false;
+    sandPx = px;
+    return true;
+}
+new ResizeObserver(() => { if (fitSand()) renderSand(); }).observe(sandWrap);
 function renderSand() {
-    const { w, h } = dims(), wrap = sandCv.parentElement!;
-    const px = Math.max(1.2, Math.min(4, (Math.min(wrap.clientWidth || 600, 780) - 24) / w));
-    const cw = Math.round(w * px), ch = Math.round(h * px), dpr = window.devicePixelRatio || 1;
+    const { w, h } = dims();
+    if (!sandPx) fitSand();
+    const cw = Math.round(w * sandPx), ch = Math.round(h * sandPx), dpr = window.devicePixelRatio || 1;
     sandArt.width = w; sandArt.height = h;
     drawSand(sandArt.getContext('2d')!, grains, w, h, 0, 0, w, h);
     sandCv.width = Math.round(cw * dpr); sandCv.height = Math.round(ch * dpr);
@@ -1564,6 +1610,10 @@ $<HTMLSelectElement>('s-cols').onchange = (e) => {
 $<HTMLInputElement>('s-seed').onchange = (e) => { sandSnapshot(); L().seed = Math.max(0, Math.min(99, parseInt((e.target as HTMLInputElement).value, 10) || 0)); delete L().nests; delete L().moves; nestsChanged(); };
 $<HTMLInputElement>('brush').oninput = (e) => { brush = +(e.target as HTMLInputElement).value; $('brush-v').textContent = String(brush); };
 $('btn-undo').onclick = undoSand;
+$('pic-left').onclick = () => movePicture(-1, 0);
+$('pic-right').onclick = () => movePicture(1, 0);
+$('pic-up').onclick = () => movePicture(0, -1);
+$('pic-down').onclick = () => movePicture(0, 1);
 $('btn-redo').onclick = redoSand;
 $('btn-solve').onclick = solve;
 
