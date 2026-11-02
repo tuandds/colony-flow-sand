@@ -1500,11 +1500,27 @@ for (const r of document.querySelectorAll<HTMLElement>('.panel-resizer')) {
 
 const playWrap = $('play-wrap'), playFrame = $<HTMLIFrameElement>('play-frame');
 let playUrl = '';
+/** The playtest's width as last set by its resize handle; it is drawn narrower when the window is
+ * too short for a 9:16 screen that wide, so the whole panel always fits in the window. */
+let playW = 360;
+function fitPlay() {
+    if (!playWrap.classList.contains('on')) return;
+    const m = 12, head = $('play-drag').offsetHeight || 36, roomH = window.innerHeight - 2 * m - head - 4;
+    playWrap.style.width = Math.max(200, Math.min(playW, (roomH * 9) / 16, window.innerWidth - 2 * m)) + 'px';
+    const r = playWrap.getBoundingClientRect();
+    playWrap.style.top = Math.max(m, Math.min(r.top, window.innerHeight - m - r.height)) + 'px';
+    if (r.right > window.innerWidth - m || r.left < m) {
+        playWrap.style.left = Math.max(m, Math.min(r.left, window.innerWidth - m - r.width)) + 'px';
+        playWrap.style.right = 'auto';
+    }
+}
+window.addEventListener('resize', fitPlay);
 type CfHook = { state?: unknown; autoplay: (on: boolean, speed: number, m?: Recording['moves']) => void };
 function openPlay(url: string, moves?: Recording['moves'], autoplay = false) {
     playUrl = url;
     playFrame.src = url;
     playWrap.classList.add('on');
+    fitPlay();
     if (!autoplay) return;
     // wait for the game (as long as this playtest stays open), then let it play: replay the
     // recorded winning strokes, or the bot
@@ -1527,13 +1543,13 @@ $('play-drag').onpointerdown = (e) => {
     el.setPointerCapture(e.pointerId);
     playFrame.style.pointerEvents = 'none';
     el.onpointermove = (ev) => { playWrap.style.left = ev.clientX - dx + 'px'; playWrap.style.top = Math.max(0, ev.clientY - dy) + 'px'; playWrap.style.right = 'auto'; };
-    el.onpointerup = () => { el.onpointermove = null; playFrame.style.pointerEvents = ''; };
+    el.onpointerup = () => { el.onpointermove = null; playFrame.style.pointerEvents = ''; fitPlay(); };
 };
 $('play-resize').onpointerdown = (e) => {
     const x0 = e.clientX, w0 = playWrap.getBoundingClientRect().width, el = e.currentTarget as HTMLElement;
     el.setPointerCapture(e.pointerId);
     playFrame.style.pointerEvents = 'none';
-    el.onpointermove = (ev) => { playWrap.style.width = Math.max(240, Math.min(700, w0 + ev.clientX - x0)) + 'px'; };
+    el.onpointermove = (ev) => { playW = Math.max(240, Math.min(700, w0 + ev.clientX - x0)); fitPlay(); };
     el.onpointerup = () => { el.onpointermove = null; playFrame.style.pointerEvents = ''; };
 };
 

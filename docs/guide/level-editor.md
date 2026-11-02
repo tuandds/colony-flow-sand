@@ -16,7 +16,7 @@ It turns an image into a sand picture, grain by grain, in the game's own colours
 | ⬆ / ⬇ | Import JSON (one level, a list or an export) / download the current level |
 | 🕘 | Level Bank backups: the last 15 saves, restorable |
 
-The phone panel can be dragged by its title bar, resized from its corner, reloaded or opened in its own window. Each panel can be collapsed (–) and resized by dragging the bar between panels; double-click a bar to reset it.
+The phone panel can be dragged by its title bar, resized from its corner, reloaded or opened in its own window; it always stays inside the window, drawn narrower when the window is too short for it. Each panel can be collapsed (–) and resized by dragging the bar between panels; double-click a bar to reset it.
 
 ## 1. Colour Bank
 
