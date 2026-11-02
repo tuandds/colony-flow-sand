@@ -61,25 +61,25 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 | ▶▶ x2 | Toggle double speed. Once all the sand has fallen off the picture frame, x2 turns on by itself and the button hides until the next level, which starts at the speed the player had set |
 | Boosters | A row of three under the HUD, above the picture frame: green square buttons with a magnet (Activate), arrows (Shuffle) and a ball cannon (Fan). Each has 1 use per level, shown on a red badge; a green plus replaces it when none are left. The boosters unlock one by one: Activate at level 3, Shuffle at level 6, Fan at level 9. Before that a booster's button is grey with a padlock and its level under it, and tapping it shows "Unlocks at Level N" for a moment. A booster that would do nothing (nothing to wake, swap or blow) only bounces and keeps its use |
 | Activate | Tap it, then tap a nest waiting in the second or third row: ants work for that nest too, from where it stands, until it is full. The game holds still while you pick; tap anywhere else (or the booster) to cancel. A woken nest looks like a front nest |
-| Shuffle | The nests trade places at random across all columns and rows (each keeps the blocks it has). Nests with an ant on its way stay put; a woken nest stays woken wherever it lands |
+| Shuffle | The game holds still and the nests pulse; after 0.5 s they trade places at random across all columns and rows (each keeps the blocks it has), sliding to their new places in about 0.5 s, then play goes on. Nests with an ant on its way stay put; a woken nest stays woken wherever it lands |
 | Fan | The screen dims (blocks, nests and ants stay lit) and the ball cannon (the Fan's picture) drops into the middle. It sucks the conveyor's blocks into its mouth one by one, nearest first, with air streaks rushing in, then shoots them out one at a time from the middle of its mouth (blocks are drawn in front of the cannon), 0.2 s apart and 1.5 times their size in flight, straight down into a nest of its colour that still has room, upper rows first (nearest column within a row), woken or not; it kicks back with each shot and flies off when the last block lands. The game holds still from the tap until the last block is in its nest. Ants on their way to those blocks go back |
 | Keys N / P / R | Next / previous level, restart (desktop testing) |
 
 ## 3.7 Levels <Badge type="tip" text="Live" />
 
-Ten pictures, all made in the Level Editor (whole-frame pictures, 188 × 176 grains); the game plays them from `src/game/level-edits.json` (a Level Bank export, its "Game" chapter). Difficulty rises through picture size, number of colours and nest size (`chunk`, in blocks before the ×2 nest scale). The names are the levels' slots from the original ten; the pictures are new. Not yet checked with the test bot.
+Ten pictures, all made in the Level Editor (whole-frame pictures, 188 × 176 grains); the game plays them from `src/game/level-edits.json` (a Level Bank export, its "Game" chapter). Difficulty rises through picture size, number of colours and nest size (`chunk`, in blocks before the ×2 nest scale). The levels are named `level_1` to `level_10` in the order the game plays them (`GAME_ORDER` in `src/game/levels.ts`; their ids, `builtin-0` to `builtin-9`, stay the original ten's slots). "Hand-set" nests come from the Level Editor; the game builds the others (in rows, with the seed shown). Not yet checked with the test bot.
 
 | # | Name | Colours | Chunk | Nests |
 |---|---|---|---|---|
-| 1 | Cherries | 4 | 3–5 | rows |
-| 2 | Ice Cream | 4 | 4–6 | rows |
-| 3 | Goldfish | 6 | 4–6 | onion |
-| 4 | Cupcake | 4 | 4–6 | rows |
-| 5 | Little Owl | 4 | 4–6 | rows, seed 5 |
-| 6 | Hot Air Balloon | 5 | 4–6 | rows, seed 3 |
-| 7 | Cactus Pot | 4 | 4–6 | rows, seed 1 |
-| 8 | Garden Snail | 4 | 5–9 | rows |
-| 9 | Rocket | 4 | 5–8 | rows |
-| 10 | Penguin | 6 | 5–8 | rows, seed 6 |
+| 1 | level_1 | 4 | 3–5 | rows |
+| 2 | level_2 | 4 | 4–6 | rows |
+| 3 | level_3 | 4 | 4–6 | hand-set |
+| 4 | level_4 | 4 | 4–6 | rows, seed 5 |
+| 5 | level_5 | 6 | 5–8 | hand-set |
+| 6 | level_6 | 4 | 4–6 | hand-set |
+| 7 | level_7 | 4 | 4–6 | hand-set |
+| 8 | level_8 | 4 | 4–6 | hand-set |
+| 9 | level_9 | 4 | 4–7 | hand-set |
+| 10 | level_10 | 6 | 5–8 | hand-set |
 
 - **Design rule:** keep each colour in one area of the picture. A colour that runs from top to bottom (for example one body colour around the whole picture) makes nests that cannot fill until the very end, and the conveyor overflows.

@@ -4,9 +4,10 @@ import {
     SLOTS, SPEED_BTN, TILE, W,
 } from '../game/layout';
 import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useLevels } from '../game/levels';
-import { type Recording, botStep, playBot, replayStep } from '../game/bot';
+import { type Recording, botStep, pickStroke, playBot, replayStep } from '../game/bot';
 import { FAN_FLIGHT, FAN_SHOT_GAP, Flyer, Sfx, Sim, levelOverride } from '../game/sim';
 import { Item3D, ThreeLayer } from '../game/three-layer';
+import { DEMO_SCENES, Demo } from './demo';
 import { greyed } from '../game/util';
 
 const FONT = '"Lilita One", "Arial Rounded MT Bold", sans-serif';
@@ -33,6 +34,10 @@ type Overlay = 'start' | 'settings' | 'end' | null;
  * the last block is in its nest. Times in s: the drop, each block's trip into the mouth, the gap
  * between shots. */
 const FAN = { x: 540, y: 900, size: 300, drop: 0.45, suck: 0.5, shot: 0.06 };
+/** Shuffle booster: seconds the game holds on the nests before they move, and their move. */
+const SHUFFLE = { focus: 0.5, move: 0.5 };
+/** Frames a second when a demo reel is recorded frame by frame. */
+const CAPTURE_FPS = 30;
 /** The cannon's mouth: the centre of the barrel's dark opening, (66, 285) in bst_cannon's 373 x 381
  * picture. The cannon is placed and scaled about this point, so it stays put when the cannon kicks. */
 const FAN_MOUTH_PX = { x: 66, y: 285 };
@@ -48,6 +53,13 @@ export class Game extends Phaser.Scene {
     private levelIndex = 0;
     /** Storage key for the last level reached ('' = don't remember). */
     private levelKey = 'cf_level';
+    /** Demo mode (?demo=<scene>, see demo.ts): the game plays itself for gameplay videos. */
+    private demo?: Demo;
+    /** Recording a demo reel frame by frame (?demo=<reel>&capture): the game loop is stopped and
+     * window.__capture.step() moves it on one frame of 1/CAPTURE_FPS s at a time. */
+    private capture = false;
+    /** Panel buttons the demo's hand can tap, by name. */
+    private taps = new Map<string, { c: Phaser.GameObjects.Container; onTap: () => void }>();
     private started = false;
     private paused = false;
     private speedUp = false;
@@ -116,6 +128,9 @@ export class Game extends Phaser.Scene {
         /** A revive after a loss: it does not use up the Fan booster. */
         free: boolean;
     } | null = null;
+    /** The Shuffle booster's animation: the game holds still, and after SHUFFLE.focus seconds the
+     * nests trade places. */
+    private shuffleFx: { t: number; swapped: boolean } | null = null;
     private labels: Phaser.GameObjects.Text[] = [];
     private overlay: Overlay = null;
     private overlayBox?: Phaser.GameObjects.Container;
@@ -171,8 +186,28 @@ export class Game extends Phaser.Scene {
         this.input.keyboard?.on('keydown-P', () => this.startLevel((this.levelIndex + levelCount() - 1) % levelCount()));
         this.input.keyboard?.on('keydown-R', () => this.startLevel(this.levelIndex));
 
+        const demo = DEMO_SCENES[q.get('demo') ?? ''];
+        if (demo) { level = demo.level; this.levelKey = ''; }
         this.startLevel(level);
         this.showStart();
+        if (demo) this.demo = new Demo({
+            scene: this, sim: () => this.sim, overlay: () => this.overlay, setSpeed: (on) => this.setSpeed(on),
+            goLevel: (i) => { this.startLevel(i); this.started = true; },
+            fastForward: (sec, mode, belt) => {
+                // play on in half-second turns, as the test bot does, until the level ends
+                const pending = () => this.sim.slots.filter(Boolean).length + this.sim.pipe.length
+                    + Object.values(this.sim.looseByColour()).reduce((a, b) => a + b, 0) / 64;
+                for (let t = 0; t < sec && this.sim.state === 'play' && !(belt && pending() >= belt); t += 0.5) {
+                    const pts = pickStroke(this.sim, mode);
+                    if (pts) { this.sim.endSwipe(); for (const [x, y] of pts) this.sim.swipeTo(x, y); this.sim.endSwipe(); }
+                    for (let k = 0; k < 30; k++) this.sim.update(1 / 60);
+                }
+            },
+            target: (name) => this.demoTarget(name),
+            label: (x, y, str, size, color, stroke, thick) => this.text(x, y, str, size, color, stroke, thick),
+            busy: () => !!this.fanFx || !!this.shuffleFx || this.picking,
+        }, demo);
+        if (demo && q.has('capture')) this.startCapture(demo.length);
         this.exposeTestHook();
     }
 
@@ -199,6 +234,7 @@ export class Game extends Phaser.Scene {
         this.closeOverlay();
         this.setPicking(false);
         this.endFan();
+        this.endShuffle();
         this.setAutoFast(false);
         this.boosters.forEach((_b, i) => { this.setLocked(i, this.levelIndex + 1 < BOOSTER_UNLOCK[i]); this.setUses(i, BOOSTER_USES[i]); });
     }
@@ -208,7 +244,8 @@ export class Game extends Phaser.Scene {
         const live = this.started && !this.paused && !(this.overlay === 'settings');
         if (live && this.fanFx) this.stepFan(dt);
         if (live && this.fanFx?.blown && !this.fanFx.leaving) this.sim.stepFlyersOnly(this.speedUp ? dt * 2 : dt);
-        if (live && !this.picking && !(this.fanFx && !this.fanFx.leaving)) {
+        if (live && this.shuffleFx) this.stepShuffle(dt);
+        if (live && !this.picking && !this.shuffleFx && !(this.fanFx && !this.fanFx.leaving)) {
             const step = this.speedUp ? dt * 2 : dt;
             if (this.autoplay && this.moves) {
                 // strokes on the half second, then 30 frames of 1/60 s: the recorder's rhythm
@@ -224,6 +261,8 @@ export class Game extends Phaser.Scene {
                 this.sim.update(step);
             }
         }
+        // the demo runs once play has started, panels and all (it taps their buttons)
+        if (this.demo && this.started) this.demo.update(dt, this.paused, (this.capture ? this.time.now : performance.now()) / 1000);
         if (this.sim.left === 0 && this.sim.state === 'play') this.setAutoFast(true);
         if (this.sim.state !== 'play' && this.overlay !== 'end' && this.sim.endT >= (this.sim.state === 'win' ? 0.9 : 0)) this.showEnd();
         this.boosters.forEach((b, i) => {
@@ -490,7 +529,7 @@ export class Game extends Phaser.Scene {
     /** Booster buttons: Activate waits for a nest to be tapped; Shuffle and Fan act at once. A
      * booster that would do nothing (nothing to wake, swap or blow) only bounces. */
     private useBooster(i: number) {
-        if (this.overlay || this.sim.state !== 'play' || this.fanFx) return;
+        if (this.overlay || this.sim.state !== 'play' || this.fanFx || this.shuffleFx) return;
         const b = this.boosters[i];
         this.sfx('click'); b.bump = 1;
         if (i === 0 && this.picking) { this.setPicking(false); return; }
@@ -507,9 +546,24 @@ export class Game extends Phaser.Scene {
             return;
         }
         this.setPicking(false);
-        if (i === 1) { if (this.sim.shuffle()) this.setUses(i, b.uses - 1); }
+        if (i === 1) { if (this.sim.canShuffle()) { this.setUses(i, b.uses - 1); this.startShuffle(); } }
         else if (this.sim.slots.some(Boolean)) this.startFan();
     }
+
+    // ---------- Shuffle booster animation ----------
+    /** The game holds still and the nests pulse for a moment, then trade places. */
+    private startShuffle() {
+        for (const col of this.sim.cols) for (const n of col) n.bump = 1;
+        this.shuffleFx = { t: 0, swapped: false };
+    }
+    private stepShuffle(dt: number) {
+        const f = this.shuffleFx!;
+        f.t += dt;
+        this.sim.stepNestsOnly(dt);
+        if (!f.swapped && f.t >= SHUFFLE.focus) { f.swapped = true; this.sim.shuffle(); }
+        if (f.t >= SHUFFLE.focus + SHUFFLE.move) this.endShuffle();
+    }
+    private endShuffle() { this.shuffleFx = null; }
 
     // ---------- Fan booster animation ----------
     /** The screen dims (the blocks, nests and ants stay lit), and the fan drops into the middle. */
@@ -718,15 +772,35 @@ export class Game extends Phaser.Scene {
             this.add.image(-38, 76, 'icon_coin').setDisplaySize(48, 54),
             this.text(26, 74, '80', 52, '#ffffff', '#a8660a', 8),
         ]);
-        pop(this.tapTarget(claim, 517, 304, next), 1, 900);
+        pop(this.tapTarget(claim, 517, 304, next, 'claim'), 1, 900);
         const cont = this.add.container(540, 1660);
         cont.add([this.add.image(0, 0, 'btn_continue'), this.text(0, -8, 'Continue', 68, '#ffffff', '#1f7a12', 10)]);
-        pop(this.tapTarget(cont, 472, 210, next), 0.9, 1050);
+        pop(this.tapTarget(cont, 472, 210, next, 'continue'), 0.9, 1050);
         this.overlayBox = box;
     }
 
     /** Make a button container tappable over its art's w x h (clicks go to `onTap`). */
-    private tapTarget(c: Phaser.GameObjects.Container, w: number, h: number, onTap: () => void) {
+    /** Where a demo target is and how to tap it (see DemoHost.target in demo.ts). */
+    private demoTarget(name: string) {
+        const [kind, arg] = name.split(':');
+        if (kind === 'booster') {
+            const i = +arg, b = BOOSTER_POS[i];
+            return { x: b.x, y: b.y - 6, tap: () => this.useBooster(i) };
+        }
+        if (kind === 'nest') {
+            const [ci, ri] = arg.split(',').map(Number), n = this.sim.cols[ci]?.[ri];
+            if (!n || n.dx === null || n.dy === null) return null;
+            const x = n.dx, y = n.dy;
+            return { x, y, tap: () => this.onDown({ x, y } as Phaser.Input.Pointer, []) };
+        }
+        const t = this.taps.get(name);
+        if (!t || !t.c.active || t.c.scale < 0.85) return null;
+        const r = t.c.getBounds();
+        return { x: r.centerX, y: r.centerY, tap: t.onTap };
+    }
+
+    private tapTarget(c: Phaser.GameObjects.Container, w: number, h: number, onTap: () => void, name?: string) {
+        if (name) this.taps.set(name, { c, onTap });
         return c.setSize(w, h).setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.sfx('click'); onTap(); });
     }
 
@@ -912,7 +986,7 @@ export class Game extends Phaser.Scene {
             this.add.image(-66, -12, 'lose_icon_coin').setDisplaySize(64, 70),
             this.text(38, -14, '900', 58, '#ffffff', '#1f7a12', 10),
         ]);
-        board.add([this.tapTarget(ad, 323, 194, revive), this.tapTarget(coins, 319, 196, revive)]);
+        board.add([this.tapTarget(ad, 323, 194, revive, 'free'), this.tapTarget(coins, 319, 196, revive, 'coins')]);
     }
 
     /** Gave up: "Level N", the lives (one of five lost, a blank heart) and the time to the next
@@ -933,7 +1007,7 @@ export class Game extends Phaser.Scene {
         board.add(this.text(0, 150, 'Level failed!', 58, '#1f5fc8', null));
         const btn = this.add.container(0, 330);
         btn.add([this.add.image(0, 0, 'lose_btn_try_again'), this.text(0, -10, 'Try Again', 70, '#ffffff', '#1f7a12', 10)]);
-        board.add(this.tapTarget(btn, 471, 210, again));
+        board.add(this.tapTarget(btn, 471, 210, again, 'try'));
     }
 
     private onDown(p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) {
@@ -960,6 +1034,23 @@ export class Game extends Phaser.Scene {
         if (this.prefs.vibe && VIBES[name]) navigator.vibrate?.(VIBES[name]!);
         if (this.sound.locked || !this.prefs.sound) return;
         this.sound.play(name, { volume: vol });
+    }
+
+    /** Frame-by-frame recording: the reel starts at once (no Tap to play) and each step() runs one
+     * frame of exactly 1/CAPTURE_FPS s, however long it takes to draw and grab, so the video is
+     * smooth. The recorder grabs the page after each step. */
+    private startCapture(length: number) {
+        const game = this.game, ms = 1000 / CAPTURE_FPS;
+        this.capture = true;
+        game.loop.sleep();
+        this.started = true;
+        this.closeOverlay();
+        let t = this.time.now;
+        (window as unknown as Record<string, unknown>).__capture = {
+            fps: CAPTURE_FPS,
+            frames: Math.round(length * CAPTURE_FPS),
+            step(n = 1) { for (let i = 0; i < n; i++) { t += ms; game.step(t, ms); } },
+        };
     }
 
     // Hooks used by automated play-tests in the browser console.

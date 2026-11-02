@@ -60,6 +60,7 @@ export default defineConfig({
                     items: [
                         { text: 'Getting Started', link: '/guide/getting-started' },
                         { text: 'Level Editor', link: '/guide/level-editor' },
+                        { text: 'Demo Videos', link: '/guide/demo-videos' },
                         { text: 'Deployment', link: '/guide/deployment' },
                         { text: 'Game Design Document →', link: '/gdd/' }
                     ]

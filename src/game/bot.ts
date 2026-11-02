@@ -17,29 +17,39 @@ export function playBot(sim: Sim, maxSec = 300): 'win' | 'lose' | 'stuck' {
 
 /** One decision of the test bot (it decides every 0.5 s of game time). */
 export function botStep(sim: Sim) {
-    const s = sim;
-    {
-        if (!s.boardFalling()) {
-            const grains = Object.values(s.looseByColour()).reduce((a, b) => a + b, 0);
-            const used = s.slots.filter(Boolean).length + s.pipe.length + Math.round(grains / 64);
-            const need = new Set(s.cols.map((c) => c[0]).filter(Boolean).map((n) => n.color));
-            // lowest fixed grain in every 4th column, as a screen point
-            const G = s.G, want: [number, number][] = [], any: [number, number][] = [];
-            for (let x = 0; x < G; x += 4) {
-                for (let y = G - 1; y >= 0; y--) {
-                    const p = y * G + x;
-                    if (!s.key[p] || s.loose[p]) continue;
-                    const pt: [number, number] = [s.ox + (x + 0.5) * s.gs, s.oy + (y + 0.5) * s.gs];
-                    any.push(pt);
-                    if (need.has(s.keys[s.key[p]]!)) want.push(pt);
-                    break;
-                }
-            }
-            // keep a few slots free: at most SLOTS - 2 blocks for wanted colours, SLOTS - 4 otherwise
-            if (want.length && used < SLOTS - 2) swipe(s, want.slice(0, used < 10 ? 4 : 1));
-            else if (!want.length && any.length && used < SLOTS - 4) swipe(s, [any[any.length >> 1]]);
+    const pts = pickStroke(sim);
+    if (pts) swipe(sim, pts);
+}
+
+/**
+ * The stroke the test bot would make now, as screen points, or null to wait. 'play': the lowest
+ * fixed sand of the colours the front nests want (a few neighbouring columns), only while the
+ * conveyor has room and no sand is still falling on the board. 'jam': the lowest sand of colours
+ * no front nest wants, whatever the belt holds, so the conveyor fills up (demo videos).
+ */
+export function pickStroke(s: Sim, mode: 'play' | 'jam' = 'play'): [number, number][] | null {
+    if (mode === 'play' && s.boardFalling()) return null;
+    const grains = Object.values(s.looseByColour()).reduce((a, b) => a + b, 0);
+    const used = s.slots.filter(Boolean).length + s.pipe.length + Math.round(grains / 64);
+    const need = new Set(s.cols.map((c) => c[0]).filter(Boolean).map((n) => n.color));
+    // lowest fixed grain in every 4th column, as a screen point
+    const G = s.G, want: [number, number][] = [], other: [number, number][] = [], any: [number, number][] = [];
+    for (let x = 0; x < G; x += 4) {
+        for (let y = G - 1; y >= 0; y--) {
+            const p = y * G + x;
+            if (!s.key[p] || s.loose[p]) continue;
+            const pt: [number, number] = [s.ox + (x + 0.5) * s.gs, s.oy + (y + 0.5) * s.gs];
+            any.push(pt);
+            (need.has(s.keys[s.key[p]]!) ? want : other).push(pt);
+            break;
         }
     }
+    // jam: a long stroke along the lowest unwanted sand (neighbouring columns, from the middle)
+    if (mode === 'jam') { const l = other.length ? other : any, i = Math.max(0, (l.length >> 1) - 5); return l.length ? l.slice(i, i + 10) : null; }
+    // keep a few slots free: at most SLOTS - 2 blocks for wanted colours, SLOTS - 4 otherwise
+    if (want.length && used < SLOTS - 2) return want.slice(0, used < 10 ? 4 : 1);
+    if (!want.length && any.length && used < SLOTS - 4) return [any[any.length >> 1]];
+    return null;
 }
 
 export interface Recording {

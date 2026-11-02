@@ -404,10 +404,11 @@ export class Sim {
         for (let p = 0; p < key.length; p++) if (key[p] && loose[p]) { const k = this.keys[key[p]]!; out[k] = (out[k] || 0) + 1; }
         return out;
     }
-    /** Whether loose sand is still falling on the board (not yet down in the funnel). */
+    /** Whether loose sand is still falling on the board (not yet down in the funnel). Loose sand
+     * that has come to rest (on fixed sand, say) does not count. */
     boardFalling() {
-        const { key, loose } = this, N = this.G * this.G;
-        for (let p = 0; p < N; p++) if (key[p] && loose[p]) return true;
+        const { key, loose, vy } = this, N = this.G * this.G;
+        for (let p = 0; p < N; p++) if (key[p] && loose[p] && vy[p] > 0.01) return true;
         return false;
     }
 
@@ -550,6 +551,8 @@ export class Sim {
     }
     /** While the game holds still for the Fan: only its blocks fly (and the sparks and nest bumps
      * they set off play out); the sand, belt, ants and nests wait. */
+    /** Only the nests move (to their places, after a shuffle) while the game holds still. */
+    stepNestsOnly(dt: number) { this.stepNests(dt); }
     stepFlyersOnly(dt: number) {
         this.stepFlyers(dt);
         for (const col of this.cols) for (const n of col) n.bump = Math.max(0, n.bump - dt * 4);
@@ -572,11 +575,18 @@ export class Sim {
         this.sfx('nest', 0.6);
         return true;
     }
-    /** Shuffle: the nests trade places at random. Nests with an ant on its way stay put. */
-    shuffle() {
+    /** The nests Shuffle may move (none with an ant on its way), and where they stand. */
+    private shufflable() {
         const at: [number, number][] = [], nests: Nest[] = [];
         this.cols.forEach((col, ci) => col.forEach((n, ri) => { if (!n.pop && !n.inflight) { at.push([ci, ri]); nests.push(n); } }));
-        if (new Set(nests.map((n) => n.color)).size < 2) return false;
+        return { at, nests };
+    }
+    /** Whether Shuffle would change anything (at least two colours among the nests it may move). */
+    canShuffle() { return new Set(this.shufflable().nests.map((n) => n.color)).size >= 2; }
+    /** Shuffle: the nests trade places at random. Nests with an ant on its way stay put. */
+    shuffle() {
+        if (!this.canShuffle()) return false;
+        const { at, nests } = this.shufflable();
         const order = nests.slice();
         // retry until at least one place shows a different colour
         for (let tries = 0; tries < 20; tries++) {

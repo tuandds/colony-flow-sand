@@ -27,7 +27,7 @@
 | Issue | Impact | Planned fix |
 |---|---|---|
 | Built-in level solvability depends on the nest order and seed; changing a picture can make it unwinnable | A new picture needs a bot or human test before it ships | Rebuild the built-in levels' nests with the editor's recorded play |
-| Garden Snail, Rocket and Penguin were edited without a recorded win; the test bot gets stuck on them | They may not be winnable | Run Auto-generate nests for them in the editor |
+| level_8, level_9 and level_10 were edited without a recorded win; the test bot gets stuck on them | They may not be winnable | Run Auto-generate nests for them in the editor |
 | The editor's check is a bot that digs from the bottom; it is not a human playtest | A level can still feel hard or unfair to people | Playtest editor levels with people |
 | The 3D layer is copied into Phaser every frame | Extra GPU upload on low-end phones | Lower its resolution or move to a Phaser-native renderer later |
 
