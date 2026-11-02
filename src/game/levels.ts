@@ -354,6 +354,13 @@ export function builtinDefs(): LevelDef[] {
 /** The order the game plays the built-in levels in, by index (`builtin-<i>`): the Level Bank's order. */
 const GAME_ORDER = [0, 1, 3, 4, 2, 5, 6, 7, 8, 9];
 
+/** A game level's name, `level_<n>` with n its place in the game (from 1), whatever name a saved
+ * copy carries; null for a level that is not one of the game's. */
+export function gameLevelName(id: string | undefined) {
+    const m = /^builtin-(\d+)$/.exec(id ?? ''), k = m ? GAME_ORDER.indexOf(+m[1]) : -1;
+    return k < 0 ? null : `level_${k + 1}`;
+}
+
 /**
  * The game's levels, in GAME_ORDER: each built-in level, unless the level editor has a saved copy
  * of it (`builtin-<i>`). Copies come from this browser's Level Bank and from
@@ -363,7 +370,7 @@ export function gameLevels(): LevelDef[] {
     const saved = loadCustomLevels(CUSTOM_KEY), file = EDITS as unknown as LevelDef[];
     return GAME_ORDER.map((i) => {
         const L = LEVELS[i], id = builtinId(i), a = saved.find((x) => x.id === id), b = file.find((x) => x.id === id);
-        return (a && b ? ((a.updated ?? 0) >= (b.updated ?? 0) ? a : b) : a ?? b) ?? L;
+        return { ...((a && b ? ((a.updated ?? 0) >= (b.updated ?? 0) ? a : b) : a ?? b) ?? L), name: gameLevelName(id)! };
     });
 }
 

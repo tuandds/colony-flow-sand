@@ -8,7 +8,7 @@
 import type { Recording } from '../game/bot';
 import { COLS, FRAME_N, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
 import EDITS from '../game/level-edits.json';
-import { BANK_COLOURS, CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, builtinDefs, decodeSand, encodeSand, loadCustomLevels, useLevels, widenOldFrame } from '../game/levels';
+import { BANK_COLOURS, CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, builtinDefs, decodeSand, encodeSand, gameLevelName, loadCustomLevels, useLevels, widenOldFrame } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
 import { BANK, type BankColour, type ConvertOpts, HEX, NAME, clipToFrame, countKeys, drawSand, fitToFrame, frameOutside, hexLab, imageToSand, moveRange, nearestKey, rowsToGrains, setBank } from './sand';
 import type { SolveJob, SolveResult } from './solver.worker';
@@ -146,7 +146,8 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
         cut = fit.cut;
     }
     return {
-        id: L.id || uid(), name: L.name || 'Màn mới', n, chunk: L.chunk || [4, 7], sand,
+        // the game's own levels are always named level_<n> by their place in the game
+        id: L.id || uid(), name: gameLevelName(L.id) ?? (L.name || 'Màn mới'), n, chunk: L.chunk || [4, 7], sand,
         order: L.order || 'rows', seed: L.seed ?? 0, salt: L.salt ?? randomSalt(),
         cols: Math.max(MIN_COLS, Math.min(MAX_COLS, L.cols ?? COLS)),
         nests: L.nests?.map((col) => col.map(([k, v]) => [keyOf.get(k) ?? k, v] as [string, number])),

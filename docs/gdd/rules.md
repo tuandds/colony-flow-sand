@@ -67,7 +67,7 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 
 ## 3.7 Levels <Badge type="tip" text="Live" />
 
-Ten pictures, all made in the Level Editor (whole-frame pictures, 188 × 176 grains); the game plays them from `src/game/level-edits.json` (a Level Bank export, its "Game" chapter). Difficulty rises through picture size, number of colours and nest size (`chunk`, in blocks before the ×2 nest scale). The levels are named `level_1` to `level_10` in the order the game plays them (`GAME_ORDER` in `src/game/levels.ts`; their ids, `builtin-0` to `builtin-9`, stay the original ten's slots). "Hand-set" nests come from the Level Editor; the game builds the others (in rows, with the seed shown). Not yet checked with the test bot.
+Ten pictures, all made in the Level Editor (whole-frame pictures, 188 × 176 grains); the game plays them from `src/game/level-edits.json` (a Level Bank export, its "Game" chapter). Difficulty rises through picture size, number of colours and nest size (`chunk`, in blocks before the ×2 nest scale). The levels are named `level_1` to `level_10` in the order the game plays them, in the game and in the Level Editor, whatever name a saved or imported copy carries (`GAME_ORDER` in `src/game/levels.ts`; their ids, `builtin-0` to `builtin-9`, stay the original ten's slots). "Hand-set" nests come from the Level Editor; the game builds the others (in rows, with the seed shown). Not yet checked with the test bot.
 
 | # | Name | Colours | Chunk | Nests |
 |---|---|---|---|---|
