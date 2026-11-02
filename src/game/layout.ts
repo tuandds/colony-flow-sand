@@ -32,6 +32,9 @@ export const MOUTH_RATE = 540;
 export const FRAME_ART = { x: 52, y: 92, w: 1521, h: 1392, imgW: 1627, imgH: 2000 };
 // the frame art is drawn with its inside's board part on INNER
 const ART_KX = INNER.w / FRAME_ART.w, ART_KY = INNER.h / FRAME_ART.h;
+/** Where blocks come out: the opening of the gate at the bottom of the frame art (art y 1935, under
+ * the spout); a finished block waits there and drops from there onto the belt. */
+export const GATE_OUT = { x: 540, y: Math.round(INNER.y + (1935 - FRAME_ART.y) * ART_KY) };
 const artY = (y: number) => FRAME_ART.y + (y - INNER.y) / ART_KY;
 /** Linear lookup in a [art y, value] table (clamped at its ends). */
 function lookup(t: [number, number][], ay: number) {

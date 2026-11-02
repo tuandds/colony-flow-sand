@@ -4,6 +4,7 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
+- **Blocks come out of the gate:** a finished block now waits in, and drops onto the belt from, the opening of the gate at the bottom of the frame (it used to appear at the end of the funnel's spout, inside the frame).
 - **Level Editor: the iPhone playtest stays in the window:** it is drawn narrower when the window is too short for its 9:16 screen, and is kept inside the window when it opens, is moved or resized, or the window is resized (it used to run off the bottom of shorter windows).
 - **Game levels always named level_x:** the game and the Level Editor name the game's ten levels `level_1` to `level_10` by their place in the game, whatever name a copy in the Level Bank or an imported file carries (an export with an old name, such as "Hot Air Balloon", still shows as `level_6`).
 - **level_6 replaced:** a new picture (a sailboat on the waves, with seagulls and a sun, four colours) from the Level Editor, with hand-set nests (49 nests over 4 columns). Not checked with the test bot.

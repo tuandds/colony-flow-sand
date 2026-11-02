@@ -1,6 +1,6 @@
 import * as Phaser from 'phaser';
 import {
-    BELT, BLOCK, BOOSTER_IMAGES, BOOSTER_POS, BOOSTER_SIZE, FRAME_ART, H, INNER, MOUTH, NEST_BOXES, PAUSE_BTN, PIC,
+    BELT, BLOCK, BOOSTER_IMAGES, BOOSTER_POS, BOOSTER_SIZE, FRAME_ART, GATE_OUT, H, INNER, NEST_BOXES, PAUSE_BTN, PIC,
     SLOTS, SPEED_BTN, TILE, W,
 } from '../game/layout';
 import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useLevels } from '../game/levels';
@@ -284,7 +284,7 @@ export class Game extends Phaser.Scene {
             const b = s.slots[i];
             if (!b) continue;
             let [x, y] = s.slotPos(i);
-            if (b.drop < 1) { const t = b.drop; x = MOUTH.x + (x - MOUTH.x) * t; y = MOUTH.y + 10 + (y - MOUTH.y - 10) * t; }
+            if (b.drop < 1) { const t = b.drop; x = GATE_OUT.x + (x - GATE_OUT.x) * t; y = GATE_OUT.y + (y - GATE_OUT.y) * t; }
             // Fan: the block is sucked into the cannon, its shadow fading as it rises; swallowed
             // blocks are not drawn
             const up = this.fanLift(i, x, y);
@@ -295,7 +295,7 @@ export class Game extends Phaser.Scene {
             if (up.e > 0) items.push({ ref: b, kind: 'cube', x: up.x, y: up.y, color: s.colors[b.k], size: BLOCK, ang: up.ang, scale: up.scale, centered: true });
             else items.push({ ref: b, kind: 'cube', x, y: y + BLOCK * 0.36, color: s.colors[b.k], size: BLOCK });
         }
-        if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: MOUTH.x, y: MOUTH.y + 16, color: s.colors[s.pipe[0]], size: 25 });
+        if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: GATE_OUT.x, y: GATE_OUT.y, color: s.colors[s.pipe[0]], size: 25 });
         // Fan: blocks shot from the cannon's mouth arc into their nests, growing out of the mouth to
         // 1.5 times their size and turning as they fly, then shrinking back as they drop in; a block
         // still waiting its turn is inside the cannon
