@@ -217,21 +217,23 @@ function save() {
 }
 
 // ---------- analysis (the game's own trimming and nest generator, via a Sim) ----------
-interface Analysis { blocks: Map<string, number>; total: number; nests: Nest[][]; grains: number; fits: boolean }
+/** A picture as the game plays it: blocks of each colour (its grains / 64, rounded up: the last
+ * block takes the leftover grains), grains of each colour, the nests and whether hand-made nests fit. */
+interface Analysis { blocks: Map<string, number>; grainsOf: Map<string, number>; total: number; nests: Nest[][]; grains: number; fits: boolean }
 const analysisCache = new Map<string, Analysis>();
 function analyze(l: EdLevel): Analysis {
     const key = JSON.stringify([l.sand.data, l.chunk, l.order, l.seed, l.salt, l.nests, l.n, l.cols]);
     let a = analysisCache.get(key);
     if (a) return a;
     const def = toDef(l);
-    const blocks = new Map<string, number>();
+    const blocks = new Map<string, number>(), grainsOf = new Map<string, number>();
     let nests: Nest[][] = Array.from({ length: l.cols }, () => []), grainCount = 0, fits = true;
     if (Object.keys(def.colors).length) {
         useLevels([def]);
         try {
             const sim = new Sim(0, () => {});
-            for (const k of sim.key) if (k) { const c = sim.keys[k]!; blocks.set(c, (blocks.get(c) || 0) + 1); grainCount++; }
-            for (const [k, g] of blocks) blocks.set(k, Math.round(g / 64));
+            for (const k of sim.key) if (k) { const c = sim.keys[k]!; grainsOf.set(c, (grainsOf.get(c) || 0) + 1); grainCount++; }
+            for (const [k, g] of grainsOf) blocks.set(k, Math.ceil(g / 64));
             nests = sim.cols;
             // the game ignores hand-made nests that don't hold exactly the picture's blocks
             if (l.nests) {
@@ -241,7 +243,7 @@ function analyze(l: EdLevel): Analysis {
             }
         } finally { useLevels([]); }
     }
-    a = { blocks, total: [...blocks.values()].reduce((s, v) => s + v, 0), nests, grains: grainCount, fits };
+    a = { blocks, grainsOf, total: [...blocks.values()].reduce((s, v) => s + v, 0), nests, grains: grainCount, fits };
     if (analysisCache.size > 200) analysisCache.clear();
     analysisCache.set(key, a);
     return a;
@@ -602,20 +604,18 @@ function renderTools() {
 
 // ---------- sand editor info ----------
 function renderSandInfo() {
-    const l = L(), a = analyze(l), used = countKeys(grains);
+    const l = L(), a = analyze(l);
     const v = $('sand-validation'), notes: [string, string][] = [];
     const nColours = a.blocks.size;
     v.textContent = `${nColours} màu › ${a.total} khối › ${a.grains.toLocaleString('vi-VN')} hạt`;
     if (!a.total) notes.push(['err', 'Tranh chưa có cát: tạo từ ảnh hoặc vẽ.']);
     if (nColours > 12) notes.push(['warn', `${nColours} màu: nhiều màu làm băng chuyền dễ đầy. Nên ≤ 12.`]);
     if (a.total > 420) notes.push(['warn', `${a.total} khối: tranh rất lớn, chơi lâu và khó tìm tổ giải được.`]);
-    const lost = [...used.keys()].filter((k) => !a.blocks.has(k));
-    if (lost.length) notes.push(['warn', `Màu ${lost.map((k) => NAME.get(k)).join(', ')} có dưới 64 hạt nên không thành khối nào; khi chơi sẽ bị cắt bỏ.`]);
     if (a.total) notes.push(l.verified ? ['ok', '✓ Tổ hiện tại đã thắng 2 lần (bot).'] : ['warn', l.verified === false ? 'Đã sửa sau lần kiểm tra: chạy lại “Tự sinh tổ kiến”.' : 'Chưa kiểm tra: chạy “Tự sinh tổ kiến” để có tổ giải được.']);
     v.className = 'edit-validation ' + (notes.some(([t]) => t === 'err') ? 'err' : notes.some(([t]) => t === 'warn') ? 'warn' : 'ok');
     $('sand-notes').innerHTML = notes.map(([t, m]) => `<div class="${t}">${m}</div>`).join('');
     $('color-summary').innerHTML = [...a.blocks].sort((x, y) => y[1] - x[1]).map(([k, b]) =>
-        `<div class="cs-row" data-key="${k}" title="Kéo một màu từ Colour Bank thả vào đây để đổi cả màu này"><div class="cs-dot" style="background:${HEX.get(k)}"></div><span class="cs-n">(${b})</span><span class="cs-label">${NAME.get(k)}</span><span class="cs-grains">${(b * 64).toLocaleString('vi-VN')} hạt</span></div>`).join('')
+        `<div class="cs-row" data-key="${k}" title="Kéo một màu từ Colour Bank thả vào đây để đổi cả màu này"><div class="cs-dot" style="background:${HEX.get(k)}"></div><span class="cs-n">(${b})</span><span class="cs-label">${NAME.get(k)}</span><span class="cs-grains">${(a.grainsOf.get(k) ?? 0).toLocaleString('vi-VN')} hạt</span></div>`).join('')
         || '<div class="hint">Chưa có màu nào</div>';
     // drop a Bank (or Active Palette) colour on a row: the whole colour becomes the new one
     $('color-summary').querySelectorAll<HTMLElement>('.cs-row').forEach((row) => {
@@ -1103,8 +1103,8 @@ function runGen() {
         $('g-move-v').textContent = genOff.x || genOff.y ? `${cell(genOff.x)}, ${cell(genOff.y)} ô` : 'giữa';
         drawSand(g, genResult, FW, FH, 0, 0, cv.width, cv.height);
         const c = [...countKeys(genResult)].sort((a, b) => b[1] - a[1]);
-        const total = c.reduce((s, [, n]) => s + Math.floor(n / 64), 0);
-        $('gen-summary').innerHTML = c.map(([k, n]) => `<span class="chip" title="${NAME.get(k)}"><i style="background:${HEX.get(k)}"></i>${Math.floor(n / 64)}</span>`).join('') +
+        const total = c.reduce((s, [, n]) => s + Math.ceil(n / 64), 0);
+        $('gen-summary').innerHTML = c.map(([k, n]) => `<span class="chip" title="${NAME.get(k)}"><i style="background:${HEX.get(k)}"></i>${Math.ceil(n / 64)}</span>`).join('') +
             `<span class="chip">≈ ${total} khối · tranh ${pic.w}×${pic.h} hạt</span>`;
         $<HTMLButtonElement>('gen-apply').disabled = false;
     }, 80);

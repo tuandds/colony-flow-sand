@@ -62,6 +62,9 @@ export class Sim {
     /** Grains the hole may still take this step (MOUTH_RATE a second, carried over). */
     exitCarry = 0;
     hopper: Record<string, number> = {};
+    /** Grains of each colour (by key index) not yet down the hole: when a colour's last grain goes
+     * down, its leftover grains (fewer than BLOCK_GRAINS) make one last block. */
+    toGo: number[] = [];
     pipe: string[] = []; dropping: Block[] = [];
     slots: (Block | null)[] = []; beltOff = 0;
     cols: Nest[][] = []; ants: Ant[] = []; fx: Spark[] = []; flyers: Flyer[] = [];
@@ -115,13 +118,12 @@ export class Sim {
         for (let y = G; y < GH; y++) for (let x = 0; x < G; x++) {
             if (Math.abs(PIC.x + (x - pad + 0.5) * gs - MOUTH.x) > funnelHalf(oy + (y + 0.5) * gs)) wall[y * G + x] = 1;
         }
-        // the picture is the board's sand only (the funnel starts empty)
-        fitWholeBlocks(key.subarray(0, G * G), G, keys.length, top, wall.subarray(0, G * G));
         for (let p = 0; p < key.length; p++) {
             if (key[p]) rgb[p] = packColor(L.colors[keys[key[p]]!], (hash(p % G, (p / G) | 0, 7) - 0.5) * 0.16);
         }
         let total = 0;
-        for (const v of key) if (v) total++;
+        this.toGo = new Array(keys.length).fill(0);
+        for (const v of key) if (v) { total++; this.toGo[v]++; }
 
         this.key = key; this.rgb = rgb;
         this.loose = new Uint8Array(G * GH);
@@ -169,9 +171,14 @@ export class Sim {
         } else {
             for (let p = key.length - 1; p >= 0; p--) if (key[p]) order.push(p);
         }
+        // every BLOCK_GRAINS of a colour make a block; its leftover grains (fewer than a block)
+        // make its last block, at its last grain
+        const remaining = new Array(keys.length).fill(0);
+        for (const p of order) remaining[key[p]]++;
         for (const p of order) {
             const c = key[p];
-            if (++acc[c] === BLOCK_GRAINS) { acc[c] = 0; blockSeq.push(keys[c]!); }
+            acc[c]++; remaining[c]--;
+            if (acc[c] === BLOCK_GRAINS || !remaining[c]) { acc[c] = 0; blockSeq.push(keys[c]!); }
         }
         // nests from the level editor (a recorded play, or set by hand) are used as they are when
         // they hold exactly the picture's blocks. When a colour's block count is off by a little
@@ -387,6 +394,9 @@ export class Sim {
         this.drained += n;
         this.hopper[k] = (this.hopper[k] || 0) + n;
         while (this.hopper[k] >= BLOCK_GRAINS) { this.hopper[k] -= BLOCK_GRAINS; this.pipe.push(k); }
+        // the colour's last grain: what is left of it makes one more (smaller) block
+        const c = this.keys.indexOf(k);
+        if ((this.toGo[c] -= n) <= 0 && this.hopper[k] > 0) { this.hopper[k] = 0; this.pipe.push(k); }
     }
     /** Loose sand of each colour (falling, sliding, or piled in the funnel), in grains. */
     looseByColour() {
@@ -652,134 +662,5 @@ export class Sim {
         this.stepFx(dt);
         this.checkEnd(dt);
         if (this.state !== 'play') this.endT += dt;
-    }
-}
-
-// Make every colour a whole number of blocks so no sand is left over, changing as little sand as
-// possible. First the picture's total is made a whole number of blocks: when the frame has room
-// next to the sand, the missing grains are added there (each takes a neighbour's colour), one
-// here and one there, spread evenly round the picture's outline, so nothing is cut; when the
-// frame is full, the total remainder (fewer than BLOCK_GRAINS grains) is removed instead, spread
-// evenly round the picture's whole outer edge (whatever their colours), so it leaves no gap. Each colour's extra grains are then handed to a
-// neighbouring colour: a run of grains along the border between them changes colour, so the
-// border just moves over by a grain there. The extras travel from colour to colour until they
-// meet another colour's extras; as the total is now a whole number of blocks, they all cancel.
-/** `top`: the first grid row inside the frame (the rows above it are padding, not the frame). */
-function fitWholeBlocks(key: Uint8Array, G: number, nColors: number, top: number, wall: Uint8Array) {
-    const count = new Array(nColors).fill(0);
-    for (let p = 0; p < key.length; p++) if (key[p]) count[key[p]]++;
-    const rem = (c: number) => count[c] % BLOCK_GRAINS;
-    const nb = (p: number) => {
-        const x = p % G, out: number[] = [];
-        if (x > 0) out.push(p - 1);
-        if (x < G - 1) out.push(p + 1);
-        if (p >= G) out.push(p - G);
-        if (p < G * (G - 1)) out.push(p + G);
-        return out;
-    };
-    // n of the grains in `list`, evenly spaced along it (it is in scan order, so along the border)
-    const spread = (list: number[], n: number) => {
-        const take = Math.min(n, list.length), step = list.length / Math.max(1, take), out: number[] = [];
-        for (let i = 0; i < take; i++) out.push(list[Math.floor((i + 0.5) * step)]);
-        return out;
-    };
-    // colours that share a border, and colours on the picture's outer edge (next to empty space)
-    const adjacency = () => {
-        const adj = Array.from({ length: nColors }, () => new Set<number>()), edge = new Set<number>();
-        for (let p = 0; p < key.length; p++) {
-            const c = key[p];
-            if (!c) continue;
-            const x = p % G;
-            if (x === 0 || x === G - 1 || p < G || p >= G * (G - 1)) edge.add(c);
-            for (const q of nb(p)) { const o = key[q]; if (!o) edge.add(c); else if (o !== c) adj[c].add(o); }
-        }
-        return { adj, edge };
-    };
-    // the shortest chain of neighbouring colours from c to one that passes `done`
-    const path = (c: number, adj: Set<number>[], done: (o: number) => boolean) => {
-        const prev = new Map<number, number>([[c, -1]]), queue = [c];
-        for (let h = 0; h < queue.length; h++) {
-            const a = queue[h];
-            if (a !== c && done(a)) {
-                const out: number[] = [];
-                for (let x = a; x !== -1; x = prev.get(x)!) out.unshift(x);
-                return out;
-            }
-            for (const b of adj[a]) if (!prev.has(b)) { prev.set(b, a); queue.push(b); }
-        }
-        return null;
-    };
-    // hand n grains of colour a to its neighbour b: a run of a's grains along their border (from
-    // its middle) takes b's colour, so the border moves over by a grain there rather than going
-    // ragged
-    const give = (a: number, b: number, n: number) => {
-        for (let pass = 0; n > 0 && pass < 64; pass++) {
-            const border: number[] = [];
-            for (let p = 0; p < key.length; p++) if (key[p] === a && nb(p).some((q) => key[q] === b)) border.push(p);
-            if (!border.length) break;
-            const take = Math.min(n, border.length), from = Math.floor((border.length - take) / 2);
-            for (const p of border.slice(from, from + take)) { key[p] = b; count[a]--; count[b]++; n--; }
-        }
-    };
-    // 0. the total becomes a whole number of blocks: grains added in the frame's empty space next
-    // to the sand when there is room, otherwise the remainder comes off the outer edge; either
-    // way spread evenly all the way round
-    const total = count.reduce((a, b) => a + b, 0), missing = (BLOCK_GRAINS - (total % BLOCK_GRAINS)) % BLOCK_GRAINS;
-    if (missing) {
-        const room: number[] = [];
-        for (let p = top * G; p < key.length; p++) if (!key[p] && !wall[p] && nb(p).some((q) => key[q])) room.push(p);
-        if (room.length >= missing) {
-            // the spots are chosen from the picture as it is; each new grain copies a neighbour's colour
-            for (const p of spread(room, missing)) { const c = key[nb(p).find((q) => key[q])!]; key[p] = c; count[c]++; }
-        }
-    }
-    const total2 = count.reduce((a, b) => a + b, 0);
-    if (total2 % BLOCK_GRAINS) {
-        const outer: number[] = [];
-        for (let p = 0; p < key.length; p++) {
-            if (!key[p]) continue;
-            const x = p % G;
-            if (x === 0 || x === G - 1 || p < G || p >= G * (G - 1) || nb(p).some((q) => !key[q])) outer.push(p);
-        }
-        for (const p of spread(outer, total2 % BLOCK_GRAINS)) { count[key[p]]--; key[p] = 0; }
-    }
-    // 1. carry each colour's extras along a chain of neighbours to another colour with extras
-    for (let guard = nColors * 4; guard > 0; guard--) {
-        const left = [];
-        for (let c = 1; c < nColors; c++) if (rem(c)) left.push(c);
-        if (left.length < 2) break;
-        const { adj } = adjacency();
-        let moved = false;
-        for (const c of left) {
-            const chain = path(c, adj, (o) => rem(o) > 0);
-            if (!chain) continue;
-            const n = rem(c);
-            for (let i = 0; i + 1 < chain.length; i++) give(chain[i], chain[i + 1], n);
-            moved = true;
-            break;
-        }
-        if (!moved) break;
-    }
-    // 2. anything left (only a colour cut off from every other) is removed from the outer edge,
-    // after carrying it to a colour that has one
-    const { adj, edge } = adjacency();
-    for (let c = 1; c < nColors; c++) {
-        let n = rem(c);
-        if (!n) continue;
-        let at = c;
-        if (!edge.has(c)) {
-            const chain = path(c, adj, (o) => edge.has(o));
-            if (chain) { for (let i = 0; i + 1 < chain.length; i++) give(chain[i], chain[i + 1], n); at = chain[chain.length - 1]; n = rem(at); }
-        }
-        for (let pass = 0; n > 0 && pass < 64; pass++) {
-            const outline: number[] = [];
-            for (let p = 0; p < key.length; p++) {
-                if (key[p] !== at) continue;
-                const x = p % G;
-                if (x === 0 || x === G - 1 || p < G || p >= G * (G - 1) || nb(p).some((q) => !key[q])) outline.push(p);
-            }
-            if (!outline.length) break;
-            for (const p of spread(outline, n)) { key[p] = 0; count[at]--; n--; }
-        }
     }
 }

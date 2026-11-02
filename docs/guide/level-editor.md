@@ -27,7 +27,7 @@ The phone panel can be dragged by its title bar, resized from its corner, reload
 
 ## 2. Sand Editor
 
-- A summary line (`colours › blocks › grains`) and notes: no sand, more than 12 colours, more than 420 blocks, colours with fewer than 64 grains (they make no block and are cut), and whether the nests are checked.
+- A summary line (`colours › blocks › grains`) and notes: no sand, more than 12 colours, more than 420 blocks, and whether the nests are checked. Each colour makes its grains ÷ 64 blocks, rounded up (its last block takes the leftover grains), and its row in Counts shows its real grain count; the game plays the picture exactly as drawn.
 - **Counts**: blocks and grains per colour, after the game's exact-fit trim.
 - **Recolour by drag**: drag a colour from the Bank (or the Active Palette) onto a colour's row in Counts, or onto the picture, and every grain of that colour (the one under the pointer, on the picture) becomes the new colour. To a colour the picture doesn't use yet, the nests stay with their colour renamed; into a colour it already uses, the two merge and the nests must be generated again. `Ctrl+Z` undoes it.
 - **🖼️ Create sand picture from an image…** opens the generator (below). You can also drop an image anywhere on the editor or paste one (`Ctrl+V`).

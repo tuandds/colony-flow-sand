@@ -4,7 +4,7 @@ export const W = 1080, H = 1920;
 /** Bumped when the board, funnel, conveyor or picture scale change, the funnel's or ants' rules change,
  * or the whole-block trim takes different grains: recorded swipes from an older version no longer
  * replay, so the level editor asks for new ones. */
-export const LAYOUT_VERSION = 13;
+export const LAYOUT_VERSION = 14;
 
 // Laid out like the Sugar Drop prototype: a HUD row, big boosters under it with the x2 button
 // beside them, the picture frame with its funnel ending in a gate on the conveyor, then the nests.

@@ -67,7 +67,7 @@ export function recordPlay(sim: Sim, variant: number, maxSec = 1500): Recording 
     // blocks of each colour still to reach the conveyor
     const left: Record<string, number> = {}, grains: Record<string, number> = {};
     for (const k of s.key) if (k) grains[s.keys[k]!] = (grains[s.keys[k]!] || 0) + 1;
-    for (const k in grains) left[k] = Math.round(grains[k] / BLOCK_GRAINS);
+    for (const k in grains) left[k] = Math.ceil(grains[k] / BLOCK_GRAINS);
     const seen = new WeakSet<object>();
     const COLS = s.ncols;
     const made: Nest[][] = Array.from({ length: COLS }, () => []);
