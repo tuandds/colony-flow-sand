@@ -8,12 +8,12 @@ const WIN = ['win_bg', 'amazing', 'rewards', 'btn_reward', 'btn_continue', 'icon
 /** The game screen's art (public/assets/img): mostly the Sugar Drop prototype kit (background,
  * picture frame with its funnel and the gate under it, conveyor, fill gauge, nest boxes and their white frame, booster
  * button, badge and pictures, settings and speed buttons); the padlock, the Activate frame, the
- * plus badge and the Fan's cannon are older art. */
+ * plus badge and the Fan's cannon are older art; the ants' shadow is Colony Flow's. */
 const IMAGES = [
     'bg', 'frame', 'box_gate', 'conveyor', 'conveyor_hold', 'progress_bar', 'progress', 'nest_frame',
     ...NEST_BOXES.map(([k]) => k),
     'btn_settings', 'btn_speed_on', 'btn_speed_off', 'bst_btn', 'bst_btn_locked', 'icon_lock', 'bst_frame',
-    'badge_red', 'badge_plus', 'bst_claw', 'bst_shuffle', 'bst_flower', 'bst_cannon',
+    'badge_red', 'badge_plus', 'bst_claw', 'bst_shuffle', 'bst_flower', 'bst_cannon', 'ant_shadow',
 ];
 /** The Pause panel's art (public/assets/settings), loaded as `set_<name>`. */
 const SETTINGS = ['board', 'btn_blue', 'btn_gray', 'btn_close', 'btn_green', 'btn_red', 'music_on', 'music_off', 'sound_on', 'sound_off', 'vibe_on', 'vibe_off', 'icon_retry', 'icon_home'];

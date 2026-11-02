@@ -79,6 +79,8 @@ export class Game extends Phaser.Scene {
     private threeCtx!: CanvasRenderingContext2D;
     /** The belt's holders, one under each slot (they move with the belt). */
     private holds: Phaser.GameObjects.Image[] = [];
+    /** Colony Flow's soft shadow under each ant (img/ant_shadow.png), reused frame to frame. */
+    private antShadows: Phaser.GameObjects.Image[] = [];
     private shadowGfx!: Phaser.GameObjects.Graphics;
     private fxGfx!: Phaser.GameObjects.Graphics;
     private fullText!: Phaser.GameObjects.Text;
@@ -308,9 +310,14 @@ export class Game extends Phaser.Scene {
         for (let i = li; i < this.nestBoxes.length; i++) { this.nestBoxes[i].setVisible(false); this.nestFrames[i].setVisible(false); }
         for (; li < this.labels.length; li++) this.labels[li].setVisible(false);
 
-        g.fillStyle(0x3c2814, 0.22);
+        // each ant's shadow lies along it, a little below and right of it (the light is up left),
+        // over the belt and the nests, under the 3D layer
+        s.ants.forEach((a, i) => {
+            const sh = (this.antShadows[i] ??= this.add.image(0, 0, 'ant_shadow').setDepth(D.three - 0.05).setAlpha(0.85));
+            sh.setPosition(a.x + 5, a.y + 18).setDisplaySize(100, 40).setRotation(a.ang).setVisible(true);
+        });
+        for (let i = s.ants.length; i < this.antShadows.length; i++) this.antShadows[i].setVisible(false);
         for (const a of s.ants) {
-            g.fillEllipse(a.x, a.y + 3, 44, 14);
             items.push({ ref: a, kind: 'ant', x: a.x, y: a.y + 10, ang: a.ang, color: s.colors[a.nest.color], carry: a.carry ? parseInt(s.colors[a.carry].slice(1), 16) : null });
         }
         this.three.render(items, s.time);

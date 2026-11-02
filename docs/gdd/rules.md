@@ -49,7 +49,7 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 - 4 columns of nests (levels from the level editor can have 2 to 6). Two rows show at the bottom of the screen and the third down to its number (rows 130 px apart); the rest wait below it.
 - Only the front nest of each column is active. Nests never change column: when the front nest fills it pops and the column slides up.
 - Nest sizes and order are generated from the picture: the blocks are listed in the order the sand naturally comes out (bottom rows first, or outside-in for pictures with enclosed colours), cut into nests of `chunk × 2` blocks, and dealt to the column with the least sand still queued. Levels can pin a seed that a test player could solve.
-- An ant leaves an active nest every 0.12 s while that nest still needs blocks and a matching block is on the belt. Ants walk at 420 px/s, are 74 px long and carry 26 px cubes.
+- An ant leaves an active nest every 0.12 s while that nest still needs blocks and a matching block is on the belt. Ants walk at 420 px/s, are 74 px long and carry 26 px cubes; they are glossy, and black ants are drawn a near-black that still shows their shape.
 - **Ant paths:** each ant leaves from its own spot on the nest's top edge (up to ±38 px from the centre) and comes back to it. On the way out it heads off its block: it aims at the point on the belt where it would meet the block running straight, a random 25–100 % of the way there from the block, so some ants chase their block and others cut across to meet it. Both come from the level's seeded random numbers, so a recorded play still replays the same.
 
 ## 3.6 Controls <Badge type="tip" text="Live" />
@@ -67,20 +67,19 @@ All numbers come from `src/game/layout.ts` and `src/game/sim.ts`.
 
 ## 3.7 Levels <Badge type="tip" text="Live" />
 
-Ten original pictures. Difficulty rises through picture size, number of colours and nest size (`chunk`, in blocks before the ×2 nest scale). Nine of them were changed in the Level Editor (pictures, and nests for three); the game plays those copies from `src/game/level-edits.json`. Bot result: the test bot (`playBot`) on this build.
+Ten pictures, all made in the Level Editor (whole-frame pictures, 188 × 176 grains); the game plays them from `src/game/level-edits.json` (a Level Bank export, its "Game" chapter). Difficulty rises through picture size, number of colours and nest size (`chunk`, in blocks before the ×2 nest scale). The names are the levels' slots from the original ten; the pictures are new. Not yet checked with the test bot.
 
-| # | Picture | Size (cells) | Colours (with outline) | Chunk | Nests | Edited | Bot |
-|---|---|---|---|---|---|---|---|
-| 1 | Cherries | 14 | 5 | 3–5 | set in the editor | yes | win |
-| 2 | Ice Cream | 16 | 5 | 3–6 | rows | yes | win |
-| 3 | Goldfish | 18 | 5 | 4–6 | onion | yes | win |
-| 4 | Cupcake | 18 | 7 | 4–7 | rows | yes | win |
-| 5 | Little Owl | 20 | 5 | 5–8 | rows, seed 5 | no | win |
-| 6 | Hot Air Balloon | 20 | 5 | 5–8 | rows, seed 3 | yes | win |
-| 7 | Cactus Pot | 20 | 6 | 5–8 | rows, seed 1 | yes | win |
-| 8 | Garden Snail | 22 | 7 | 5–9 | rows | yes | stuck |
-| 9 | Rocket | 22 | 5 | 6–9 | set in the editor | yes | stuck |
-| 10 | Penguin | 22 | 7 | 6–9 | set in the editor | yes | stuck |
+| # | Name | Colours | Chunk | Nests |
+|---|---|---|---|---|
+| 1 | Cherries | 4 | 3–5 | rows |
+| 2 | Ice Cream | 4 | 4–6 | rows |
+| 3 | Goldfish | 6 | 4–6 | onion |
+| 4 | Cupcake | 4 | 4–6 | rows |
+| 5 | Little Owl | 4 | 4–6 | rows, seed 5 |
+| 6 | Hot Air Balloon | 5 | 4–6 | rows, seed 3 |
+| 7 | Cactus Pot | 4 | 4–6 | rows, seed 1 |
+| 8 | Garden Snail | 4 | 5–9 | rows |
+| 9 | Rocket | 4 | 5–8 | rows |
+| 10 | Penguin | 6 | 5–8 | rows, seed 6 |
 
-- Every level was cleared by a test bot with the order and seed above.
 - **Design rule:** keep each colour in one area of the picture. A colour that runs from top to bottom (for example one body colour around the whole picture) makes nests that cannot fill until the very end, and the conveyor overflows.

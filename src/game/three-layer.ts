@@ -5,10 +5,10 @@ import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { H, W } from './layout';
 
-const ANT_ELEV = 1.15, ANT_LEN = 74, CARRY_CUBE = 26;
+const ANT_ELEV = 0.95, ANT_LEN = 74, CARRY_CUBE = 26;
 const CUBE_ELEV = 0.95;
 /** The 3D layer renders below full resolution; it is uploaded to Phaser every frame. */
-const RES = 0.75;
+const RES = 1;
 
 export interface Item3D {
     ref: object;
@@ -49,10 +49,24 @@ function lambert(color: THREE.ColorRepresentation) {
     return new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide, transparent: true });
 }
 
+/** Ants are glossy, as in Colony Flow: a shiny material with a white highlight. */
+function glossy(color: THREE.ColorRepresentation) {
+    return new THREE.MeshPhongMaterial({ color, specular: 0x5a5a5a, shininess: 60, side: THREE.DoubleSide, transparent: true });
+}
+
+/** An ant's body colour: black is lifted just enough (to a near-black) that the light still
+ * shapes the ant; it stays black to the eye. */
+function antColor(color: THREE.ColorRepresentation) {
+    const c = new THREE.Color(color), hsl = { h: 0, s: 0, l: 0 };
+    c.getHSL(hsl);
+    if (hsl.l < 0.06) c.setHSL(hsl.h, hsl.s, 0.06);
+    return c;
+}
+
 // Ant legs swing back and forth: vertices far from the body's centre line are pushed along the
-// walking axis with a per-ant phase.
+// walking axis with a per-ant phase, and the body bobs a little with each step.
 function antMaterial(color: THREE.ColorRepresentation, legSpan: number) {
-    const m = lambert(color);
+    const m = glossy(antColor(color));
     m.userData.time = { value: 0 };
     m.userData.phase = { value: Math.random() * 6.28 };
     m.onBeforeCompile = (sh) => {
@@ -64,7 +78,8 @@ function antMaterial(color: THREE.ColorRepresentation, legSpan: number) {
        float leg = smoothstep(${(legSpan * 0.3).toFixed(2)}, ${(legSpan * 0.85).toFixed(2)}, abs(position.x));
        float side = position.x > 0.0 ? 0.0 : 3.14159;
        transformed.z += sin(uTime * 15.0 + uPhase + side + position.z * 0.7) * ${(legSpan * 0.18).toFixed(2)} * leg;
-       transformed.y += abs(sin(uTime * 15.0 + uPhase + side)) * ${(legSpan * 0.06).toFixed(2)} * leg;`);
+       transformed.y += abs(sin(uTime * 15.0 + uPhase + side)) * ${(legSpan * 0.06).toFixed(2)} * leg;
+       transformed.y += abs(sin(uTime * 15.0 + uPhase)) * ${(legSpan * 0.04).toFixed(2)} * (1.0 - leg);`);
     };
     return m;
 }
@@ -112,7 +127,7 @@ export class ThreeLayer {
             const yaw = new THREE.Group();
             const body = new THREE.Group(); body.scale.setScalar(s);
             M.parts.forEach((p, i) => {
-                const m = i === 0 ? antMaterial(it.color, M.size.x / 2) : lambert('#ffffff');
+                const m = i === 0 ? antMaterial(it.color, M.size.x / 2) : glossy('#ffffff');
                 o.mats.push(m); body.add(new THREE.Mesh(p, m));
             });
             yaw.add(body);
