@@ -8,6 +8,7 @@
 import type { Recording } from '../game/bot';
 import { COLS, FRAME_N, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains, frameZoom, zoomFrameN } from '../game/layout';
 import EDITS from '../game/level-edits.json';
+import { VARIANTS, type Variant } from '../game/variant';
 import { BANK_COLOURS, CUSTOM_KEY, type Frozen, type LevelDef, PREVIEW_KEY, type Sand, builtinDefs, gameLevelIds, standardColours, decodeSand, encodeSand, gameLevelName, loadCustomLevels, toCurrentFrame, useLevels } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
 import { BANK, type BankColour, type ConvertOpts, HEX, NAME, clipToFrame, countKeys, drawSand, fitToFrame, frameOutside, hexLab, imageToSand, moveRange, nearestKey, rowsToGrains, setBank } from './sand';
@@ -1613,11 +1614,40 @@ function addLevelsDialog() {
     add.onclick = () => { orgPush(); orgDraft.push(...levels.filter((l) => picks.has(l.id)).map((l) => l.id)); $('list-modal').classList.remove('on'); renderOrganizer(); };
     showList(`Thêm màn vào “${ch.name}”`, box, [add]);
 }
+/** The gameplay variant the playtests play (picked from the arrow beside Play, kept in this browser). */
+const VARIANT_KEY = 'cf_editor_variant';
+let variant: Variant = VARIANTS.find((v) => v.id === Number(loadJson<number>(VARIANT_KEY, 1)))?.id ?? 1;
+const variantQuery = () => (variant === 1 ? '' : `&variant=${variant}`);
+function renderVariant() {
+    const v = VARIANTS.find((x) => x.id === variant)!;
+    $('variant-badge').textContent = String(variant);
+    $('btn-play').dataset.tip = `Chơi thử màn này · ${v.name}`;
+    const menu = $('variant-menu');
+    menu.innerHTML = '';
+    for (const x of VARIANTS) {
+        const b = document.createElement('button');
+        b.className = 'variant-item';
+        b.innerHTML = `<span class="tick">${x.id === variant ? '✓' : ''}</span><span><b>${esc(x.name)}</b><small>${esc(x.note)}</small></span>`;
+        b.onclick = () => {
+            variant = x.id;
+            try { localStorage.setItem(VARIANT_KEY, JSON.stringify(variant)); } catch { /* storage blocked */ }
+            showVariantMenu(false);
+            renderVariant();
+            toast(`Chơi thử bằng ${x.name}`);
+        };
+        menu.appendChild(b);
+    }
+}
+function showVariantMenu(on: boolean) { $('variant-menu').hidden = !on; $('btn-variant').classList.toggle('open', on); }
+$('btn-variant').onclick = (e) => { e.stopPropagation(); showVariantMenu(!$('btn-variant').classList.contains('open')); };
+document.addEventListener('pointerdown', (e) => { if (!$('play-group').contains(e.target as Node)) showVariantMenu(false); });
+renderVariant();
+
 function playLevels(ids: string[], autoplay = false) {
     const list = ids.map((id) => levels.find((l) => l.id === id)).filter((l): l is EdLevel => !!l);
     if (!list.length) { toast('Không có màn nào để chơi'); return; }
     try { localStorage.setItem(PREVIEW_KEY, JSON.stringify(list.map(toDef))); } catch { toast('Trình duyệt chặn bộ nhớ'); return; }
-    openPlay('index.html?custom=preview&level=1&t=' + Date.now(), autoplay ? (list[0].nests && list[0].moves) || undefined : undefined, autoplay);
+    openPlay('index.html?custom=preview&level=1' + variantQuery() + '&t=' + Date.now(), autoplay ? (list[0].nests && list[0].moves) || undefined : undefined, autoplay);
 }
 /** Check every level of the set in the workers: replay its winning strokes, or let the bot play. */
 function autoplaySet() {
@@ -1877,7 +1907,7 @@ $('org-upload').onclick = () => { uploadAsSet = true; uploadInput.click(); };
 uploadInput.onchange = () => { const f = uploadInput.files?.[0]; uploadInput.value = ''; if (f) importJson(f, uploadAsSet); };
 $('btn-download').onclick = () => download(`${L().name || 'level'}.json`, JSON.stringify(toDef(L()), null, 2));
 $('bank-copy-ts').onclick = async () => { try { await navigator.clipboard.writeText(levelTs(L())); toast('Đã copy TS của màn này'); } catch { toast('Không copy được'); } };
-$('bank-play-all').onclick = () => { if (save()) window.open('index.html?custom=1', '_blank'); };
+$('bank-play-all').onclick = () => { if (save()) window.open('index.html?custom=1' + variantQuery(), '_blank'); };
 $('btn-backups').onclick = showBackups;
 $('btn-home').onclick = () => { location.href = 'index.html'; };
 $('btn-play').onclick = () => playCurrent(false);

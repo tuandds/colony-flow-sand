@@ -11,6 +11,7 @@ It turns an image into a sand picture, grain by grain, in the game's own colours
 | Editor / Organizer | Switch mode |
 | 🏠 | Open the game |
 | ▶ | Play the current level in the floating phone panel (`index.html?custom=preview`) |
+| ⌄ (beside ▶) | **Gameplay variant**: a list of Phiên bản 1, 2 and 3 to play with. Every playtest (▶, 🤖, Play chapter, Play all) then plays the same levels in that variant (`&variant=<n>`; 1 adds nothing); the number on ▶ shows which, and the choice is kept in this browser (`cf_editor_variant`). The game's Tap to play screen shows it next to the version. For now 2 and 3 play exactly like 1 (`src/game/variant.ts`, `VARIANT`). |
 | 🤖 | **Auto Play**: replay the recorded winning game in the phone panel (the test bot plays when there is no recording) |
 | 💾 | Save the Level Bank and chapter sets in the browser (`Ctrl+S`) |
 | ⬆ / ⬇ | Import JSON (one level, a list or an export) / download the current level |

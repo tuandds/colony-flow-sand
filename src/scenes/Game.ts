@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { VARIANT } from '../game/variant';
 import {
     BELT, BLOCK, BOOSTER_IMAGES, BOOSTER_POS, BOOSTER_SIZE, FRAME_ART, GATE_OUT, H, INNER, NEST_BOXES, PAUSE_BTN, PIC,
     SLOTS, SPEED_BTN, TILE, W,
@@ -973,7 +974,7 @@ export class Game extends Phaser.Scene {
             this.playMusic();
         });
         box.add([shade, this.text(540, 960, 'Tap to play', 80), this.text(540, 1050, 'Swipe the sand to set it free', 38, '#fffbe8', '#5a3a20', 6)]);
-        box.add(this.text(W - 20, H - 24, __APP_VERSION__, 24, '#fffbe8', null).setOrigin(1, 0.5));
+        box.add(this.text(W - 20, H - 24, __APP_VERSION__ + (VARIANT === 1 ? '' : ` · variant ${VARIANT}`), 24, '#fffbe8', null).setOrigin(1, 0.5));
         this.overlayBox = box;
     }
 
