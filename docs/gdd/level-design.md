@@ -163,20 +163,20 @@ Sand stays put until swiped; freed sand falls straight down, runs into the funne
 
 ## 10. Current levels against these rules
 
-Measured on 2026-11-03. Levels 1–10 were drawn by these rules; 11–20 are the earlier set.
+Measured on 2026-11-03. Levels 1–10 follow these rules (from colony-flow-levels (7).json); 11–20 are the earlier set.
 
 | Level | Colours | Blocks | Largest colour | Closest pair (ΔE₀₀) | Notes |
 |---|---|---|---|---|---|
-| level_1 Strawberry | 3 | 95 | 47 % | green / yellow (37) | |
-| level_2 Mushroom | 3 | 130 | 56 % | white / orange (28) | |
-| level_3 Donut | 3 | 165 | 46 % | orange / pink (49) | |
-| level_4 Bee | 3 | 200 | 46 % | white / yellow (32) | |
-| level_5 Tulips | 4 | 237 | 41 % | brown / orangered (33) | |
-| level_6 Whale | 3 | 96 | 51 % | navy / teal (27) | |
-| level_7 Chick | 3 | 131 | 54 % | yellow / orangered (21) | |
-| level_8 Clownfish | 3 | 166 | 51 % | orangered / white (35) | |
-| level_9 Octopus | 3 | 201 | 58 % | magenta / purple (27) | |
-| level_10 Ladybug | 4 | 237 | 40 % | black / red (38) | |
+| level_1 Strawberry | 3 | 94 | 60 % | green / yellow (37) | |
+| level_2 Mushroom | 3 | 97 | 55 % | white / orange (28) | |
+| level_3 Donut | 3 | 119 | 60 % | orange / pink (49) | |
+| level_4 Bee | 3 | 125 | 54 % | white / yellow (32) | |
+| level_5 Tulips | 4 | 166 | 47 % | brown / orangered (33) | |
+| level_6 Whale | 3 | 114 | **68 %** | navy / teal (27) | Navy over the 55 % guide |
+| level_7 Chick | 3 | 147 | 50 % | yellow / orangered (21) | |
+| level_8 Clownfish | 3 | 190 | 50 % | orangered / white (35) | A little white reaches the edge (24 grains) |
+| level_9 Octopus | **4** | 206 | **72 %** | magenta / pink (**weak**: they touch) | A 4th colour (pink mouth); magenta over the guide |
+| level_10 Ladybug | 4 | 236 | 49 % | black / red (38) | |
 | level_11 | 3 | 108 | 47 % | black / olivegreen (35) | |
 | level_12 | 3 | 105 | 53 % (black) | black / pink (50) | Outline-heavy: the outline is over half the blocks |
 | level_13 | 4 | 506 | 50 % | lightyellow / white (31) | Colours span 49–95 % of the height |
