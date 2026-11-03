@@ -2,7 +2,7 @@
 // It swipes the lowest fixed sand of the colours the front nests want, and only frees more
 // sand while the conveyor has room. Sand physics uses Math.random, so one game can differ
 // from the next; the editor asks for two wins in a row.
-import { BLOCK_GRAINS, NEST_SCALE, SLOTS, nestPos } from './layout';
+import { BLOCK_GRAINS, NEST_SCALE, SLOTS } from './layout';
 import { type Nest, Sim } from './sim';
 import { mulberry32 } from './util';
 
@@ -116,7 +116,7 @@ export function recordPlay(sim: Sim, variant: number, maxSec = 1500): Recording 
             const target = lo + Math.floor(rng() * (hi - lo + 1));
             // a colour's supply only falls through its own nest, so the size is final here
             const need = Math.min(target, (free[k] || 0) + left[k]);
-            const [dx, dy] = nestPos(ci, 0, COLS);
+            const [dx, dy] = s.nestAt(ci, 0);
             const nest: Nest = { color: k, need, got: 0, inflight: 0, cool: 0, pop: 0, dx, dy, bump: 0 };
             s.cols[ci].push(nest);
             made[ci].push(nest);

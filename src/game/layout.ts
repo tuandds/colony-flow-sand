@@ -79,7 +79,7 @@ export function funnelHalf(y: number) {
  * under the frame's gate with a small gap, as in the Sugar Drop layout. */
 export const BELT = { cxL: 203, cxR: 877, cy: 1492, r: 50, band: 52 };
 export const BELT_LEN = 2 * (BELT.cxR - BELT.cxL) + 2 * Math.PI * BELT.r;
-export const SLOTS = 30;
+export const SLOTS = 36;
 export const SLOT_GAP = BELT_LEN / SLOTS;
 export const BELT_SPEED = 300;
 export const DROP_S = MOUTH.x - BELT.cxL;
@@ -87,9 +87,11 @@ export const BLOCK = 32; // block cubes on the conveyor, px
 
 /** Nest columns: 4 by default; a level can ask for MIN_COLS to MAX_COLS (level editor). */
 export const COLS = 4, MIN_COLS = 2, MAX_COLS = 6;
+/** Distance between the centres of two neighbouring nest columns, for a level of n columns. */
+export const colGap = (n = COLS) => Math.min(172, 940 / n);
 /** Centre x of column ci of n, spread around the screen centre (closer together past 4). */
 export function colX(ci: number, n = COLS) {
-    return 540 + (ci - (n - 1) / 2) * Math.min(172, 940 / n);
+    return 540 + (ci - (n - 1) / 2) * colGap(n);
 }
 export const ROW_GAP = 130;
 /** Extra space below the front row, so the queued nests clear its white outline. */

@@ -2,7 +2,7 @@
 // nests and ants. The scene calls update() every frame and reads the fields to draw them.
 import {
     ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, COLS, DROP_S, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS,
-    FRAME_N, MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colX, frameGrains, funnelHalf, grainInFrame, nestPos,
+    FRAME_N, MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colGap, colX, frameGrains, funnelHalf, grainInFrame, nestPos,
 } from './layout';
 import { Frozen, Level, buildLevel, decodeSand, widenOldFrame } from './levels';
 import { hash, mulberry32, packColor } from './util';
@@ -472,13 +472,23 @@ export class Sim {
     }
 
     // ---------- nests and ants ----------
+    /** Centre x of column ci now: the columns that still have nests close up round the screen
+     * centre, keeping the level's spacing, so a column that has run out leaves no gap. */
+    colX(ci: number) {
+        let rank = 0, live = 0;
+        for (let i = 0; i < this.ncols; i++) if (this.cols[i]?.length) { if (i < ci) rank++; live++; }
+        if (!this.cols[ci]?.length) return colX(ci, this.ncols);
+        return 540 + (rank - (live - 1) / 2) * colGap(this.ncols);
+    }
+    /** Where nest ri of column ci sits (its slot, not its sliding position). */
+    nestAt(ci: number, ri: number): [number, number] { return [this.colX(ci), nestPos(ci, ri, this.ncols)[1]]; }
     /** Ants work for the front nest of each column, and for nests the Activate booster woke. */
     isActive(nest: Nest, ri: number) { return ri === 0 || !!nest.on; }
     private stepNests(dt: number) {
         for (let ci = 0; ci < this.ncols; ci++) {
             const col = this.cols[ci];
             col.forEach((nest, ri) => {
-                const [tx, ty] = nestPos(ci, ri, this.ncols);
+                const [tx, ty] = this.nestAt(ci, ri);
                 if (nest.dy === null) nest.dy = ty;
                 if (nest.dx === null) nest.dx = tx;
                 nest.dy += (ty - nest.dy) * Math.min(1, dt * 10);
@@ -501,7 +511,7 @@ export class Sim {
                 if (nest.got + nest.inflight >= nest.need || nest.cool > 0) continue;
                 // ants use the nest's slot, not its sliding position, so the rules don't
                 // depend on the animation (recorded plays then replay exactly)
-                const [nx, ny] = nestPos(ci, ri, this.ncols);
+                const [nx, ny] = this.nestAt(ci, ri);
                 let best = -1, bd = 1e9;
                 for (let i = 0; i < SLOTS; i++) {
                     const b = this.slots[i];
@@ -541,7 +551,7 @@ export class Sim {
             a.t += dt;
             let tx: number, ty: number, ax: number, ay: number;
             if (!a.carry) { [tx, ty] = this.slotPos(a.slot); [ax, ay] = this.intercept(a, tx, ty); }
-            else { [tx, ty] = nestPos(a.col, Math.max(0, this.cols[a.col].indexOf(a.nest)), this.ncols); tx += a.ox; ty -= TILE / 2; ax = tx; ay = ty; }
+            else { [tx, ty] = this.nestAt(a.col, Math.max(0, this.cols[a.col].indexOf(a.nest))); tx += a.ox; ty -= TILE / 2; ax = tx; ay = ty; }
             // it runs toward its aim point and arrives when it reaches the block (or the nest)
             const dx = ax - a.x, dy = ay - a.y, d = Math.hypot(dx, dy), step = ANT_SPEED * dt;
             const left = Math.hypot(tx - a.x, ty - a.y);
@@ -558,7 +568,7 @@ export class Sim {
                     this.sfx('pick', 0.45);
                 } else {
                     this.ants.splice(i, 1);
-                    this.deliver(a.nest, colX(a.col, this.ncols));
+                    this.deliver(a.nest, this.colX(a.col));
                 }
             } else if (d > 0.001) {
                 const k = Math.min(step, d) / d;
@@ -649,7 +659,7 @@ export class Sim {
                     // a block an ant has claimed already counts for its nest
                     const free = nest.need - nest.got - nest.inflight + (b.claimed?.nest === nest ? 1 : 0);
                     if (free <= 0) return;
-                    const d = Math.abs(colX(ci, this.ncols) - bx);
+                    const d = Math.abs(this.colX(ci) - bx);
                     if (d < bd) { bd = d; target = nest; }
                 });
             }

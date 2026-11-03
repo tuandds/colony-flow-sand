@@ -41,14 +41,15 @@ export default defineConfig({
                         { text: '1. Core gameplay', link: '/gdd/core-gameplay' },
                         { text: '2. User Flow & UI', link: '/gdd/user-flow-ui' },
                         { text: '3. Booster', link: '/gdd/booster' },
-                        { text: '4. Levels', link: '/gdd/levels' }
+                        { text: '4. Levels', link: '/gdd/levels' },
+                        { text: '5. Level design rules', link: '/gdd/level-design' }
                     ]
                 },
                 {
                     text: 'II. Production',
                     items: [
-                        { text: '5. Roadmap & open questions', link: '/gdd/roadmap' },
-                        { text: '6. Changelog', link: '/gdd/changelog' }
+                        { text: '6. Roadmap & open questions', link: '/gdd/roadmap' },
+                        { text: '7. Changelog', link: '/gdd/changelog' }
                     ]
                 }
             ],

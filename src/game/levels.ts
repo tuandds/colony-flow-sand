@@ -397,8 +397,11 @@ export function builtinDefs(): LevelDef[] {
     });
 }
 
-/** The order the game plays the built-in levels in, by index (`builtin-<i>`): the Level Bank's order. */
-const GAME_ORDER = [0, 1, 3, 4, 2, 5, 6, 7, 8, 9];
+/** The order the game plays the built-in levels in, by index (`builtin-<i>`): the Level Bank's order.
+ * Levels 10 to 19 have no drawing in LEVELS: they live only in src/game/level-edits.json. */
+const GAME_ORDER = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 0, 1, 3, 4, 2, 5, 6, 7, 8, 9];
+/** The game's level ids, in the order it plays them. */
+export const gameLevelIds = () => GAME_ORDER.map(builtinId);
 
 /** A game level's name, `level_<n>` with n its place in the game (from 1), whatever name a saved
  * copy carries; null for a level that is not one of the game's. */
@@ -414,9 +417,10 @@ export function gameLevelName(id: string | undefined) {
  */
 export function gameLevels(): LevelDef[] {
     const saved = loadCustomLevels(CUSTOM_KEY), file = EDITS as unknown as LevelDef[];
-    return GAME_ORDER.map((i) => {
-        const L = LEVELS[i], id = builtinId(i), a = saved.find((x) => x.id === id), b = file.find((x) => x.id === id);
-        return { ...((a && b ? ((a.updated ?? 0) >= (b.updated ?? 0) ? a : b) : a ?? b) ?? L), name: gameLevelName(id)! };
+    return GAME_ORDER.flatMap((i) => {
+        const L = LEVELS[i] as LevelDef | undefined, id = builtinId(i), a = saved.find((x) => x.id === id), b = file.find((x) => x.id === id);
+        const def = (a && b ? ((a.updated ?? 0) >= (b.updated ?? 0) ? a : b) : a ?? b) ?? L;
+        return def ? [{ ...def, name: gameLevelName(id)! }] : [];
     });
 }
 

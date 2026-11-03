@@ -25,7 +25,7 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <li>The blocks come out of the gate under the frame onto a conveyor that runs round and round.</li>
 <li>Ant nests wait under the conveyor, each for blocks of one colour. When a block of its colour passes, an ant walks out, takes it and carries it home, and the number on the nest counts down.</li>
 <li>A full nest pops and the next nest in its column moves up.</li>
-<li>The tension: the conveyor has 30 slots. Releasing a colour no front nest wants fills it up.</li>
+<li>The tension: the conveyor has 36 slots. Releasing a colour no front nest wants fills it up.</li>
 </ul>
 <p><b>Win:</b></p>
 <ul><li>Every nest has all its blocks.</li></ul>
@@ -109,7 +109,7 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <p><b>Structure:</b> about 12 % of the screen height.</p>
 <ul>
 <li>A loop track: straight runs from x 203 to 877, round ends of radius 50, centred at y 1492. The belt art (<code>img/conveyor.png</code>) is drawn with its own hollow in the wood round it.</li>
-<li><b>30 slots</b>, each with a holder (a dark slate square); a block is a 32 px cube.</li>
+<li><b>36 slots</b> (about 46 px apart), each with a holder (a dark slate square); a block is a 32 px cube.</li>
 <li>A fill gauge in the middle shows how full the belt is (a green bar and a percentage).</li>
 </ul>
 <p><b>Behaviour:</b></p>
@@ -142,6 +142,7 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <li>An ant leaves an active nest every 0.12 s while it still needs blocks and a matching block is on the belt. Ants walk at 420 px/s, are 74 px long and carry 26 px cubes.</li>
 <li>Each ant leaves from its own spot on the nest's top edge (up to ±38 px from the centre) and heads off its block: it aims at a point a random 25–100 % of the way to where it would meet the block, so some ants chase their block and others cut across. Both come from the level's seeded random numbers, so a recorded play replays the same.</li>
 <li>A full nest pops; the column slides up. Nests never change column.</li>
+<li>When a column's last nest pops, the columns left slide together (in about 0.3 s) and stay centred on the screen, still 172 px apart, so no gap is left where it was. Ants and the Fan then aim at the columns' new places.</li>
 </ul>
 <p><b>Position:</b> under the conveyor, to the bottom of the screen.</p>
 </td>

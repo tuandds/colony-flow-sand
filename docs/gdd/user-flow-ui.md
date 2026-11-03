@@ -39,7 +39,7 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 <li><b>Top UI</b> (about 14 % of the screen): Settings (pauses the game), the level title "Level N", the x2 speed button.</li>
 <li><b>Boosters:</b> a row of three under the title: Activate, Shuffle, Fan (unlock at levels 3, 6, 9). A booster with no uses left shows a green plus and opens <a href="#_6-purchase-booster">Purchase Booster</a>.</li>
 <li><b>Sand board & funnel</b> (about 57 %): the sand picture; the player swipes it to free the sand. The funnel ends in a gate just above the conveyor.</li>
-<li><b>Conveyor</b> (about 12 %): 30 slots; blocks come out of the gate onto it.</li>
+<li><b>Conveyor</b> (about 12 %): 36 slots; blocks come out of the gate onto it.</li>
 <li><b>Nests</b> (about 17 %): 4 columns of ant nests; two rows and a half show.</li>
 </ul>
 <p><b>Win & Lose:</b></p>

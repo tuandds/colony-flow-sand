@@ -8,7 +8,7 @@
 import type { Recording } from '../game/bot';
 import { COLS, FRAME_N, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
 import EDITS from '../game/level-edits.json';
-import { BANK_COLOURS, CUSTOM_KEY, type Frozen, type LevelDef, PREVIEW_KEY, type Sand, builtinDefs, standardColours, decodeSand, encodeSand, gameLevelName, loadCustomLevels, useLevels, widenOldFrame } from '../game/levels';
+import { BANK_COLOURS, CUSTOM_KEY, type Frozen, type LevelDef, PREVIEW_KEY, type Sand, builtinDefs, gameLevelIds, standardColours, decodeSand, encodeSand, gameLevelName, loadCustomLevels, useLevels, widenOldFrame } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
 import { BANK, type BankColour, type ConvertOpts, HEX, NAME, clipToFrame, countKeys, drawSand, fitToFrame, frameOutside, hexLab, imageToSand, moveRange, nearestKey, rowsToGrains, setBank } from './sand';
 import type { SolveJob, SolveResult } from './solver.worker';
@@ -48,7 +48,7 @@ const BANK_KEY = 'cf_editor_bank';
 const BANK_VER_KEY = 'cf_editor_bank_v', BANK_VER = 3;
 const MAX_BACKUPS = 15, MAX_HISTORY = 10;
 /** Set once the built-in levels have been added to a saved Level Bank (see loadLevels). */
-const BUILTIN_KEY = 'cf_editor_builtin_v', BUILTIN_CHAPTER = 'builtin';
+const BUILTIN_KEY = 'cf_editor_builtin_v', BUILTIN_VER = 2, BUILTIN_CHAPTER = 'builtin';
 const DIFFS: { key: string; label: string; short: string; chunk: [number, number] }[] = [
     { key: '3,5', label: 'Rất dễ', short: 'Rất dễ', chunk: [3, 5] }, { key: '4,6', label: 'Dễ', short: 'Dễ', chunk: [4, 6] },
     { key: '4,7', label: 'Vừa', short: 'Vừa', chunk: [4, 7] }, { key: '5,8', label: 'Khó', short: 'Khó', chunk: [5, 8] },
@@ -97,15 +97,20 @@ function loadBank(): BankColour[] {
 }
 function loadLevels(): EdLevel[] {
     const saved = loadCustomLevels(CUSTOM_KEY), file = EDITS as unknown as LevelDef[];
-    // the game's levels: the copy in src/game/level-edits.json when there is one, else the original
-    const game = builtinDefs().map((d) => file.find((x) => x.id === d.id) ?? d);
+    // the game's levels, in the game's order: the copy in src/game/level-edits.json when there is
+    // one, else the original (levels with no original live only in that file)
+    const originals = builtinDefs();
+    const game = gameLevelIds().flatMap((id) => { const d = file.find((x) => x.id === id) ?? originals.find((x) => x.id === id); return d ? [d] : []; });
     // a copy saved in the repo after this browser's copy (another computer, git pull) replaces it
     const list = saved.map((l) => { const f = file.find((x) => x.id === l.id); return f && (f.updated ?? 0) > (l.updated ?? 0) ? f : l; });
-    // the first time, the built-in levels are added at the top, with a chapter set of their own;
-    // one deleted later stays deleted (the game then plays the original)
-    if (!loadJson<number>(BUILTIN_KEY, 0)) {
+    // once per change of the game's level set, the game's levels missing here are added at the
+    // top, and the Game chapter lists them in the game's order; one deleted later stays deleted
+    // (the game then plays its own copy)
+    if (loadJson<number>(BUILTIN_KEY, 0) < BUILTIN_VER) {
         list.unshift(...game.filter((d) => !list.some((x) => x.id === d.id)).map((d) => ({ status: 'LIVE' as Status, ...d })));
-        if (!chapters.some((c) => c.id === BUILTIN_CHAPTER)) chapters.unshift({ id: BUILTIN_CHAPTER, name: 'Game', description: 'Các màn có sẵn trong game', levels: game.map((d) => d.id!) });
+        const ids = game.map((d) => d.id!), ch = chapters.find((c) => c.id === BUILTIN_CHAPTER);
+        if (!ch) chapters.unshift({ id: BUILTIN_CHAPTER, name: 'Game', description: 'Các màn có sẵn trong game', levels: ids });
+        else ch.levels = [...ids, ...ch.levels.filter((id) => !ids.includes(id))];
     }
     const out = list.map(normalize);
     return out.length ? out : [blankLevel()];
@@ -113,7 +118,8 @@ function loadLevels(): EdLevel[] {
 /** Whether a built-in level's copy plays differently from the original (or is renamed). */
 const ORIGINALS = new Map(builtinDefs().map((d) => [d.id!, d]));
 const playSig = (d: LevelDef) => JSON.stringify([d.name, d.n, d.sand?.data, d.sand?.w, d.chunk, d.order || 'rows', d.seed ?? 0, d.salt, d.cols ?? COLS, d.nests ?? null, d.frozen ?? null]);
-const isEdited = (l: EdLevel) => { const o = ORIGINALS.get(l.id); return !!o && playSig(toDef(l)) !== playSig(o); };
+// a game level with no original (it lives only in level-edits.json) is always written back
+const isEdited = (l: EdLevel) => { const o = ORIGINALS.get(l.id); return o ? playSig(toDef(l)) !== playSig(o) : gameLevelName(l.id) !== null; };
 /** On the dev server, write the changed built-in levels to src/game/level-edits.json (vite.config.ts). */
 function saveEdits() {
     if (!import.meta.env.DEV) return;
@@ -193,7 +199,7 @@ function save() {
         localStorage.setItem(CUSTOM_KEY, json);
         localStorage.setItem(CHAPTER_KEY, JSON.stringify(chapters));
         localStorage.setItem(CUSTOM_KEY + '_at', String(Date.now()));
-        localStorage.setItem(BUILTIN_KEY, '1');
+        localStorage.setItem(BUILTIN_KEY, String(BUILTIN_VER));
         // version history per level: keep what changed
         const hist = loadJson<Record<string, { t: number; level: unknown }[]>>(HISTORY_KEY, {});
         for (const l of levels) {

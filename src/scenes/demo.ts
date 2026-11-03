@@ -69,60 +69,60 @@ export interface DemoScene { title: string; level: number; length: number; strok
 /**
  * The marketing reels, five of 30 seconds and two of 60: gameplay only, at x2 from the start, no
  * boosters, none played to the win. Each shows its own levels (0-based: level_1 is 0) with its
- * own mix of strokes.
+ * own mix of strokes. They show levels 11 to 20 (the pictures they were made with).
  */
 export const DEMO_SCENES: Record<string, DemoScene> = {
-    // mostly straight drops: levels 1, 4, 7, 9
+    // mostly straight drops: levels 11, 14, 17, 19
     drops30: {
-        title: 'Drops, 30 s', level: 0, length: 30, strokes: ['down', 'diagL', 'down', 'zigzag', 'down', 'diagR'], steps: [
+        title: 'Drops, 30 s', level: 10, length: 30, strokes: ['down', 'diagL', 'down', 'zigzag', 'down', 'diagR'], steps: [
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
-            { cut: 3, ff: 15 }, { auto: 5 }, { cut: 6, ff: 20 }, { auto: 5 }, { cut: 8, ff: 10 }, { auto: 12 },
+            { cut: 13, ff: 15 }, { auto: 5 }, { cut: 16, ff: 20 }, { auto: 5 }, { cut: 18, ff: 10 }, { auto: 12 },
         ],
     },
-    // mostly sweeps along the bottom: levels 2, 5, 8, 10
+    // mostly sweeps along the bottom: levels 12, 15, 18, 20
     sweeps30: {
-        title: 'Sweeps, 30 s', level: 1, length: 30, strokes: ['sweepR', 'up', 'sweepL', 'down', 'sweepR', 'sweepL'], steps: [
+        title: 'Sweeps, 30 s', level: 11, length: 30, strokes: ['sweepR', 'up', 'sweepL', 'down', 'sweepR', 'sweepL'], steps: [
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
-            { cut: 4, ff: 10 }, { auto: 5 }, { cut: 7, ff: 12 }, { auto: 5 }, { cut: 9, ff: 8 }, { auto: 12 },
+            { cut: 14, ff: 10 }, { auto: 5 }, { cut: 17, ff: 12 }, { auto: 5 }, { cut: 19, ff: 8 }, { auto: 12 },
         ],
     },
-    // mostly zigzags: levels 3, 6, 9, 1
+    // mostly zigzags: levels 13, 16, 19, 11
     zigzag30: {
-        title: 'Zigzags, 30 s', level: 2, length: 30, strokes: ['zigzag', 'up', 'zigzag', 'diagR', 'zigzag', 'down'], steps: [
+        title: 'Zigzags, 30 s', level: 12, length: 30, strokes: ['zigzag', 'up', 'zigzag', 'diagR', 'zigzag', 'down'], steps: [
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
-            { cut: 5, ff: 20 }, { auto: 5 }, { cut: 8, ff: 10 }, { auto: 5 }, { cut: 0 }, { auto: 12 },
+            { cut: 15, ff: 20 }, { auto: 5 }, { cut: 18, ff: 10 }, { auto: 5 }, { cut: 10 }, { auto: 12 },
         ],
     },
-    // mostly diagonals: levels 4, 10, 2, 7
+    // mostly diagonals: levels 14, 20, 12, 17
     diagonals30: {
-        title: 'Diagonals, 30 s', level: 3, length: 30, strokes: ['diagL', 'diagR', 'sweepR', 'diagR', 'diagL', 'up'], steps: [
+        title: 'Diagonals, 30 s', level: 13, length: 30, strokes: ['diagL', 'diagR', 'sweepR', 'diagR', 'diagL', 'up'], steps: [
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
-            { cut: 9, ff: 8 }, { auto: 5 }, { cut: 1, ff: 3 }, { auto: 5 }, { cut: 6, ff: 20 }, { auto: 12 },
+            { cut: 19, ff: 8 }, { auto: 5 }, { cut: 11, ff: 3 }, { auto: 5 }, { cut: 16, ff: 20 }, { auto: 12 },
         ],
     },
-    // mostly up from the bottom: levels 5, 8, 3, 6
+    // mostly up from the bottom: levels 15, 18, 13, 16
     rises30: {
-        title: 'Rises, 30 s', level: 4, length: 30, strokes: ['up', 'sweepL', 'up', 'down', 'up', 'zigzag'], steps: [
+        title: 'Rises, 30 s', level: 14, length: 30, strokes: ['up', 'sweepL', 'up', 'down', 'up', 'zigzag'], steps: [
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
-            { cut: 7, ff: 12 }, { auto: 5 }, { cut: 2, ff: 12 }, { auto: 5 }, { cut: 5, ff: 20 }, { auto: 12 },
+            { cut: 17, ff: 12 }, { auto: 5 }, { cut: 12, ff: 12 }, { auto: 5 }, { cut: 15, ff: 20 }, { auto: 12 },
         ],
     },
-    // every kind of stroke in turn: levels 1, 3, 5, 7, 9, 2, 4, 6
+    // every kind of stroke in turn: levels 11, 13, 15, 17, 19, 12, 14, 16
     mix60: {
-        title: 'Mix, 60 s', level: 0, length: 60, steps: [
+        title: 'Mix, 60 s', level: 10, length: 60, steps: [
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
-            { cut: 2, ff: 12 }, { auto: 5.5 }, { cut: 4, ff: 10 }, { auto: 5.5 }, { cut: 6, ff: 20 }, { auto: 5.5 },
-            { cut: 8, ff: 10 }, { auto: 5.5 }, { cut: 1, ff: 3 }, { auto: 5.5 }, { cut: 3, ff: 15 }, { auto: 5.5 },
-            { cut: 5, ff: 20 }, { auto: 12 },
+            { cut: 12, ff: 12 }, { auto: 5.5 }, { cut: 14, ff: 10 }, { auto: 5.5 }, { cut: 16, ff: 20 }, { auto: 5.5 },
+            { cut: 18, ff: 10 }, { auto: 5.5 }, { cut: 11, ff: 3 }, { auto: 5.5 }, { cut: 13, ff: 15 }, { auto: 5.5 },
+            { cut: 15, ff: 20 }, { auto: 12 },
         ],
     },
-    // all ten levels, last to first, about five seconds each
+    // levels 20 to 11, last to first, about five seconds each
     tour60: {
-        title: 'Tour, 60 s', level: 9, length: 60, strokes: ['zigzag', 'sweepL', 'diagR', 'up', 'down', 'sweepR', 'diagL'], steps: [
+        title: 'Tour, 60 s', level: 19, length: 60, strokes: ['zigzag', 'sweepL', 'diagR', 'up', 'down', 'sweepR', 'diagL'], steps: [
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
-            { cut: 8, ff: 10 }, { auto: 4 }, { cut: 7, ff: 12 }, { auto: 4 }, { cut: 6, ff: 20 }, { auto: 4 },
-            { cut: 5, ff: 20 }, { auto: 4 }, { cut: 4, ff: 10 }, { auto: 4 }, { cut: 3, ff: 15 }, { auto: 4 },
-            { cut: 2, ff: 12 }, { auto: 4 }, { cut: 1, ff: 3 }, { auto: 4 }, { cut: 0 }, { auto: 10 },
+            { cut: 18, ff: 10 }, { auto: 4 }, { cut: 17, ff: 12 }, { auto: 4 }, { cut: 16, ff: 20 }, { auto: 4 },
+            { cut: 15, ff: 20 }, { auto: 4 }, { cut: 14, ff: 10 }, { auto: 4 }, { cut: 13, ff: 15 }, { auto: 4 },
+            { cut: 12, ff: 12 }, { auto: 4 }, { cut: 11, ff: 3 }, { auto: 4 }, { cut: 10 }, { auto: 10 },
         ],
     },
 };

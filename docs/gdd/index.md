@@ -17,8 +17,8 @@ This document describes what Colony Flow Sand is and how it plays. Every number 
 
 | Part | Chapters |
 |---|---|
-| **I. Gameplay** | [1. Core gameplay](./core-gameplay) (overview, then one table per screen zone: sand board & funnel, conveyor, nests & ants, HUD & boosters, result screens) · [2. User Flow & UI](./user-flow-ui) (the flow between screens and every screen, live or to build in Unity) · [3. Booster](./booster) (Activate, Shuffle, Fan: states, rules, purchase) · [4. Levels](./levels) |
-| **II. Production** | [5. Roadmap & open questions](./roadmap) · [6. Changelog](./changelog) |
+| **I. Gameplay** | [1. Core gameplay](./core-gameplay) (overview, then one table per screen zone: sand board & funnel, conveyor, nests & ants, HUD & boosters, result screens) · [2. User Flow & UI](./user-flow-ui) (the flow between screens and every screen, live or to build in Unity) · [3. Booster](./booster) (Activate, Shuffle, Fan: states, rules, purchase) · [4. Levels](./levels) · [5. Level design rules](./level-design) (drawing, colours, nests, difficulty) |
+| **II. Production** | [6. Roadmap & open questions](./roadmap) · [7. Changelog](./changelog) |
 
 ## How to read this document
 
