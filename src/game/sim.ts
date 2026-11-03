@@ -103,7 +103,7 @@ export class Sim {
         this.n = L.n;
         // Each picture cell is split into SUB x SUB sand grains that are simulated one by one.
         // The frame is FRAME_N cells tall, unless the level zooms its grains (a smaller frame of
-        // bigger grains, see GRAIN_ZOOMS). The simulated area reaches the board's inner frame on
+        // bigger grains, see frameZoom). The simulated area reaches the board's inner frame on
         // both sides (and is padded above), so loose sand on the picture's edges can still slide
         // off and fall until the frame stops it.
         const wide = L.sand ? toCurrentFrame(decodeSand(L.sand), L.sand.w ?? L.sand.size, L.sand.size) : null;

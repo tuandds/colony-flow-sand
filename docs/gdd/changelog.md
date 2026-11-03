@@ -4,6 +4,8 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
+- **Grain zoom is a slider:** **Phóng to hạt** in the Level Editor is a slider from 1× to 2× in steps of 0.05 (it was four choices). While you drag, its label shows the zoom, the frame it gives and, in red, how many grains it would cut; letting go applies it, as one undo step. The game takes any frame from 64 to 128 grains tall as a zoomed frame.
+- **Fix: editing a grain-zoomed level:** after **Phóng to hạt** (1.25× or 1.5×), recolouring, filling, painting or erasing the picture failed (the level's frame is a fractional number of cells there, and the game's cell grid could not be made); it works at every zoom now.
 - **Grain zoom (Phóng to hạt):** a level can make its grains 1.25, 1.5 or 2 times as big (Level Editor, Settings), so its picture grows on screen without more sand: the frame then holds fewer grains (2×: 68 × 64 of about 12 px). The picture keeps all its grains (centred; any sand past the smaller frame is cut, with a toast). The game knows a zoomed level by its picture's size and scales the sand's fall speed and the loose-island limit to the grain size, so they look the same on screen.
 - **Level Editor: smaller brush:** the brush goes down to 0 (a single grain); it started at 2 (a dot about 5 grains wide). The cursor ring fits round even a single grain.
 - **New level_1** from a Level Bank export (colony-flow-levels (10).json): a waving white cat in a yellow boat with flowers on dark blue, a full-frame picture (17,130 grains, 270 blocks, 3 colours, 4 nest columns) instead of the strawberry. Levels 2–20 are unchanged. Not checked with the test bot.

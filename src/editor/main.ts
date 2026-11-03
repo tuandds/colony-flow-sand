@@ -145,7 +145,7 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
     // older pictures (a square, an older frame, another size) sit centred in it, as in the game
     const { w: FW, h: FH } = frameGrains(FRAME_N);
     let n = FRAME_N, sand: Sand, cut = false, rescaled = false, frozen = L.frozen;
-    // a frame of zoomed grains (GRAIN_ZOOMS) is kept as it is
+    // a frame of zoomed grains (frameZoom) is kept as it is
     const zoom = L.sand ? frameZoom(L.sand.w ?? L.sand.size, L.sand.size) : null;
     if (L.sand && zoom !== null) { sand = L.sand; n = zoomFrameN(zoom); }
     else {
@@ -346,13 +346,12 @@ function movePicture(sx: number, sy: number) {
     nestsChanged();
 }
 
-/** Grain zoom (GRAIN_ZOOMS): the level's grains get z times as big, so the same grains make a
- * bigger picture. The frame then holds fewer, so the picture's sand is centred in the new frame
- * and anything past its edge (or in its rounded corners) is cut; with nothing cut the blocks are
- * the same and the nests stay. */
-function zoomLevel(z: number) {
-    const l = L(), { w, h } = dims(), n = zoomFrameN(z), F = frameGrains(n);
-    if (F.w === w && F.h === h) return;
+/** Grain zoom (frameZoom, 1 to MAX_ZOOM): the level's grains get z times as big, so the same grains
+ * make a bigger picture. The frame then holds fewer, so the picture's sand is centred in the new
+ * frame and anything past its edge (or in its rounded corners) is cut; with nothing cut the blocks
+ * are the same and the nests stay. zoomPlan works it out without changing the level. */
+function zoomPlan(z: number) {
+    const { w, h } = dims(), n = zoomFrameN(z), F = frameGrains(n);
     let x0 = w, x1 = -1, y0 = h, y1 = -1, count = 0;
     for (let p = 0; p < w * h; p++) {
         if (grains[p] === '.') continue;
@@ -368,6 +367,16 @@ function zoomLevel(z: number) {
         if (x < 0 || y < 0 || x >= F.w || y >= F.h || out?.[q]) { lost++; continue; }
         next[q] = grains[p];
     }
+    return { n, F, dx, dy, next, lost, count, same: F.w === w && F.h === h };
+}
+/** The zoom slider's label: the zoom, the frame it gives and what it would cut. */
+function zoomLabel(z: number) {
+    const p = zoomPlan(z), v = (x: number) => String(+x.toFixed(2)).replace('.', ',');
+    $('s-zoom-v').innerHTML = `${v(frameZoom(p.F.w, p.F.h) ?? z)}× · khung ${p.F.w}×${p.F.h}` + (p.lost ? ` <span style="color:#f87171">· cắt ${p.lost.toLocaleString('vi-VN')} hạt</span>` : '');
+}
+function zoomLevel(z: number) {
+    const l = L(), { n, F, dx, dy, next, lost, count, same } = zoomPlan(z);
+    if (same) return;
     sandSnapshot();
     grains = next; l.n = n;
     l.frozen = l.frozen?.map((f) => ({ ...f, x: f.x + dx, y: f.y + dy })).filter((f) => f.x >= 0 && f.y >= 0 && f.x + f.w <= F.w && f.y + f.h <= F.h);
@@ -375,13 +384,13 @@ function zoomLevel(z: number) {
     selIce = null;
     if (lost) {
         pictureChanged();
-        toast(`Phóng hạt ${z}×: cắt ${lost} hạt tràn ra ngoài khung · cần sinh lại tổ`);
+        toast(`Phóng hạt ${(frameZoom(F.w, F.h) ?? z).toFixed(2)}×: cắt ${lost} hạt tràn ra ngoài khung · cần sinh lại tổ`);
         return;
     }
     commitGrains();
     delete l.moves;
     nestsChanged();
-    toast(`Phóng hạt ${z}× · giữ nguyên ${count.toLocaleString('vi-VN')} hạt`);
+    toast(`Phóng hạt ${(frameZoom(F.w, F.h) ?? z).toFixed(2)}× · khung ${F.w}×${F.h} · giữ nguyên ${count.toLocaleString('vi-VN')} hạt`);
 }
 
 /** The colour a drag carries: a Bank colour or an Active Palette colour. */
@@ -884,7 +893,9 @@ function renderSettings() {
     $<HTMLSelectElement>('s-order').value = l.nests ? 'play' : l.order;
     $<HTMLInputElement>('s-seed').value = String(l.seed);
     $<HTMLSelectElement>('s-cols').value = String(l.cols);
-    $<HTMLSelectElement>('s-zoom').value = String(frameZoom(dims().w, dims().h) ?? 1);
+    const zNow = frameZoom(dims().w, dims().h) ?? 1;
+    $<HTMLInputElement>('s-zoom').value = String(zNow);
+    zoomLabel(zNow);
 }
 
 // ---------- nest editor ----------
@@ -1818,7 +1829,9 @@ function renderAll() {
 $('mode-editor').onclick = () => setMode('editor');
 $('mode-organizer').onclick = () => setMode('organizer');
 $<HTMLInputElement>('s-name').oninput = (e) => { L().name = (e.target as HTMLInputElement).value || 'Màn mới'; renderDirty(); renderBank(); };
-$<HTMLSelectElement>('s-zoom').onchange = (e) => zoomLevel(parseFloat((e.target as HTMLSelectElement).value));
+// dragging shows what a zoom would do; letting go applies it (one undo step)
+$<HTMLInputElement>('s-zoom').oninput = (e) => zoomLabel(parseFloat((e.target as HTMLInputElement).value));
+$<HTMLInputElement>('s-zoom').onchange = (e) => zoomLevel(parseFloat((e.target as HTMLInputElement).value));
 $<HTMLSelectElement>('s-diff').onchange = (e) => { sandSnapshot(); L().chunk = DIFFS.find((d) => d.key === (e.target as HTMLSelectElement).value)!.chunk; delete L().nests; delete L().moves; nestsChanged(); };
 $<HTMLSelectElement>('s-status').onchange = (e) => { L().status = (e.target as HTMLSelectElement).value as Status; renderDirty(); renderBank(); };
 $<HTMLTextAreaElement>('comment').oninput = (e) => { L().comment = (e.target as HTMLTextAreaElement).value.slice(0, 500); $('comment-count').textContent = `${L().comment.length}/500`; renderDirty(); };

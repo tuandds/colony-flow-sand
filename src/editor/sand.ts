@@ -1,7 +1,7 @@
 // Image -> grain-level sand picture, and drawing sand the way the game does. A picture is one
 // palette key per grain ('.' = empty), w x h grains covering the game's whole frame
 // (frameGrains in layout.ts), so what the editor shows is what the game shows.
-import { FRAME_N, SUB, frameGrains, frameZoom, grainInFrame, zoomFrameN } from '../game/layout';
+import { FRAME_N, SUB, frameGrains, frameZoom, grainInFrame } from '../game/layout';
 import { BANK_COLOURS, SAND_PALETTE } from '../game/levels';
 import { hash, packColor } from '../game/util';
 
@@ -324,17 +324,15 @@ export function fitToFrame(keys: string[], oldW: number, oldH: number, ox = 0, o
 
 const frameOut = new Map<number, Uint8Array>();
 /** The grains of a full frame picture (frameGrains(FRAME_N), or a zoomed frame of bigger grains,
- * see GRAIN_ZOOMS) that lie outside the frame's rounded inside (its corners): the game cuts them,
+ * see frameZoom) that lie outside the frame's rounded inside (its corners): the game cuts them,
  * so the editor shows them as the frame's rim and paints nothing there. Null for any other size. */
 export function frameOutside(w: number, h: number) {
-    const z = frameZoom(w, h);
-    if (z === null) return null;
-    let out = frameOut.get(z);
+    if (frameZoom(w, h) === null) return null;
+    let out = frameOut.get(h);
     if (!out) {
-        const n = zoomFrameN(z);
         out = new Uint8Array(w * h);
-        for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) if (!grainInFrame(c, r, n)) out[r * w + c] = 1;
-        frameOut.set(z, out);
+        for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) if (!grainInFrame(c, r, h / SUB)) out[r * w + c] = 1;
+        frameOut.set(h, out);
     }
     return out;
 }

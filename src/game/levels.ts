@@ -472,7 +472,9 @@ function buildDef(def: LevelDef): Level {
     // every level plays in the standard colours; painted levels are moved onto them below
     const to = standardMap(def.colors), L = standardColours(def);
     const g: Grid = [];
-    for (let y = 0; y < L.n; y++) g.push(new Array(L.n).fill(null));
+    // the cell grid of the older cell pictures; a grain-zoomed level's n is not a whole number
+    const cells = Math.ceil(L.n);
+    for (let y = 0; y < cells; y++) g.push(new Array(cells).fill(null));
     if (L.sand) { /* the sim reads the grains itself */ } else if (L.rows) L.rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') g[y][x] = ch; }));
     else {
         L.paint?.(painter(g));
