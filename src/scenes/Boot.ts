@@ -10,7 +10,7 @@ const WIN = ['win_bg', 'amazing', 'rewards', 'btn_reward', 'btn_continue', 'icon
  * button, badge and pictures, settings and speed buttons); the padlock, the Activate frame, the
  * plus badge and the Fan's cannon are older art; the ants' shadow is Colony Flow's. */
 const IMAGES = [
-    'bg', 'frame', 'frame_stroke', 'conveyor', 'conveyor_hold', 'progress_bar', 'progress', 'nest_frame',
+    'bg', 'frame', 'conveyor', 'conveyor_hold', 'progress_bar', 'progress', 'nest_frame',
     ...NEST_BOXES.map(([k]) => k),
     'btn_settings', 'btn_speed_on', 'btn_speed_off', 'bst_btn', 'bst_btn_locked', 'icon_lock', 'bst_frame',
     'badge_red', 'badge_plus', 'bst_claw', 'bst_shuffle', 'bst_flower', 'bst_cannon', 'ant_shadow', 'hand', 'logo',

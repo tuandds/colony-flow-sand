@@ -499,13 +499,10 @@ export class Game extends Phaser.Scene {
     }
 
     /** The picture frame and its funnel (one piece of art, its spout ending in a gate just above
-     * the belt), its light blue inside scaled onto INNER (sand is drawn on top). The dark stroke
-     * along the inside's edge (img/frame_stroke.png, the same size as the frame art) is drawn over
-     * the sand, so it shows even where a picture fills the frame. */
+     * the belt), its light blue inside scaled onto INNER (sand is drawn on top). */
     private drawBoard() {
         const A = FRAME_ART, kx = INNER.w / A.w, ky = INNER.h / A.h, x = INNER.x - A.x * kx, y = INNER.y - A.y * ky;
         this.add.image(x, y, 'frame').setOrigin(0).setDisplaySize(A.imgW * kx, A.imgH * ky).setDepth(D.board);
-        this.add.image(x, y, 'frame_stroke').setOrigin(0).setDisplaySize(A.imgW * kx, A.imgH * ky).setDepth(D.sand + 0.5);
     }
 
     /** The belt art (img/conveyor.png, 1872 x 454, with its own hollow in the wood drawn round

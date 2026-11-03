@@ -62,7 +62,6 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <li><b>Board:</b> the frame's inside, 824 × 776 px at (128, 330), under the frame's lilac top band. Its corners are rounded like the art's (the top corners of the light blue, and the bottom corners where they begin to curve into the funnel); no sand goes there.</li>
 <li><b>Picture:</b> up to 188 × 176 grains (22 cells tall; a cell is 8 × 8 grains, 35 px; a grain is about 4.4 px). The scale is the same in every level; a smaller picture sits centred. A full frame is exactly 517 blocks.</li>
 <li><b>Colours:</b> each level uses its own few colours from the Colour Bank (4 to 6 in the current levels, up to 12).</li>
-<li><b>Inner stroke:</b> a dark stroke runs along the inside's edge, from under the top band down the sides and the funnel to the spout. It is drawn over the sand, so it shows even where a picture fills the frame.</li>
 <li><b>Funnel:</b> as wide as the board at the top (824 px), its sides curve in, as the art's do, to the hole (about 75 px wide) 183 px under the board. The spout ends over the <b>gate</b> at the bottom of the frame, just above the conveyor.</li>
 </ul>
 <p><b>Sand:</b></p>

@@ -4,6 +4,7 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
+- **Frame exactly as the art:** the dark stroke drawn over the sand along the inside of the frame (img/frame_stroke.png) is gone, so the frame shows just as the art is drawn.
 - **Frozen redrawn as clear ice:** the picture under it shows through tinted blue (stronger than the pale frosted look), cracked into pale cells, with a white glow along the inside of its edge and a soft glow round its outside; no hard white rim.
 - **New frame and conveyor art:** the frame and the conveyor are the new art as delivered (the frame's lilac top band is the art's own; the shading added to it before is gone). The conveyor comes with its own hollow in the wood, so the one added before is gone; its band is drawn the same size and place as before.
 - **Level Editor: Frozen areas:** a ❄️ tool (`F`) and a Frozen section in the Sand Editor. Drag on the picture to draw an area, drag inside it to move it, drag its corners to resize it (Shift keeps it square or round); pick one to set its shape (square or round), its count and its size in cells, or delete it. **＋ Thêm vùng** adds a 5 × 5 cell square in the middle. Undo covers it; the playtest plays it. See the [Level Editor guide](../guide/level-editor).
