@@ -31,7 +31,7 @@ What does not carry over: hidden inner shells (nothing is hidden here except und
 
 Before drawing, write down:
 
-- **Subject:** one clear thing or one small scene. It **must** not repeat a subject already in the game (a recolour or a new pose is not a new subject). Current subjects: strawberry, mushroom, donut, bee, tulips in a pot, whale, chick, clownfish, octopus, ladybug on a leaf, cherries, ice cream, rocket, sleeping cat with flowers, black cat peeking, sailboat, sea turtle, panda, cottage with garden, toucan (see [Levels](./levels)).
+- **Subject:** one clear thing or one small scene. It **must** not repeat a subject already in the game (a recolour or a new pose is not a new subject). Current subjects: waving cat in a boat, mushroom, donut, bee, tulips in a pot, whale, chick, clownfish, octopus, ladybug on a leaf, cherries, ice cream, rocket, sleeping cat with flowers, black cat peeking, sailboat, sea turtle, panda, cottage with garden, toucan (see [Levels](./levels)).
 - **Silhouette and 2–3 recognition features:** what makes it readable at game size (the cherries' twin stems, the toucan's beak).
 - **Palette:** a harmony (see [3.2](#_3-2-picking-a-palette)) plus neutrals, 3–6 colours in all.
 - **Difficulty target** (see [7](#_7-difficulty)) and **release plan:** which colours the player can free early, which come late.
@@ -167,7 +167,7 @@ Measured on 2026-11-03, at the current grain size (block counts about half of wh
 
 | Level | Colours | Blocks | Largest colour | Closest pair (ΔE₀₀) | Notes |
 |---|---|---|---|---|---|
-| level_1 Strawberry | 3 | 49 | 60 % | green / yellow (37) |  |
+| level_1 Cat in a boat | 3 | 270 | 40 % | white / yellow (32) | Full frame on level 1 |
 | level_2 Mushroom | 3 | 52 | 55 % | white / orange (28) |  |
 | level_3 Donut | 3 | 64 | 60 % | orange / pink (49) |  |
 | level_4 Bee | 3 | 67 | 54 % | white / yellow (32) |  |
