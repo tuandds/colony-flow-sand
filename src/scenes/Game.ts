@@ -387,80 +387,91 @@ export class Game extends Phaser.Scene {
         s.picDirty = false;
     }
 
-    /** Frosted ice over each frozen area: a light blue sheet with a white rim, cracks and light
-     * facets, and the number of nests still to remove in the middle. */
+    /** Ice over each frozen area: the picture shows through it tinted cool blue, cracked into
+     * pale cells, with a soft white glow round its edge, and the number of nests still to remove
+     * in the middle. */
     private drawIce() {
         for (const f of this.ice) f.box.destroy();
         this.ice = [];
-        const s = this.sim, rnd = mulberry32(77 + this.levelIndex);
+        const s = this.sim;
         s.frozen.forEach((f, i) => {
-            const w = (f.x1 - f.x0 + 1) * s.gs, h = (f.y1 - f.y0 + 1) * s.gs, round = f.def.shape === 'circle';
+            const w = (f.x1 - f.x0 + 1) * s.gs, h = (f.y1 - f.y0 + 1) * s.gs;
             const box = this.add.container(s.ox + f.x0 * s.gs + w / 2, s.oy + f.y0 * s.gs + h / 2).setDepth(D.sand + 0.3);
-            const frost = this.frostTexture('ice' + i, f.x0, f.y0, f.x1, f.y1, round);
-            const g = this.add.graphics();
-            const shape = (inset: number) => round ? g.fillEllipse(0, 0, w - 2 * inset, h - 2 * inset) : g.fillRoundedRect(-w / 2 + inset, -h / 2 + inset, w - 2 * inset, h - 2 * inset, Math.max(4, 10 - inset));
-            const outline = (inset: number) => round ? g.strokeEllipse(0, 0, w - 2 * inset, h - 2 * inset) : g.strokeRoundedRect(-w / 2 + inset, -h / 2 + inset, w - 2 * inset, h - 2 * inset, Math.max(4, 10 - inset));
-            // a soft glow round it, the frosted sheet, a lighter core
-            g.lineStyle(10, 0xe6f4ff, 0.4); outline(-4);
-            g.fillStyle(0xeaf6ff, 0.18); shape(w * 0.14);
-            // light facets and cracks, like broken ice
-            const inside = (x: number, y: number) => round ? (x / (w / 2)) ** 2 + (y / (h / 2)) ** 2 < 0.8 : Math.abs(x) < w / 2 - 6 && Math.abs(y) < h / 2 - 6;
-            const pt = () => { for (;;) { const x = (rnd() - 0.5) * w, y = (rnd() - 0.5) * h; if (inside(x, y)) return [x, y] as const; } };
-            for (let i = 0; i < 7; i++) {
-                const [ax, ay] = pt(), [bx, by] = pt(), [cx, cy] = pt();
-                g.fillStyle(0xffffff, 0.07 + rnd() * 0.08); g.fillTriangle(ax, ay, bx, by, cx, cy);
-            }
-            g.lineStyle(2, 0xffffff, 0.75);
-            for (let i = 0; i < 9; i++) {
-                let [x, y] = pt();
-                g.beginPath(); g.moveTo(x, y);
-                for (let k = 0; k < 3; k++) { const [nx, ny] = pt(); x += (nx - x) * 0.45; y += (ny - y) * 0.45; g.lineTo(x, y); }
-                g.strokePath();
-            }
-            // a bright rim
-            g.lineStyle(3, 0xffffff, 0.9); outline(1.5);
-            const text = this.text(0, 2, String(f.count), Math.round(Math.min(56, Math.max(30, Math.min(w, h) * 0.32))), '#1b2a4a', '#ffffff', 8);
-            box.add([this.add.image(0, 0, frost).setDisplaySize(w, h), g, text]);
+            const { key, margin } = this.frostTexture('ice' + i, f.x0, f.y0, f.x1, f.y1, f.def.shape === 'circle', 77 + this.levelIndex * 13 + i);
+            const text = this.text(0, 2, String(f.count), Math.round(Math.min(52, Math.max(28, Math.min(w, h) * 0.2))), '#1b2a4a', '#ffffff', 8);
+            box.add([this.add.image(0, 0, key).setDisplaySize(w + 2 * margin * s.gs, h + 2 * margin * s.gs), text]);
             this.ice.push({ box, text, count: f.count, broken: f.broke !== null });
             if (f.broke !== null) box.setVisible(false);
         });
     }
 
-    /** Frosted glass for one frozen area: the picture's grains under it (which cannot change
-     * while it is frozen), blurred and washed pale blue, cut to the area's shape, so the pattern
-     * and colours show faintly through the ice. */
-    private frostTexture(key: string, x0: number, y0: number, x1: number, y1: number, round: boolean) {
-        const s = this.sim, cw = x1 - x0 + 1, ch = y1 - y0 + 1, k = 4, W = cw * k, H = ch * k;
+    /** The ice for one frozen area, drawn once (the sand under it cannot change while it is
+     * frozen): the grains under it, softened and tinted cool blue; pale cracks between ice cells
+     * (a Voronoi pattern, each cell a little lighter or darker); a white glow along the inside
+     * of its edge and round its outside. The texture has a `margin` (in grains) on every side
+     * for the outer glow. */
+    private frostTexture(key: string, x0: number, y0: number, x1: number, y1: number, round: boolean, seed: number) {
+        const s = this.sim, cw = x1 - x0 + 1, ch = y1 - y0 + 1, k = 6, W = cw * k, H = ch * k, margin = 7, M = margin * k;
         const src = document.createElement('canvas');
         src.width = cw; src.height = ch;
         const img = src.getContext('2d')!.createImageData(cw, ch), px = new Uint32Array(img.data.buffer);
         for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
             const p = (y0 + y) * s.G + x0 + x;
-            px[y * cw + x] = s.key[p] ? s.rgb[p] : 0xffd8c8b8;
+            px[y * cw + x] = s.key[p] ? s.rgb[p] : 0xffffd2b5;
         }
         src.getContext('2d')!.putImageData(img, 0, 0);
+
+        // the cracks: pale lines where two ice cells meet, each cell a little lighter or darker
+        const rnd = mulberry32(seed), n = Math.max(8, Math.min(60, Math.round((cw * ch) / 130)));
+        const pts = Array.from({ length: n }, () => [rnd() * W, rnd() * H, rnd()] as const);
+        const crack = document.createElement('canvas');
+        crack.width = W; crack.height = H;
+        const ci = crack.getContext('2d')!.createImageData(W, H), cd = ci.data, edge = 2.4 * k;
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            let d1 = Infinity, d2 = Infinity, c = 0;
+            for (let j = 0; j < n; j++) {
+                const d = Math.hypot(pts[j][0] - x, pts[j][1] - y);
+                if (d < d1) { d2 = d1; d1 = d; c = j; } else if (d < d2) d2 = d;
+            }
+            const line = Math.max(0, 1 - (d2 - d1) / edge) ** 2, a = Math.min(1, line * 0.6 + pts[c][2] * 0.08 + (d1 / (d1 + d2)) ** 2 * 0.24);
+            const q = (y * W + x) * 4;
+            cd[q] = 255; cd[q + 1] = 255; cd[q + 2] = 255; cd[q + 3] = Math.round(a * 255);
+        }
+        crack.getContext('2d')!.putImageData(ci, 0, 0);
+
         if (this.textures.exists(key)) this.textures.remove(key);
-        const tex = this.textures.createCanvas(key, W, H)!, ctx = tex.getContext();
+        const tex = this.textures.createCanvas(key, W + 2 * M, H + 2 * M)!, ctx = tex.getContext();
+        const path = () => {
+            ctx.beginPath();
+            if (round) ctx.ellipse(M + W / 2, M + H / 2, W / 2, H / 2, 0, 0, Math.PI * 2);
+            else ctx.roundRect(M, M, W, H, 1.5 * k);
+        };
+        // the glow round its outside
         ctx.save();
-        ctx.beginPath();
-        if (round) ctx.ellipse(W / 2, H / 2, W / 2, H / 2, 0, 0, Math.PI * 2);
-        else ctx.roundRect(0, 0, W, H, 10 * k / s.gs);
-        ctx.clip();
-        // drawn a little larger than the area so the blur doesn't fade its edges
-        ctx.filter = `blur(${1.6 * k}px)`;
-        ctx.drawImage(src, -2 * k, -2 * k, W + 4 * k, H + 4 * k);
-        ctx.filter = 'none';
-        ctx.fillStyle = 'rgba(214, 236, 255, 0.45)';
-        ctx.fillRect(0, 0, W, H);
-        const sheen = ctx.createLinearGradient(0, 0, W, H);
-        sheen.addColorStop(0, 'rgba(255,255,255,0.3)');
-        sheen.addColorStop(0.5, 'rgba(255,255,255,0.05)');
-        sheen.addColorStop(1, 'rgba(160,200,240,0.25)');
-        ctx.fillStyle = sheen;
-        ctx.fillRect(0, 0, W, H);
+        ctx.shadowColor = 'rgba(200, 228, 255, 1)'; ctx.shadowBlur = 5 * k;
+        ctx.fillStyle = 'rgba(200, 228, 255, 1)';
+        path(); ctx.fill(); ctx.fill();
         ctx.restore();
+        // the ice itself
+        ctx.save();
+        path(); ctx.clip();
+        ctx.clearRect(M, M, W, H);
+        ctx.filter = `blur(${0.5 * k}px)`;
+        ctx.drawImage(src, M - k, M - k, W + 2 * k, H + 2 * k);
+        ctx.filter = 'none';
+        ctx.fillStyle = 'rgba(95, 135, 245, 0.68)';
+        ctx.fillRect(M, M, W, H);
+        ctx.drawImage(crack, M, M);
+        // the white glow along the inside of its edge
+        ctx.filter = `blur(${2 * k}px)`;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'; ctx.lineWidth = 3.4 * k;
+        path(); ctx.stroke();
+        ctx.filter = 'none';
+        ctx.restore();
+        path();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; ctx.lineWidth = 0.5 * k; ctx.stroke();
         tex.refresh();
-        return key;
+        return { key, margin };
     }
 
     /** The ice follows the frozen areas: the number pops as it counts down; at 0 the ice
@@ -497,13 +508,13 @@ export class Game extends Phaser.Scene {
         this.add.image(x, y, 'frame_stroke').setOrigin(0).setDisplaySize(A.imgW * kx, A.imgH * ky).setDepth(D.sand + 0.5);
     }
 
-    /** The belt art (img/conveyor.png, 1884 x 496): its slate band with its dark outline (x 71 to
-     * 1814, y 82 to 414 of the art, centred on its middle row) lies on the track, 2 x (BELT.r +
-     * BELT.band / 2) tall; only its middle is stretched, so the round ends keep their shape. Round
-     * it, a wall shaded dark at the top and light at the bottom sets the belt into the wood. Its
-     * fill gauge (img/progress_bar.png) runs along the middle. */
+    /** The belt art (img/conveyor.png, 1872 x 454, with its own hollow in the wood drawn round
+     * it): its slate band with its dark outline (x 64 to 1807, y 61 to 393 of the art, centred on
+     * its middle row) lies on the track, 2 x (BELT.r + BELT.band / 2) tall; only its middle is
+     * stretched, so the round ends keep their shape. Its fill gauge (img/progress_bar.png) runs
+     * along the middle. */
     private drawBeltBase() {
-        const R = BELT.r + BELT.band / 2, k = (2 * R) / 332, w = (BELT.cxR - BELT.cxL + 2 * R) / k + 71 + 70;
+        const R = BELT.r + BELT.band / 2, k = (2 * R) / 332, w = (BELT.cxR - BELT.cxL + 2 * R) / k + 64 + 64;
         this.add.nineslice(540, BELT.cy, 'conveyor', undefined, w, undefined, 250, 250, 0, 0).setScale(k).setDepth(D.belt - 0.5);
         // the gauge's groove is x 22 to 1378, y 14 to 66 of its 1400 x 95 art; the green fill is
         // exactly as tall as the groove

@@ -59,10 +59,10 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <td>
 <p><b>Structure:</b> about 57 % of the screen height: the picture frame and its funnel, one piece of art (<code>img/frame.png</code>).</p>
 <ul>
-<li><b>Board:</b> the frame's inside, 824 × 776 px at (128, 330), under the frame's grey top band (shaded as a wall under the raised white rim). Its corners are rounded like the art's (the top corners of the light blue, and the bottom corners where they begin to curve into the funnel); no sand goes there.</li>
+<li><b>Board:</b> the frame's inside, 824 × 776 px at (128, 330), under the frame's lilac top band. Its corners are rounded like the art's (the top corners of the light blue, and the bottom corners where they begin to curve into the funnel); no sand goes there.</li>
 <li><b>Picture:</b> up to 188 × 176 grains (22 cells tall; a cell is 8 × 8 grains, 35 px; a grain is about 4.4 px). The scale is the same in every level; a smaller picture sits centred. A full frame is exactly 517 blocks.</li>
 <li><b>Colours:</b> each level uses its own few colours from the Colour Bank (4 to 6 in the current levels, up to 12).</li>
-<li><b>Inner stroke:</b> a dark stroke runs along the inside's edge, from under the grey band down the sides and the funnel to the spout. It is drawn over the sand, so it shows even where a picture fills the frame.</li>
+<li><b>Inner stroke:</b> a dark stroke runs along the inside's edge, from under the top band down the sides and the funnel to the spout. It is drawn over the sand, so it shows even where a picture fills the frame.</li>
 <li><b>Funnel:</b> as wide as the board at the top (824 px), its sides curve in, as the art's do, to the hole (about 75 px wide) 183 px under the board. The spout ends over the <b>gate</b> at the bottom of the frame, just above the conveyor.</li>
 </ul>
 <p><b>Sand:</b></p>
@@ -92,7 +92,7 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <li><b>Locked:</b> the sand under the ice cannot be swept and never comes loose by itself (small islands next to it still do). Falling sand cannot enter it, so loose sand piles up on top of it.</li>
 <li><b>Count:</b> the number goes down by 1 each time a nest is removed (a full nest pops and leaves its column). It pops a little each time it changes.</li>
 <li><b>Break:</b> at 0 the ice shatters: its shards fly out and fall, the sheet fades out, and the sand it held becomes ordinary fixed sand that the player can sweep.</li>
-<li><b>Look:</b> frosted glass: the picture under it shows through blurred and washed pale blue, so its pattern and colours can still be made out. A white rim, light facets and cracks, a soft glow round it; a dark number with a white outline in the middle.</li>
+<li><b>Look:</b> clear blue ice: the picture under it shows through, softened and tinted blue, so its pattern and colours can still be made out. It is cracked into pale cells, glows white along the inside of its edge and softly round its outside; a dark number with a white outline in the middle.</li>
 <li><b>Level Editor:</b> the ❄️ tool (<code>F</code>) draws, moves and resizes areas on the picture; the Frozen section sets each one's shape, count and size, or deletes it (see the <a href="../guide/level-editor">Level Editor guide</a>). Areas show on the Sand Editor as a dashed outline with ❄ and the count.</li>
 <li><b>In the levels:</b> level_6, one 44 × 44 grain square on the sail, count 20.</li>
 </ul>
@@ -109,7 +109,7 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <td>
 <p><b>Structure:</b> about 12 % of the screen height.</p>
 <ul>
-<li>A loop track: straight runs from x 203 to 877, round ends of radius 50, centred at y 1492. The belt art (<code>img/conveyor.png</code>) sits in a hollow in the wood: a wall round it, dark at the top as if in shadow and light at the bottom.</li>
+<li>A loop track: straight runs from x 203 to 877, round ends of radius 50, centred at y 1492. The belt art (<code>img/conveyor.png</code>) is drawn with its own hollow in the wood round it.</li>
 <li><b>30 slots</b>, each with a holder (a dark slate square); a block is a 32 px cube.</li>
 <li>A fill gauge in the middle shows how full the belt is (a green bar and a percentage).</li>
 </ul>
