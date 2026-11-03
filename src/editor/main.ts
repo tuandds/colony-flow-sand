@@ -1310,9 +1310,12 @@ function runGen() {
         $('g-move-v').textContent = genOff.x || genOff.y ? `${cell(genOff.x)}, ${cell(genOff.y)} ô` : 'giữa';
         drawSand(g, genResult, FW, FH, 0, 0, cv.width, cv.height);
         const c = [...countKeys(genResult)].sort((a, b) => b[1] - a[1]);
-        const total = c.reduce((s, [, n]) => s + Math.ceil(n / 64), 0);
+        const total = c.reduce((s, [, n]) => s + Math.ceil(n / 64), 0), grainsNew = c.reduce((s, [, n]) => s + n, 0);
+        // the level's picture now, to compare with
+        const grainsNow = grains.reduce((s, k) => s + (k === '.' ? 0 : 1), 0), vi = (n: number) => n.toLocaleString('vi-VN');
         $('gen-summary').innerHTML = c.map(([k, n]) => `<span class="chip" title="${NAME.get(k)}"><i style="background:${HEX.get(k)}"></i>${Math.ceil(n / 64)}</span>`).join('') +
-            `<span class="chip">≈ ${total} khối · tranh ${pic.w}×${pic.h} hạt</span>`;
+            `<span class="chip">≈ ${total} khối · ${vi(grainsNew)} hạt · tranh ${pic.w}×${pic.h} hạt</span>` +
+            `<span class="chip" title="Số hạt của tranh đang có trong màn">Tranh hiện tại: ${vi(grainsNow)} hạt</span>`;
         $<HTMLButtonElement>('gen-apply').disabled = false;
     }, 80);
 }
