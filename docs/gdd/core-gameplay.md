@@ -61,7 +61,7 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <ul>
 <li><b>Board:</b> the frame's inside, 824 × 776 px at (128, 330), under the frame's lilac top band. Its corners are rounded like the art's (the top corners of the light blue, and the bottom corners where they begin to curve into the funnel); no sand goes there.</li>
 <li><b>Picture:</b> up to 188 × 176 grains (22 cells tall; a cell is 8 × 8 grains, 35 px; a grain is about 4.4 px). The scale is the same in every level; a smaller picture sits centred. A full frame is exactly 517 blocks.</li>
-<li><b>Colours:</b> each level uses its own few colours from the Colour Bank (4 to 6 in the current levels, up to 12).</li>
+<li><b>Colours:</b> each level uses its own few colours (4 to 6 in the current levels, up to 12) from the 30 standard colours, the colours of Cube Blast's voxel materials (see <a href="../guide/level-editor#_1-colour-bank">Colour Bank</a>).</li>
 <li><b>Funnel:</b> as wide as the board at the top (824 px), its sides curve in, as the art's do, to the hole (about 75 px wide) 183 px under the board. The spout ends over the <b>gate</b> at the bottom of the frame, just above the conveyor.</li>
 </ul>
 <p><b>Sand:</b></p>
@@ -93,7 +93,7 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <li><b>Break:</b> at 0 the ice shatters: its shards fly out and fall, the sheet fades out, and the sand it held becomes ordinary fixed sand that the player can sweep.</li>
 <li><b>Look:</b> clear blue ice: the picture under it shows through, softened and tinted blue, so its pattern and colours can still be made out. It is cracked into pale cells, glows white along the inside of its edge and softly round its outside; a dark number with a white outline in the middle.</li>
 <li><b>Level Editor:</b> the ❄️ tool (<code>F</code>) draws, moves and resizes areas on the picture; the Frozen section sets each one's shape, count and size, or deletes it (see the <a href="../guide/level-editor">Level Editor guide</a>). Areas show on the Sand Editor as a dashed outline with ❄ and the count.</li>
-<li><b>In the levels:</b> level_6, one 44 × 44 grain square on the sail, count 20.</li>
+<li><b>In the levels:</b> none at the moment (the picture shows how it looked on level_6, where it was first tried).</li>
 </ul>
 </td>
 </tr></tbody>

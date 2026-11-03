@@ -256,47 +256,82 @@ const LEVELS: LevelDef[] = [
 ];
 
 /**
- * Every sand colour custom pictures can use: the colours of the built-in pictures, then the
- * team template's colour bank colours (keys v to E). `key` is the one-letter key used in a
- * picture's grain data; it never changes, so saved pictures keep their colours. `retired`
- * colours looked too much like another one (CIELAB distance under about 20): they are left
- * out of the Colour Bank, but pictures that use them still draw.
+ * The 30 standard sand colours: the colours of Cube Blast's voxel materials (VoxelMaterials.json,
+ * the `Voxel_*` materials), each the middle tone (key 0.5) of the material's shading ramp, since
+ * Voxel.shader colours the cubes from that ramp only. `key` is the one-letter key used in a
+ * picture's grain data. Pictures in other colours are moved onto these (standardColours).
  */
-export const SAND_PALETTE: { key: string; name: string; hex: string; retired?: true }[] = [
-    { key: 'a', name: 'white', hex: '#ffffff' }, { key: 'b', name: 'silver', hex: '#c3ccd8' },
-    { key: 'c', name: 'cream', hex: '#ffe0b8' }, { key: 'd', name: 'yellow', hex: '#ffe066' },
-    { key: 'e', name: 'gold', hex: '#ffc145', retired: true }, { key: 'f', name: 'orange', hex: '#ff8c42' },
-    { key: 'g', name: 'tan', hex: '#e7b06a' }, { key: 'h', name: 'caramel', hex: '#c88a46', retired: true },
-    { key: 'i', name: 'rust', hex: '#d9774a', retired: true }, { key: 'j', name: 'brown', hex: '#8b5a3c' },
-    { key: 'k', name: 'red', hex: '#e8344a' }, { key: 'l', name: 'blush', hex: '#ffd6dc', retired: true },
-    { key: 'm', name: 'pink', hex: '#f59ac2' }, { key: 'n', name: 'rose', hex: '#ff7eb3', retired: true },
-    { key: 'o', name: 'lime', hex: '#c8e06a' }, { key: 'p', name: 'green', hex: '#7cc957' },
-    { key: 'q', name: 'forest', hex: '#5a8f2e' }, { key: 'r', name: 'sky', hex: '#5bc0f5' },
-    { key: 's', name: 'blue', hex: '#4a8fe0' }, { key: 't', name: 'navy', hex: '#34405e', retired: true },
-    { key: 'u', name: 'ink', hex: OUTLINE },
-    { key: 'v', name: 'lemon', hex: '#fcfc10' }, { key: 'w', name: 'lilac', hex: '#fccefd' },
-    { key: 'x', name: 'cerise', hex: '#f2447b' }, { key: 'y', name: 'chartreuse', hex: '#b7fd33' },
-    { key: 'z', name: 'royal', hex: '#3657f9' }, { key: 'A', name: 'purple', hex: '#aa44f6' },
-    { key: 'C', name: 'emerald', hex: '#44f245' }, { key: 'E', name: 'aqua', hex: '#75fefd' },
-    { key: 'F', name: 'orchid', hex: '#db7afa' },
-    // the built-in pictures' own shades, so the level editor's copies of them look and play the
-    // same (see builtinDefs); not in the Colour Bank
-    { key: 'B', name: 'sky2', hex: '#6fb6ff', retired: true }, { key: 'D', name: 'green2', hex: '#7ad36b', retired: true },
-    { key: 'G', name: 'gold2', hex: '#ffb238', retired: true }, { key: 'H', name: 'red2', hex: '#ef5350', retired: true },
-    { key: 'I', name: 'yellow2', hex: '#ffd54f', retired: true }, { key: 'J', name: 'brown2', hex: '#9c6b3c', retired: true },
-    { key: 'K', name: 'brown3', hex: '#7a4f2a', retired: true }, { key: 'L', name: 'forest2', hex: '#4f9e3a', retired: true },
-    { key: 'M', name: 'green3', hex: '#8fd36a', retired: true }, { key: 'N', name: 'rust2', hex: '#b9552e', retired: true },
-    { key: 'O', name: 'caramel2', hex: '#e39b4a', retired: true }, { key: 'P', name: 'rust3', hex: '#b8662a', retired: true },
-    { key: 'Q', name: 'green4', hex: '#62b84a', retired: true }, { key: 'R', name: 'blue2', hex: '#4a78c8', retired: true },
-    { key: 'S', name: 'silver2', hex: '#d9ecff', retired: true }, { key: 'T', name: 'gold3', hex: '#ffd04a', retired: true },
-    { key: 'U', name: 'orange2', hex: '#ff9f2e', retired: true }, { key: 'V', name: 'red3', hex: '#e5484d', retired: true },
+export const SAND_PALETTE: { key: string; name: string; hex: string }[] = [
+    { key: 'u', name: 'black', hex: '#414141' }, { key: 'b', name: 'blue', hex: '#7023ff' }, { key: 'c', name: 'brown', hex: '#8e4e2c' },
+    { key: 'r', name: 'cyan', hex: '#00c7ff' }, { key: 'e', name: 'darkblue', hex: '#083b7b' }, { key: 'g', name: 'darkgreen', hex: '#006a15' },
+    { key: 'h', name: 'green', hex: '#1fa125' }, { key: 'i', name: 'lavender', hex: '#b375ff' }, { key: 'j', name: 'lightgreen', hex: '#87e542' },
+    { key: 'f', name: 'lightorange', hex: '#ffa677' }, { key: 'l', name: 'lightpink', hex: '#ff8f93' }, { key: 'v', name: 'lightyellow', hex: '#ede12c' },
+    { key: 'n', name: 'lime', hex: '#50ee1c' }, { key: 'o', name: 'magenta', hex: '#ff00f5' }, { key: 'p', name: 'maroon', hex: '#820a0d' },
+    { key: 'z', name: 'navy', hex: '#0044ff' }, { key: 's', name: 'olive', hex: '#95770b' }, { key: 'q', name: 'olivegreen', hex: '#628c18' },
+    { key: 't', name: 'orange', hex: '#eebd63' }, { key: 'w', name: 'orangered', hex: '#fd9912' }, { key: 'm', name: 'pink', hex: '#ff83c3' },
+    { key: 'x', name: 'purple', hex: '#7623bc' }, { key: 'k', name: 'red', hex: '#ff0039' }, { key: 'A', name: 'skyblue', hex: '#008bff' },
+    { key: 'B', name: 'springgreen', hex: '#28e7ad' }, { key: 'C', name: 'teal', hex: '#0f91b7' }, { key: 'D', name: 'turquoise', hex: '#00fff2' },
+    { key: 'a', name: 'white', hex: '#ebf5f5' }, { key: 'd', name: 'yellow', hex: '#ffd400' }, { key: 'y', name: 'yellowgreen', hex: '#aef316' },
 ];
+const STD = new Map(SAND_PALETTE.map((c) => [c.key, c.hex.toLowerCase()]));
 
-// built-in shades that look the same as a sand colour (CIELAB distance under 6) use that colour
-const SAME_AS: Record<string, string> = { '#ff9ec9': 'm', '#f1d6b0': 'c', '#5c9ded': 's', '#eef1f6': 'a', '#ffd1dc': 'l' };
+/** The Colour Bank's colours: the 30 standard colours. */
+export const BANK_COLOURS = SAND_PALETTE.map(({ key, name, hex }) => ({ key, name, hex }));
 
-/** The Colour Bank's default colours: the sand colours that are not retired. */
-export const BANK_COLOURS = SAND_PALETTE.filter((c) => !c.retired).map(({ key, name, hex }) => ({ key, name, hex }));
+function hexLab(hex: string): [number, number, number] {
+    const v = parseInt(hex.slice(1), 16), lin = (c: number) => { c /= 255; return c > 0.04045 ? ((c + 0.055) / 1.055) ** 2.4 : c / 12.92; };
+    const r = lin((v >> 16) & 255), g = lin((v >> 8) & 255), b = lin(v & 255);
+    const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+    const x = f((r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047), y = f(r * 0.2126 + g * 0.7152 + b * 0.0722), z = f((r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883);
+    return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+/** CIEDE2000 colour difference: closer to what the eye sees than a plain CIELAB distance, which
+ * makes saturation count too much (a pale lime went to yellow by it). */
+function deltaE(p: [number, number, number], q: [number, number, number]) {
+    const rad = Math.PI / 180, [L1, a1, b1] = p, [L2, a2, b2] = q;
+    const C7 = (c: number) => Math.sqrt(c ** 7 / (c ** 7 + 25 ** 7));
+    const G = 0.5 * (1 - C7((Math.hypot(a1, b1) + Math.hypot(a2, b2)) / 2));
+    const A1 = (1 + G) * a1, A2 = (1 + G) * a2, c1 = Math.hypot(A1, b1), c2 = Math.hypot(A2, b2);
+    const h1 = (Math.atan2(b1, A1) / rad + 360) % 360, h2 = (Math.atan2(b2, A2) / rad + 360) % 360;
+    let dh = h2 - h1;
+    if (c1 * c2 === 0) dh = 0; else if (dh > 180) dh -= 360; else if (dh < -180) dh += 360;
+    const dH = 2 * Math.sqrt(c1 * c2) * Math.sin((dh / 2) * rad), L = (L1 + L2) / 2, C = (c1 + c2) / 2;
+    const h = c1 * c2 === 0 ? h1 + h2 : Math.abs(h1 - h2) <= 180 ? (h1 + h2) / 2 : (h1 + h2 + (h1 + h2 < 360 ? 360 : -360)) / 2;
+    const T = 1 - 0.17 * Math.cos((h - 30) * rad) + 0.24 * Math.cos(2 * h * rad) + 0.32 * Math.cos((3 * h + 6) * rad) - 0.2 * Math.cos((4 * h - 63) * rad);
+    const SL = 1 + (0.015 * (L - 50) ** 2) / Math.sqrt(20 + (L - 50) ** 2), SC = 1 + 0.045 * C, SH = 1 + 0.015 * C * T;
+    const RT = -Math.sin(60 * Math.exp(-(((h - 275) / 25) ** 2)) * rad) * 2 * C7(C);
+    const x = (L2 - L1) / SL, y = (c2 - c1) / SC, z = dH / SH;
+    return Math.sqrt(x * x + y * y + z * z + RT * y * z);
+}
+/** Where a level's colours go among the standard colours: each to the nearest (CIEDE2000),
+ * nearest pairs first, and never two of its colours onto one, so its blocks stay the same.
+ * Null when the level already uses only standard colours. */
+function standardMap(colors: Record<string, string>): Map<string, string> | null {
+    const keys = Object.keys(colors).filter((k) => typeof colors[k] === 'string');
+    if (keys.every((k) => STD.get(k) === colors[k].toLowerCase())) return null;
+    const pairs: [number, string, string][] = [];
+    for (const k of keys) {
+        const a = hexLab(colors[k]);
+        for (const c of SAND_PALETTE) pairs.push([deltaE(a, hexLab(c.hex)), k, c.key]);
+    }
+    pairs.sort((p, q) => p[0] - q[0]);
+    const to = new Map<string, string>(), used = new Set<string>();
+    for (const [, k, n] of pairs) if (!to.has(k) && !used.has(n)) { to.set(k, n); used.add(n); }
+    return to;
+}
+/** A level in the standard colours: its grains, rows, nests and palette moved onto them. */
+export function standardColours<T extends LevelDef & { palette?: string[] }>(L: T): T {
+    const to = standardMap(L.colors);
+    if (!to) return L;
+    const map = (k: string) => to.get(k) ?? k;
+    const out: T = { ...L, colors: Object.fromEntries([...to.values()].map((n) => [n, STD.get(n)!])) };
+    if (L.sand) out.sand = { ...L.sand, data: L.sand.data.replace(/[^0-9.]/g, map) };
+    if (L.rows) out.rows = L.rows.map((r) => r.replace(/[^.]/g, map));
+    if (L.nests) out.nests = L.nests.map((col) => col.map(([k, n]) => [map(k), n] as [string, number]));
+    // other palette keys named old colours, so only the picture's own colours stay in it
+    if (L.palette) out.palette = [...new Set(L.palette.filter((k) => to.has(k)).map(map))];
+    return out;
+}
 
 /** Run-length encode one key per grain ('.' = empty), `size` rows of `w` grains. */
 export function encodeSand(size: number, keys: string[], w = size): Sand {
@@ -350,15 +385,15 @@ export function builtinDefs(): LevelDef[] {
     return LEVELS.map((L, i) => {
         const { w, h } = frameGrains(FRAME_N), keys = new Array<string>(w * h).fill('.');
         const g = buildDef(L).grid, s = L.n * SUB, x0 = Math.floor((w - s) / 2), y0 = Math.floor((h - s) / 2);
-        const keyOf = (c: string) => { const hex = L.colors[c].toLowerCase(); return SAME_AS[hex] ?? SAND_PALETTE.find((p) => p.hex.toLowerCase() === hex)?.key ?? c; };
-        for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+                for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
             const c = g[(y / SUB) | 0][(x / SUB) | 0];
-            if (c) keys[(y + y0) * w + x + x0] = keyOf(c);
+            if (c) keys[(y + y0) * w + x + x0] = c;
         }
         const colors: Record<string, string> = {};
-        for (const k of new Set(keys)) if (k !== '.') colors[k] = SAND_PALETTE.find((p) => p.key === k)?.hex ?? L.colors[k];
+        // buildDef's grid is already in the standard colours
+        for (const k of new Set(keys)) if (k !== '.') colors[k] = STD.get(k) ?? L.colors[k];
         const { paint: _p, rows: _r, ...rest } = L;
-        return { ...rest, id: builtinId(i), n: FRAME_N, colors, sand: encodeSand(h, keys, w), salt: L.salt ?? i };
+        return standardColours({ ...rest, id: builtinId(i), n: FRAME_N, colors, sand: encodeSand(h, keys, w), salt: L.salt ?? i });
     });
 }
 
@@ -401,10 +436,15 @@ export function loadCustomLevels(key: string): LevelDef[] {
 
 export function buildLevel(i: number): Level { return buildDef(active[i]); }
 
-function buildDef(L: LevelDef): Level {
+function buildDef(def: LevelDef): Level {
+    // every level plays in the standard colours; painted levels are moved onto them below
+    const to = standardMap(def.colors), L = standardColours(def);
     const g: Grid = [];
     for (let y = 0; y < L.n; y++) g.push(new Array(L.n).fill(null));
     if (L.sand) { /* the sim reads the grains itself */ } else if (L.rows) L.rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') g[y][x] = ch; }));
-    else L.paint?.(painter(g));
+    else {
+        L.paint?.(painter(g));
+        if (to) for (const row of g) row.forEach((c, x) => { if (c) row[x] = to.get(c) ?? c; });
+    }
     return { name: L.name, n: L.n, chunk: L.chunk, colors: L.colors, grid: g, order: L.order, seed: L.seed, salt: L.salt, nests: L.nests, sand: L.sand, cols: L.cols, frozen: L.frozen };
 }

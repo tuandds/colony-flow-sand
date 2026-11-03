@@ -9,7 +9,7 @@ Ten pictures, all made in the Level Editor (whole-frame pictures, 188 × 176 gra
 | 3 | level_3 | 4 | 4–6 | hand-set |
 | 4 | level_4 | 4 | 4–6 | rows, seed 5 |
 | 5 | level_5 | 6 | 5–8 | hand-set |
-| 6 | level_6 | 4 | 4–6 | hand-set; one [Frozen](./core-gameplay#obstacle-frozen) square (count 20) |
+| 6 | level_6 | 4 | 4–6 | hand-set |
 | 7 | level_7 | 4 | 4–6 | hand-set |
 | 8 | level_8 | 4 | 4–6 | hand-set |
 | 9 | level_9 | 4 | 4–7 | hand-set |

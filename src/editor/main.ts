@@ -8,7 +8,7 @@
 import type { Recording } from '../game/bot';
 import { COLS, FRAME_N, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
 import EDITS from '../game/level-edits.json';
-import { BANK_COLOURS, CUSTOM_KEY, type Frozen, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, builtinDefs, decodeSand, encodeSand, gameLevelName, loadCustomLevels, useLevels, widenOldFrame } from '../game/levels';
+import { BANK_COLOURS, CUSTOM_KEY, type Frozen, type LevelDef, PREVIEW_KEY, type Sand, builtinDefs, standardColours, decodeSand, encodeSand, gameLevelName, loadCustomLevels, useLevels, widenOldFrame } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
 import { BANK, type BankColour, type ConvertOpts, HEX, NAME, clipToFrame, countKeys, drawSand, fitToFrame, frameOutside, hexLab, imageToSand, moveRange, nearestKey, rowsToGrains, setBank } from './sand';
 import type { SolveJob, SolveResult } from './solver.worker';
@@ -45,7 +45,7 @@ const CHAPTER_KEY = 'cf_custom_chapters', BACKUP_KEY = 'cf_custom_backups', HIST
 /** The edited Colour Bank (order, names, colours, added colours). */
 const BANK_KEY = 'cf_editor_bank';
 // version of the default colours a saved Bank was last brought up to (see loadBank)
-const BANK_VER_KEY = 'cf_editor_bank_v', BANK_VER = 2;
+const BANK_VER_KEY = 'cf_editor_bank_v', BANK_VER = 3;
 const MAX_BACKUPS = 15, MAX_HISTORY = 10;
 /** Set once the built-in levels have been added to a saved Level Bank (see loadLevels). */
 const BUILTIN_KEY = 'cf_editor_builtin_v', BUILTIN_CHAPTER = 'builtin';
@@ -85,15 +85,11 @@ function loadBank(): BankColour[] {
     const saved = loadJson<BankColour[]>(BANK_KEY, []);
     const ok = Array.isArray(saved) && saved.length && saved.every((c) => c && /^[A-Za-z]$/.test(c.key) && /^#[0-9a-f]{6}$/i.test(c.hex) && c.name);
     if (!ok) return BANK_COLOURS.map((c) => ({ ...c }));
-    // Once per update of the defaults: add the new default colours (unless the key or name is
-    // taken by the user's own colour) and drop retired ones the user has not changed. Pictures
-    // that use a retired colour still draw it. A colour deleted after this stays deleted.
+    // Once, for the standard colours: the bank becomes the 30 standard colours, and the old
+    // colours (and any added by hand) are dropped; pictures in them are moved onto the standard
+    // colours when opened (standardColours).
     if (loadJson<number>(BANK_VER_KEY, 1) < BANK_VER) {
-        const name = (n: string) => n.toLowerCase();
-        let list = saved.filter((x) => !SAND_PALETTE.some((c) => c.retired && c.key === x.key && c.hex.toLowerCase() === x.hex.toLowerCase()));
-        for (const c of BANK_COLOURS) {
-            if (list.length < 52 && !list.some((x) => x.key === c.key || name(x.name) === name(c.name))) list.push({ ...c });
-        }
+        const list = BANK_COLOURS.map((c) => ({ ...c }));
         try { localStorage.setItem(BANK_KEY, JSON.stringify(list)); localStorage.setItem(BANK_VER_KEY, String(BANK_VER)); } catch { /* kept for this session */ }
         return list;
     }
@@ -129,6 +125,8 @@ function saveEdits() {
 
 /** Bring a saved level (this editor's or the first cell-based one) to the current format. */
 function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
+    // pictures in colours from before the standard set take the nearest standard colours
+    L = standardColours(L);
     // keys of older levels were their own; match them to the palette by colour
     const keyOf = new Map<string, string>();
     for (const [k, hex] of Object.entries(L.colors || {})) {

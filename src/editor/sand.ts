@@ -20,9 +20,9 @@ export function setBank(list: BankColour[]) {
     for (const c of list) { HEX.set(c.key, c.hex); NAME.set(c.key, c.name); }
     PAL_LAB = new Map(list.map((c) => [c.key, hexLab(c.hex)]));
 }
-/** Key of the outline colour: the bank's 'ink', or its darkest colour. */
+/** Key of the outline colour: the bank's 'black', or its darkest colour. */
 export function outlineKey() {
-    const ink = BANK.find((c) => c.name === 'ink');
+    const ink = BANK.find((c) => c.name === 'black');
     return ink ? ink.key : [...BANK].sort((a, b) => hexLab(a.hex)[0] - hexLab(b.hex)[0])[0].key;
 }
 /** Sand the game would shed at once: islands this small fall off by themselves (sim.ts). */
@@ -125,6 +125,8 @@ export function imageToSand(img: HTMLImageElement, o: ConvertOpts): string[] {
         return k;
     });
     for (let p = 0; p < o.smooth; p++) keys = majority(keys, iw, ih);
+    keys = fillPinholes(keys, iw, ih);
+    keys = dropColourSpecks(keys, iw, ih);
     keys = dropSpecks(keys, iw, ih);
 
     // place inside the outline margin, then draw the rim
@@ -163,6 +165,81 @@ function majority(keys: string[], w: number, h: number) {
         let best = keys[y * w + x], bn = count.get(best)!;
         for (const [k, c] of count) if (c > bn) { best = k; bn = c; }
         if (bn >= 5) out[y * w + x] = best;
+    }
+    return out;
+}
+
+/** Empty pockets of COLOUR_SPECK grains or fewer inside the picture (not reaching its edge)
+ * take the colour most common round them. Background removal makes them: soft edge pixels
+ * between two colours can be close to the background colour (a blue and dark border next to a
+ * dark background), and the frame's light blue would show through them as pale dots. */
+export function fillPinholes(keys: string[], w: number, h: number) {
+    const out = keys.slice(), seen = new Uint8Array(w * h), stack: number[] = [], comp: number[] = [], round = new Map<string, number>();
+    for (let s = 0; s < out.length; s++) {
+        if (out[s] !== '.' || seen[s]) continue;
+        seen[s] = 1; stack.push(s); comp.length = 0;
+        let edge = false;
+        while (stack.length) {
+            const p = stack.pop()!, x = p % w, y = (p / w) | 0;
+            comp.push(p);
+            if (x === 0 || y === 0 || x === w - 1 || y === h - 1) edge = true;
+            for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                const xx = x + dx, yy = y + dy, q = yy * w + xx;
+                if (xx < 0 || yy < 0 || xx >= w || yy >= h || seen[q] || out[q] !== '.') continue;
+                seen[q] = 1; stack.push(q);
+            }
+        }
+        if (edge || comp.length > COLOUR_SPECK) continue;
+        round.clear();
+        for (const p of comp) {
+            const x = p % w, y = (p / w) | 0;
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                const xx = x + dx, yy = y + dy, q = yy * w + xx;
+                if (xx < 0 || yy < 0 || xx >= w || yy >= h || out[q] === '.') continue;
+                round.set(out[q], (round.get(out[q]) || 0) + 1);
+            }
+        }
+        let best = '', bn = 0;
+        for (const [c, n] of round) if (n > bn) { best = c; bn = n; }
+        if (best) for (const p of comp) out[p] = best;
+    }
+    return out;
+}
+
+/** Grains of a colour in a patch of COLOUR_SPECK grains or fewer (counting diagonal neighbours,
+ * so a thin diagonal line stays whole) take the colour most common round the patch. The
+ * image's soft edges make them: between white and a dark colour the edge pixels are a middle
+ * grey, which can be nearest to a third colour (pink specks along a white and dark border), and
+ * the majority filter leaves them where the two sides split evenly. */
+const COLOUR_SPECK = 6;
+export function dropColourSpecks(keys: string[], w: number, h: number) {
+    const out = keys.slice(), seen = new Uint8Array(w * h), stack: number[] = [], comp: number[] = [], round = new Map<string, number>();
+    for (let s = 0; s < out.length; s++) {
+        if (out[s] === '.' || seen[s]) continue;
+        const k = out[s];
+        seen[s] = 1; stack.push(s); comp.length = 0;
+        while (stack.length) {
+            const p = stack.pop()!, x = p % w, y = (p / w) | 0;
+            comp.push(p);
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                const xx = x + dx, yy = y + dy, q = yy * w + xx;
+                if (xx < 0 || yy < 0 || xx >= w || yy >= h || seen[q] || out[q] !== k) continue;
+                seen[q] = 1; stack.push(q);
+            }
+        }
+        if (comp.length > COLOUR_SPECK) continue;
+        round.clear();
+        for (const p of comp) {
+            const x = p % w, y = (p / w) | 0;
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                const xx = x + dx, yy = y + dy, q = yy * w + xx;
+                if (xx < 0 || yy < 0 || xx >= w || yy >= h || out[q] === '.' || out[q] === k) continue;
+                round.set(out[q], (round.get(out[q]) || 0) + 1);
+            }
+        }
+        let best = '', bn = 0;
+        for (const [c, n] of round) if (n > bn) { best = c; bn = n; }
+        if (best) for (const p of comp) out[p] = best;
     }
     return out;
 }
