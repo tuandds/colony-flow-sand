@@ -50,12 +50,11 @@ const FUNNEL_SIDES: [number, number][] = [
     [1676, 250.5], [1688, 229], [1700, 208.5], [1712, 187.5], [1724, 168], [1736, 149], [1748, 130.5], [1760, 114],
     [1772, 99.5], [1784, 87.5], [1796, 79.5], [1808, 72.5], [1813, 67],
 ];
-// how far the frame art's rim reaches into its inside on each side at art y: the rounded top
-// corners of the light blue under the grey band, and at the bottom where its corners begin to
-// round toward the funnel
+// how far the frame art's rim reaches into its inside on each side at art y: the art's top corners
+// round off above the board (by art y 96 its inside is full width), and at the bottom its corners
+// begin to round toward the funnel
 const RIM_IN: [number, number][] = [
-    [92, 39], [93, 36], [94, 33], [96, 29], [98, 25], [100, 22], [102, 20], [104, 17], [106, 15], [108, 13], [110, 12],
-    [113, 10], [116, 8], [120, 6], [125, 4], [130, 2], [135, 0], [1443, 0], [1454, 1.5], [1466, 4], [1474, 6], [1480, 8], [1484, 9],
+    [92, 2], [96, 0], [1443, 0], [1454, 1.5], [1466, 4], [1474, 6], [1480, 8], [1484, 9],
 ];
 /** Whether screen point (x, y) of the picture area is inside the frame art's light blue: sand
  * outside it (the rounded corners) would show over the rim. */
