@@ -64,10 +64,10 @@ export function insideFrame(x: number, y: number) {
     return x - INNER.x >= inset && INNER.x + INNER.w - x >= inset;
 }
 
-/** Whether grain (c, r) of the full frame picture (frameGrains(FRAME_N), as the level editor keeps
- * it) lies inside the frame's rounded inside; the game cuts the grains that don't. */
-export function grainInFrame(c: number, r: number) {
-    const { pad, gs } = frameGrains(FRAME_N);
+/** Whether grain (c, r) of the full frame picture (frameGrains(n), as the level editor keeps it)
+ * lies inside the frame's rounded inside; the game cuts the grains that don't. */
+export function grainInFrame(c: number, r: number, n = FRAME_N) {
+    const { pad, gs } = frameGrains(n);
     return insideFrame(PIC.x + (c - pad + 0.5) * gs, PIC.y + (r + 0.5) * gs);
 }
 
@@ -123,6 +123,16 @@ export const FRAME_N = 16;
  * scaled by GRAIN_K so sand moves and breaks up the same on screen at any grain size. */
 export const TUNED_GRAIN_PX = 770 / 176;
 export const GRAIN_K = TUNED_GRAIN_PX / (770 / (FRAME_N * 8));
+/** Grain zoom a level may use: its grains are this many times as big, so the same grains make a
+ * bigger picture (the frame then holds fewer). 1 is the normal frame, FRAME_N cells tall. */
+export const GRAIN_ZOOMS = [1, 1.25, 1.5, 2];
+/** The frame (in cells, n of frameGrains) of a grain zoom: a whole number of grains tall. */
+export const zoomFrameN = (z: number) => Math.round((FRAME_N * 8) / z) / 8;
+/** The grain zoom whose frame is w x h grains, or null when w x h is no zoomed frame. */
+export function frameZoom(w: number, h: number) {
+    for (const z of GRAIN_ZOOMS) { const f = frameGrains(zoomFrameN(z)); if (f.w === w && f.h === h) return z; }
+    return null;
+}
 export const GRAINS_PER_UNIT = SUB * SUB;
 export const UNITS_PER_BLOCK = 1; // units of sand (one picture cell each) that compress into a block
 // level nest sizes were tuned for 5-unit blocks; scale them so nests ask for the same amount of sand

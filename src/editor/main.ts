@@ -6,7 +6,7 @@
 // The game's built-in levels are in the Level Bank too (ids builtin-<i>); the game plays the
 // saved copies, and on the dev server saving also writes them to src/game/level-edits.json.
 import type { Recording } from '../game/bot';
-import { COLS, FRAME_N, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
+import { COLS, FRAME_N, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains, frameZoom, zoomFrameN } from '../game/layout';
 import EDITS from '../game/level-edits.json';
 import { BANK_COLOURS, CUSTOM_KEY, type Frozen, type LevelDef, PREVIEW_KEY, type Sand, builtinDefs, gameLevelIds, standardColours, decodeSand, encodeSand, gameLevelName, loadCustomLevels, toCurrentFrame, useLevels } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
@@ -143,9 +143,11 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
     }
     // pictures cover the game's whole frame, which is FRAME_N cells in every level; smaller or
     // older pictures (a square, an older frame, another size) sit centred in it, as in the game
-    const n = FRAME_N, { w: FW, h: FH } = frameGrains(n);
-    let sand: Sand, cut = false, rescaled = false, frozen = L.frozen;
-    if (L.sand && L.sand.size === FH && (L.sand.w ?? FH) === FW) sand = L.sand;
+    const { w: FW, h: FH } = frameGrains(FRAME_N);
+    let n = FRAME_N, sand: Sand, cut = false, rescaled = false, frozen = L.frozen;
+    // a frame of zoomed grains (GRAIN_ZOOMS) is kept as it is
+    const zoom = L.sand ? frameZoom(L.sand.w ?? L.sand.size, L.sand.size) : null;
+    if (L.sand && zoom !== null) { sand = L.sand; n = zoomFrameN(zoom); }
     else {
         // a picture for an older frame (bigger grains now) is resampled to the current grains;
         // its blocks change, so hand-set nests no longer fit and are dropped
@@ -344,6 +346,44 @@ function movePicture(sx: number, sy: number) {
     nestsChanged();
 }
 
+/** Grain zoom (GRAIN_ZOOMS): the level's grains get z times as big, so the same grains make a
+ * bigger picture. The frame then holds fewer, so the picture's sand is centred in the new frame
+ * and anything past its edge (or in its rounded corners) is cut; with nothing cut the blocks are
+ * the same and the nests stay. */
+function zoomLevel(z: number) {
+    const l = L(), { w, h } = dims(), n = zoomFrameN(z), F = frameGrains(n);
+    if (F.w === w && F.h === h) return;
+    let x0 = w, x1 = -1, y0 = h, y1 = -1, count = 0;
+    for (let p = 0; p < w * h; p++) {
+        if (grains[p] === '.') continue;
+        const x = p % w, y = (p / w) | 0; count++;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    const dx = x1 < 0 ? 0 : Math.floor((F.w - (x1 - x0 + 1)) / 2) - x0, dy = y1 < 0 ? 0 : Math.floor((F.h - (y1 - y0 + 1)) / 2) - y0;
+    const out = frameOutside(F.w, F.h), next = new Array<string>(F.w * F.h).fill('.');
+    let lost = 0;
+    for (let p = 0; p < w * h; p++) {
+        if (grains[p] === '.') continue;
+        const x = (p % w) + dx, y = ((p / w) | 0) + dy, q = y * F.w + x;
+        if (x < 0 || y < 0 || x >= F.w || y >= F.h || out?.[q]) { lost++; continue; }
+        next[q] = grains[p];
+    }
+    sandSnapshot();
+    grains = next; l.n = n;
+    l.frozen = l.frozen?.map((f) => ({ ...f, x: f.x + dx, y: f.y + dy })).filter((f) => f.x >= 0 && f.y >= 0 && f.x + f.w <= F.w && f.y + f.h <= F.h);
+    if (!l.frozen?.length) delete l.frozen;
+    selIce = null;
+    if (lost) {
+        pictureChanged();
+        toast(`Phóng hạt ${z}×: cắt ${lost} hạt tràn ra ngoài khung · cần sinh lại tổ`);
+        return;
+    }
+    commitGrains();
+    delete l.moves;
+    nestsChanged();
+    toast(`Phóng hạt ${z}× · giữ nguyên ${count.toLocaleString('vi-VN')} hạt`);
+}
+
 /** The colour a drag carries: a Bank colour or an Active Palette colour. */
 const draggedColour = (e: DragEvent) => e.dataTransfer?.getData('text/x-cf-colour') || e.dataTransfer?.getData('text/x-cf-active') || '';
 const carriesColour = (e: DragEvent) => !!e.dataTransfer && (e.dataTransfer.types.includes('text/x-cf-colour') || e.dataTransfer.types.includes('text/x-cf-active'));
@@ -419,7 +459,7 @@ function drawSandCanvas() {
     });
     if (hover && (tool === 'paint' || tool === 'erase')) {
         g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 1.5;
-        g.beginPath(); g.arc((hover[0] + 0.5) * s, (hover[1] + 0.5) * s, brush * s, 0, Math.PI * 2); g.stroke();
+        g.beginPath(); g.arc((hover[0] + 0.5) * s, (hover[1] + 0.5) * s, (brush + 0.5) * s, 0, Math.PI * 2); g.stroke();
     }
 }
 function grainAt(e: PointerEvent): [number, number] | null {
@@ -844,6 +884,7 @@ function renderSettings() {
     $<HTMLSelectElement>('s-order').value = l.nests ? 'play' : l.order;
     $<HTMLInputElement>('s-seed').value = String(l.seed);
     $<HTMLSelectElement>('s-cols').value = String(l.cols);
+    $<HTMLSelectElement>('s-zoom').value = String(frameZoom(dims().w, dims().h) ?? 1);
 }
 
 // ---------- nest editor ----------
@@ -1777,6 +1818,7 @@ function renderAll() {
 $('mode-editor').onclick = () => setMode('editor');
 $('mode-organizer').onclick = () => setMode('organizer');
 $<HTMLInputElement>('s-name').oninput = (e) => { L().name = (e.target as HTMLInputElement).value || 'Màn mới'; renderDirty(); renderBank(); };
+$<HTMLSelectElement>('s-zoom').onchange = (e) => zoomLevel(parseFloat((e.target as HTMLSelectElement).value));
 $<HTMLSelectElement>('s-diff').onchange = (e) => { sandSnapshot(); L().chunk = DIFFS.find((d) => d.key === (e.target as HTMLSelectElement).value)!.chunk; delete L().nests; delete L().moves; nestsChanged(); };
 $<HTMLSelectElement>('s-status').onchange = (e) => { L().status = (e.target as HTMLSelectElement).value as Status; renderDirty(); renderBank(); };
 $<HTMLTextAreaElement>('comment').oninput = (e) => { L().comment = (e.target as HTMLTextAreaElement).value.slice(0, 500); $('comment-count').textContent = `${L().comment.length}/500`; renderDirty(); };
@@ -1876,7 +1918,7 @@ window.addEventListener('keydown', (e) => {
     if (typing || mode !== 'editor') return;
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redoSand(); else undoSand(); return; }
     if (mod) return;
-    if (e.key === '[') { brush = Math.max(2, brush - 1); renderTools(); drawSandCanvas(); return; }
+    if (e.key === '[') { brush = Math.max(0, brush - 1); renderTools(); drawSandCanvas(); return; }
     if (e.key === ']') { brush = Math.min(24, brush + 1); renderTools(); drawSandCanvas(); return; }
     if (/^[0-9]$/.test(e.key)) { const k = activeKeys()[(+e.key + 9) % 10]; if (k) pickColour(k); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && tool === 'frozen' && selIce !== null) { e.preventDefault(); removeIce(); return; }

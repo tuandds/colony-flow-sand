@@ -1,7 +1,7 @@
 // The whole game state and rules, independent of Phaser: sand picture, funnel, conveyor,
 // nests and ants. The scene calls update() every frame and reads the fields to draw them.
 import {
-    ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, COLS, DROP_S, GRAIN_K, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS,
+    ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, COLS, DROP_S, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS, TUNED_GRAIN_PX, frameZoom, zoomFrameN,
     FRAME_N, MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colGap, colX, frameGrains, funnelHalf, grainInFrame, nestPos,
 } from './layout';
 import { Frozen, Level, buildLevel, decodeSand, toCurrentFrame } from './levels';
@@ -33,10 +33,12 @@ export interface Spark { x: number; y: number; vx: number; vy: number; life: num
 /** Test-only: force a nest order/seed for a level (used to search solvable layouts). */
 export const levelOverride: { order?: 'rows' | 'onion'; seed?: number } = {};
 
-// tuned at 4.4 px grains; in grains a step, so scaled to the grain size (GRAIN_K) to look the same
-const GRAVITY = 0.09 * GRAIN_K, MAX_FALL = 3.5 * GRAIN_K, FRICTION = 0.82;
-// islands of SMALL_ISLAND grains or fewer, or thinner than THIN_ISLAND, come loose by themselves
-const SMALL_ISLAND = 40, THIN_ISLAND = Math.max(2, Math.round(4 * GRAIN_K));
+// tuned at 4.4 px grains (TUNED_GRAIN_PX) in grains a step: each level scales them to its own
+// grain size (Sim.start), so sand falls at the same speed on screen at any grain size
+const GRAVITY = 0.09, MAX_FALL = 3.5, FRICTION = 0.82;
+// islands of SMALL_ISLAND grains or fewer (at the normal grain size: the same area on screen at
+// others), or thinner than THIN_ISLAND, come loose by themselves
+const SMALL_ISLAND = 40, THIN_ISLAND = 4;
 /** The swipe frees sand within BRUSH_R px of the finger (it was 1.1 cells of 35 px). */
 const BRUSH_R = 38.5, BRUSH_STEP = 14;
 
@@ -78,6 +80,8 @@ export class Sim {
     pipe: string[] = []; dropping: Block[] = [];
     slots: (Block | null)[] = []; beltOff = 0;
     cols: Nest[][] = []; ants: Ant[] = []; fx: Spark[] = []; flyers: Flyer[] = [];
+    /** Falling and loose-island settings scaled to this level's grain size (start). */
+    private gravity = GRAVITY; private maxFall = MAX_FALL; private smallIsland = SMALL_ISLAND; private thinIsland = THIN_ISLAND;
     /** Number of nest columns in this level. */
     ncols = COLS;
     simT = 0; simFlip = 0; sweepT = 0; stuckT = 0;
@@ -98,10 +102,16 @@ export class Sim {
         const L = (this.L = buildLevel(i));
         this.n = L.n;
         // Each picture cell is split into SUB x SUB sand grains that are simulated one by one.
-        // The frame is always FRAME_N cells tall, so grains are the same size in every level. The
-        // simulated area reaches the board's inner frame on both sides (and is padded above), so
-        // loose sand on the picture's edges can still slide off and fall until the frame stops it.
-        const { h: PG, gs, pad } = frameGrains(FRAME_N), top = 2 * pad;
+        // The frame is FRAME_N cells tall, unless the level zooms its grains (a smaller frame of
+        // bigger grains, see GRAIN_ZOOMS). The simulated area reaches the board's inner frame on
+        // both sides (and is padded above), so loose sand on the picture's edges can still slide
+        // off and fall until the frame stops it.
+        const wide = L.sand ? toCurrentFrame(decodeSand(L.sand), L.sand.w ?? L.sand.size, L.sand.size) : null;
+        const zoom = wide ? frameZoom(wide.w, wide.h) ?? 1 : 1, nF = zoomFrameN(zoom);
+        const { h: PG, gs, pad } = frameGrains(nF), top = 2 * pad;
+        const k = TUNED_GRAIN_PX / gs, kN = TUNED_GRAIN_PX / frameGrains(FRAME_N).gs;
+        this.gravity = GRAVITY * k; this.maxFall = MAX_FALL * k;
+        this.smallIsland = Math.round(SMALL_ISLAND / (zoom * zoom)); this.thinIsland = Math.max(2, Math.round(THIN_ISLAND * kN / zoom));
         const G = (this.G = PG + 2 * pad);
         // the funnel's rows: from under the board down to the hole
         const oy = PIC.y - top * gs, GH = (this.GH = G + Math.round((MOUTH.y - (oy + G * gs)) / gs));
@@ -110,7 +120,6 @@ export class Sim {
         // grain-level pictures (level editor) give every grain; the others one key per cell of an
         // n-cell square. Either way the picture sits centred in the frame (anything outside the
         // frame is cut off).
-        const wide = L.sand ? toCurrentFrame(decodeSand(L.sand), L.sand.w ?? L.sand.size, L.sand.size) : null;
         const grains = wide ? wide.keys : null;
         const SH = wide ? wide.h : L.n * SUB, SW = wide ? wide.w : SH;
         const x0 = Math.floor((G - SW) / 2), y0 = top + Math.floor((PG - SH) / 2);
@@ -123,7 +132,7 @@ export class Sim {
         // under the board curves in to the hole
         const wall = (this.wall = new Uint8Array(G * GH));
         for (let y = top; y < G; y++) for (let x = 0; x < G; x++) {
-            if (!grainInFrame(x, y - top)) { wall[y * G + x] = 1; key[y * G + x] = 0; }
+            if (!grainInFrame(x, y - top, nF)) { wall[y * G + x] = 1; key[y * G + x] = 0; }
         }
         for (let y = G; y < GH; y++) for (let x = 0; x < G; x++) {
             if (Math.abs(PIC.x + (x - pad + 0.5) * gs - MOUTH.x) > funnelHalf(oy + (y + 0.5) * gs)) wall[y * G + x] = 1;
@@ -335,7 +344,7 @@ export class Sim {
             if (p < board && q >= board) { this.left--; seq[q] = ++this.seqN; }
         };
         const grain = (p: number) => {
-            vy[p] = Math.min(MAX_FALL, vy[p] + GRAVITY);
+            vy[p] = Math.min(this.maxFall, vy[p] + this.gravity);
             // whole cells to travel this step; the fraction is rounded at random so slow grains still creep
             let steps = Math.floor(vy[p]) + (this.rand() < vy[p] % 1 ? 1 : 0);
             if (steps < 1) steps = 1;
@@ -410,7 +419,7 @@ export class Sim {
             }
             let x0 = G, x1 = 0, y0 = G, y1 = 0;
             for (const p of comp) { const x = p % G, y = (p / G) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-            if (comp.length <= SMALL_ISLAND || Math.min(x1 - x0, y1 - y0) < THIN_ISLAND) {
+            if (comp.length <= this.smallIsland || Math.min(x1 - x0, y1 - y0) < this.thinIsland) {
                 for (const p of comp) loose[p] = 1;
                 this.picDirty = true;
             }
