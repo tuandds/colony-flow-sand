@@ -188,3 +188,15 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 </td>
 </tr></tbody>
 </table>
+
+## Gameplay variants
+
+The same levels can be played under other rules (`?variant=<n>`, picked beside the Level Editor's Play button; `src/game/variant.ts`).
+
+| | Variant 1 (the game) | Variant 2 | Variant 3 |
+|---|---|---|---|
+| Grains a block | 64 | 16 (a picture makes about 4 times as many blocks) | as 1 |
+| Nests | as the level sets them | 4 times as big, as many of them (a nest of 8 is about 32) | as 1 |
+| Ants | carry blocks from the belt to their nest | none: a block on the belt's bottom run jumps into the front nest of its colour right under it, as many as the nest still wants | as 1 |
+| Conveyor | 36 slots on holders | 100 blocks lying loose, a little off the belt's middle and turned, piling into each other (no holders; 20 small arrows ride round with the belt, pointing the way it turns); blocks may land on each other | as 1 |
+| Lose | the belt is full and none of its blocks fits a front nest | the same, with 100 | as 1 |

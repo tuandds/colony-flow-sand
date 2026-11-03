@@ -1,11 +1,12 @@
 // The whole game state and rules, independent of Phaser: sand picture, funnel, conveyor,
 // nests and ants. The scene calls update() every frame and reads the fields to draw them.
 import {
-    ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, COLS, DROP_S, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS, TUNED_GRAIN_PX, frameZoom, zoomFrameN,
+    ANT_SPEED, BELT, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, COLS, DROP_S, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, TUNED_GRAIN_PX, frameZoom, zoomFrameN,
     FRAME_N, INNER, MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colGap, colX, frameGrains, funnelHalf, grainInFrame, nestPos,
 } from './layout';
 import { Frozen, Level, buildLevel, decodeSand, toCurrentFrame } from './levels';
 import { hash, mulberry32, packColor } from './util';
+import { RULES } from './variant';
 
 export type Sfx = 'pop' | 'drop' | 'pick' | 'nest' | 'lose' | 'win' | 'click' | 'add';
 
@@ -15,7 +16,12 @@ export interface Nest {
     /** Woken by the Activate booster: works like a front nest from where it stands. */
     on?: boolean;
 }
-export interface Block { k: string; claimed: Ant | null; drop: number }
+export interface Block {
+    k: string; claimed: Ant | null; drop: number;
+    /** On a loose belt (RULES.looseBelt): how far the block lies off its slot (px) and how it is
+     * turned (radians); looks only. */
+    jx: number; jy: number; ja: number;
+}
 export interface Ant {
     x: number; y: number; slot: number; block: Block; nest: Nest; col: number;
     carry: string | null; ang: number; t: number;
@@ -26,8 +32,11 @@ export interface Ant {
 }
 /** Fan booster: seconds between two blocks leaving the cannon, and each block's flight time. */
 export const FAN_SHOT_GAP = 0.2, FAN_FLIGHT = 0.5;
-/** A block the Fan booster blew off the belt, flying into a nest. */
-export interface Flyer { k: string; sx: number; sy: number; nest: Nest; t: number; dur: number }
+/** A block flying into a nest: blown off the belt by the Fan booster, or (hop) jumping in by
+ * itself as it passes a nest of its colour (no ants, RULES.ants off). */
+export interface Flyer { k: string; sx: number; sy: number; nest: Nest; t: number; dur: number; hop?: boolean }
+/** A block's jump from the belt into a nest, in seconds. */
+export const HOP_FLIGHT = 0.3;
 export interface Spark { x: number; y: number; vx: number; vy: number; life: number; t: number; color: number; s: number }
 
 /** Test-only: force a nest order/seed for a level (used to search solvable layouts). */
@@ -77,10 +86,12 @@ export class Sim {
     exitCarry = 0;
     hopper: Record<string, number> = {};
     /** Grains of each colour (by key index) not yet down the hole: when a colour's last grain goes
-     * down, its leftover grains (fewer than BLOCK_GRAINS) make one last block. */
+     * down, its leftover grains (fewer than a block) make one last block. */
     toGo: number[] = [];
     pipe: string[] = []; dropping: Block[] = [];
     slots: (Block | null)[] = []; beltOff = 0;
+    /** Belt length between two slots (RULES.slots round the belt). */
+    slotGap = SLOT_GAP;
     cols: Nest[][] = []; ants: Ant[] = []; fx: Spark[] = []; flyers: Flyer[] = [];
     /** Falling and loose-island settings scaled to this level's grain size (start). */
     private gravity = GRAVITY; private maxFall = MAX_FALL; private smallIsland = SMALL_ISLAND; private thinIsland = THIN_ISLAND;
@@ -169,7 +180,7 @@ export class Sim {
         this.picDirty = true;
         this.exitCarry = 0;
         this.hopper = {}; this.pipe = []; this.dropping = [];
-        this.slots = new Array(SLOTS).fill(null); this.beltOff = 0;
+        this.slots = new Array(RULES.slots).fill(null); this.beltOff = 0; this.slotGap = BELT_LEN / RULES.slots;
         this.ncols = Math.max(MIN_COLS, Math.min(MAX_COLS, L.cols ?? COLS));
         this.cols = this.makeNests(i, L, key, keys);
         this.ants = []; this.fx = []; this.flyers = [];
@@ -206,14 +217,17 @@ export class Sim {
         } else {
             for (let p = key.length - 1; p >= 0; p--) if (key[p]) order.push(p);
         }
-        // every BLOCK_GRAINS of a colour make a block; its leftover grains (fewer than a block)
-        // make its last block, at its last grain
+        // every block's worth of grains of a colour (RULES.blockGrains) make a block; its leftover
+        // grains (fewer than a block) make its last block, at its last grain. Nest sizes (chunk, and
+        // hand-set nests) are in blocks of BLOCK_GRAINS: with smaller blocks they grow to match, so a
+        // level has as many nests whatever the block size.
+        const per = BLOCK_GRAINS / RULES.blockGrains;
         const remaining = new Array(keys.length).fill(0);
         for (const p of order) remaining[key[p]]++;
         for (const p of order) {
             const c = key[p];
             acc[c]++; remaining[c]--;
-            if (acc[c] === BLOCK_GRAINS || !remaining[c]) { acc[c] = 0; blockSeq.push(keys[c]!); }
+            if (acc[c] === RULES.blockGrains || !remaining[c]) { acc[c] = 0; blockSeq.push(keys[c]!); }
         }
         // nests from the level editor (a recorded play, or set by hand) are used as they are when
         // they hold exactly the picture's blocks. When a colour's block count is off by a little
@@ -223,10 +237,10 @@ export class Sim {
         if (L.nests && L.nests.length === n) {
             const want: Record<string, number> = {};
             for (const k of blockSeq) want[k] = (want[k] || 0) + 1;
-            for (const col of L.nests) for (const [k, n] of col) want[k] = (want[k] || 0) - n;
+            for (const col of L.nests) for (const [k, n] of col) want[k] = (want[k] || 0) - Math.round(n * per);
             const off = Object.values(want).reduce((a, v) => a + Math.abs(v), 0), total = blockSeq.length;
             if (off <= Math.max(2, total * 0.05)) {
-                const cols = L.nests.map((col) => col.map(([k, need]) => [k, need] as [string, number]));
+                const cols = L.nests.map((col) => col.map(([k, need]) => [k, Math.round(need * per)] as [string, number]));
                 for (const [k, d0] of Object.entries(want)) {
                     let d = d0;
                     const mine = cols.flat().filter((nest) => nest[0] === k);
@@ -245,7 +259,7 @@ export class Sim {
         for (const k of blockSeq) left[k] = (left[k] || 0) + 1;
         const open: Record<string, { color: string; need: number; have: number; first: number } | null> = {};
         const chunks: { color: string; need: number; have: number; first: number }[] = [];
-        const chunkLo = Math.round(L.chunk[0] * NEST_SCALE), chunkHi = Math.round(L.chunk[1] * NEST_SCALE);
+        const chunkLo = Math.round(L.chunk[0] * NEST_SCALE * per), chunkHi = Math.round(L.chunk[1] * NEST_SCALE * per);
         const pickSize = (k: string) => {
             let c = chunkLo + Math.floor(rng() * (chunkHi - chunkLo + 1));
             if (left[k] - c < chunkLo) c = left[k];
@@ -437,11 +451,11 @@ export class Sim {
     }
 
     // ---------- the hole ----------
-    // sand that has gone down the hole: BLOCK_GRAINS of a colour make a block in the pipe
+    // sand that has gone down the hole: RULES.blockGrains of a colour make a block in the pipe
     private addToHopper(k: string, n: number) {
         this.drained += n;
         this.hopper[k] = (this.hopper[k] || 0) + n;
-        while (this.hopper[k] >= BLOCK_GRAINS) { this.hopper[k] -= BLOCK_GRAINS; this.pipe.push(k); }
+        while (this.hopper[k] >= RULES.blockGrains) { this.hopper[k] -= RULES.blockGrains; this.pipe.push(k); }
         // the colour's last grain: what is left of it makes one more (smaller) block
         const c = this.keys.indexOf(k);
         if ((this.toGo[c] -= n) <= 0 && this.hopper[k] > 0) { this.hopper[k] = 0; this.pipe.push(k); }
@@ -462,17 +476,20 @@ export class Sim {
 
     // ---------- conveyor ----------
     slotPos(i: number): [number, number] {
-        return beltPoint((((this.beltOff + i * SLOT_GAP) % BELT_LEN) + BELT_LEN) % BELT_LEN);
+        return beltPoint((((this.beltOff + i * this.slotGap) % BELT_LEN) + BELT_LEN) % BELT_LEN);
     }
     private stepBelt(dt: number) {
         this.beltOff = (this.beltOff + BELT_SPEED * dt) % BELT_LEN;
-        // drop a block from the pipe into an empty slot passing under the mouth
-        if (this.pipe.length && !this.dropping.length) {
-            for (let i = 0; i < SLOTS; i++) {
-                const s = (((this.beltOff + i * SLOT_GAP) % BELT_LEN) + BELT_LEN) % BELT_LEN;
+        // drop a block from the pipe into an empty slot passing under the mouth (one landing at a
+        // time; on a loose belt they may land on top of each other)
+        if (this.pipe.length && (!this.dropping.length || RULES.looseBelt)) {
+            const gap = this.slotGap;
+            for (let i = 0; i < this.slots.length; i++) {
+                const s = (((this.beltOff + i * gap) % BELT_LEN) + BELT_LEN) % BELT_LEN;
                 const d = DROP_S - s;
-                if (d > -SLOT_GAP * 0.35 && d < SLOT_GAP * 0.2 && !this.slots[i]) {
-                    const b: Block = { k: this.pipe.shift()!, claimed: null, drop: 0 };
+                if (d > -gap * 0.35 && d < gap * 0.2 && !this.slots[i]) {
+                    const r = () => Math.random() - 0.5, loose = RULES.looseBelt;
+                    const b: Block = { k: this.pipe.shift()!, claimed: null, drop: 0, jx: loose ? r() * 14 : 0, jy: loose ? r() * 20 : 0, ja: loose ? r() * 0.8 : 0 };
                     this.slots[i] = b;
                     this.dropping.push(b);
                     this.sfx('drop', 0.7); // a new block lands on the belt: short, soft cube sound
@@ -523,13 +540,14 @@ export class Sim {
                     ri--; continue;
                 }
                 if (!this.isActive(nest, ri)) continue;
+                if (!RULES.ants) { this.hopIn(nest, ci, ri); continue; }
                 nest.cool -= dt;
                 if (nest.got + nest.inflight >= nest.need || nest.cool > 0) continue;
                 // ants use the nest's slot, not its sliding position, so the rules don't
                 // depend on the animation (recorded plays then replay exactly)
                 const [nx, ny] = this.nestAt(ci, ri);
                 let best = -1, bd = 1e9;
-                for (let i = 0; i < SLOTS; i++) {
+                for (let i = 0; i < this.slots.length; i++) {
                     const b = this.slots[i];
                     if (!b || b.claimed || b.k !== nest.color || b.drop < 1) continue;
                     const [bx, by] = this.slotPos(i);
@@ -550,13 +568,28 @@ export class Sim {
             }
         }
     }
+    /** No ants: blocks of the nest's colour passing right over it on the belt's bottom run jump in,
+     * as many as it still wants. */
+    private hopIn(nest: Nest, ci: number, ri: number) {
+        const [nx] = this.nestAt(ci, ri), bottom = BELT.cy + BELT.r - 1;
+        for (let i = 0; i < this.slots.length && nest.got + nest.inflight < nest.need; i++) {
+            const b = this.slots[i];
+            if (!b || b.k !== nest.color || b.drop < 1) continue;
+            const [bx, by] = this.slotPos(i);
+            if (by < bottom || Math.abs(bx - nx) > this.slotGap / 2) continue;
+            this.slots[i] = null;
+            nest.inflight++;
+            this.flyers.push({ k: b.k, sx: bx + b.jx, sy: by + b.jy, nest, t: 0, dur: HOP_FLIGHT, hop: true });
+            this.sfx('pick', 0.3);
+        }
+    }
     /** Where an ant going for the block at (bx, by) aims: the point on the belt where it would
      * meet the block running straight, `lead` of the way there from the block. */
     private intercept(a: Ant, bx: number, by: number): [number, number] {
         let t = Math.hypot(bx - a.x, by - a.y) / ANT_SPEED;
         let p: [number, number] = [bx, by];
         for (let k = 0; k < 4; k++) {
-            p = beltPoint((((this.beltOff + BELT_SPEED * t * a.lead + a.slot * SLOT_GAP) % BELT_LEN) + BELT_LEN) % BELT_LEN);
+            p = beltPoint((((this.beltOff + BELT_SPEED * t * a.lead + a.slot * this.slotGap) % BELT_LEN) + BELT_LEN) % BELT_LEN);
             t = Math.hypot(p[0] - a.x, p[1] - a.y) / ANT_SPEED;
         }
         return p;
@@ -663,7 +696,7 @@ export class Sim {
 
     fan() {
         let n = 0;
-        for (let i = 0; i < SLOTS; i++) {
+        for (let i = 0; i < this.slots.length; i++) {
             const b = this.slots[i];
             if (!b) continue;
             let target: Nest | null = null, bd = 1e9;

@@ -1,8 +1,8 @@
 import * as Phaser from 'phaser';
-import { VARIANT } from '../game/variant';
+import { RULES, VARIANT } from '../game/variant';
 import {
     BELT, BLOCK, BOOSTER_IMAGES, BOOSTER_POS, BOOSTER_SIZE, FRAME_ART, GATE_OUT, H, INNER, NEST_BOXES, PAUSE_BTN, PIC,
-    SLOTS, SPEED_BTN, TILE, W,
+    BELT_LEN, SLOTS, SPEED_BTN, TILE, W, beltPoint,
 } from '../game/layout';
 import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useLevels } from '../game/levels';
 import { type Recording, botStep, pickStroke, playBot, replayStep } from '../game/bot';
@@ -35,6 +35,8 @@ type Overlay = 'start' | 'settings' | 'end' | null;
  * the last block is in its nest. Times in s: the drop, each block's trip into the mouth, the gap
  * between shots. */
 const FAN = { x: 540, y: 900, size: 300, drop: 0.45, suck: 0.5, shot: 0.06 };
+/** Direction arrows round a loose belt (variant 2). */
+const BELT_ARROWS = 20;
 /** Shuffle booster: seconds the game holds on the nests before they move, and their move. */
 const SHUFFLE = { focus: 0.5, move: 0.5 };
 /** Frames a second when a demo reel is recorded frame by frame. */
@@ -92,6 +94,8 @@ export class Game extends Phaser.Scene {
     private threeCtx!: CanvasRenderingContext2D;
     /** The belt's holders, one under each slot (they move with the belt). */
     private holds: Phaser.GameObjects.Image[] = [];
+    /** A loose belt's direction arrows (variant 2: it has no holders to show it turning). */
+    private arrows: Phaser.GameObjects.Image[] = [];
     /** Colony Flow's soft shadow under each ant (img/ant_shadow.png), reused frame to frame. */
     private antShadows: Phaser.GameObjects.Image[] = [];
     private shadowGfx!: Phaser.GameObjects.Graphics;
@@ -162,7 +166,15 @@ export class Game extends Phaser.Scene {
         this.drawBoard();
         this.sandImage = this.add.image(0, 0, '__WHITE').setOrigin(0).setDepth(D.sand);
         this.drawBeltBase();
-        for (let i = 0; i < SLOTS; i++) this.holds.push(this.add.image(0, 0, 'conveyor_hold').setDisplaySize(22, 22).setDepth(D.belt));
+        // a loose belt (variant 2) has no holders: its blocks lie on the belt itself
+        if (RULES.looseBelt) {
+            if (!this.textures.exists('belt_arrow')) {
+                const g = this.make.graphics({}, false);
+                g.fillStyle(0xffffff, 1).fillTriangle(2, 2, 22, 13, 2, 24);
+                g.generateTexture('belt_arrow', 26, 26).destroy();
+            }
+            for (let i = 0; i < BELT_ARROWS; i++) this.arrows.push(this.add.image(0, 0, 'belt_arrow').setTint(0x2b2f63).setAlpha(0.35).setDepth(D.belt));
+        } else for (let i = 0; i < SLOTS; i++) this.holds.push(this.add.image(0, 0, 'conveyor_hold').setDisplaySize(22, 22).setDepth(D.belt));
         this.fullText = this.text(540, BELT.cy + 1, '0%', 24, '#14203a', null).setDepth(D.belt + 0.5);
         this.shadowGfx = this.add.graphics().setDepth(D.shadows);
         // Phaser canvas textures need a 2D canvas, so each frame the WebGL output of the 3D
@@ -285,10 +297,11 @@ export class Game extends Phaser.Scene {
         const g = this.shadowGfx;
         g.clear();
         g.fillStyle(0x24345e, 0.25);
-        for (let i = 0; i < SLOTS; i++) {
+        for (let i = 0; i < s.slots.length; i++) {
             const b = s.slots[i];
             if (!b) continue;
             let [x, y] = s.slotPos(i);
+            x += b.jx; y += b.jy;
             if (b.drop < 1) { const t = b.drop; x = GATE_OUT.x + (x - GATE_OUT.x) * t; y = GATE_OUT.y + (y - GATE_OUT.y) * t; }
             // Fan: the block is sucked into the cannon, its shadow fading as it rises; swallowed
             // blocks are not drawn
@@ -298,7 +311,7 @@ export class Game extends Phaser.Scene {
             g.fillStyle(0x24345e, 0.25 * (1 - up.e));
             g.fillEllipse(x, y + BLOCK * 0.55, BLOCK * 1.05 * (1 - up.e * 0.5), BLOCK * 0.32 * (1 - up.e * 0.5));
             if (up.e > 0) items.push({ ref: b, kind: 'cube', x: up.x, y: up.y, color: s.colors[b.k], size: BLOCK, ang: up.ang, scale: up.scale, centered: true });
-            else items.push({ ref: b, kind: 'cube', x, y: y + BLOCK * 0.36, color: s.colors[b.k], size: BLOCK });
+            else items.push({ ref: b, kind: 'cube', x, y: y + BLOCK * 0.36, color: s.colors[b.k], size: BLOCK, ang: b.ja });
         }
         if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: GATE_OUT.x, y: GATE_OUT.y, color: s.colors[s.pipe[0]], size: 25 });
         // Fan: blocks shot from the cannon's mouth arc into their nests, growing out of the mouth to
@@ -310,8 +323,10 @@ export class Game extends Phaser.Scene {
             if (k !== undefined) { const age = this.shotAge(f, k); if (age < 0) continue; t = Math.min(1, age / FAN_FLIGHT); }
             // (x, y) is the block's centre: it leaves from the middle of the mouth
             const e = t * (2 - t), ex = f.nest.dx ?? f.sx, ey = (f.nest.dy ?? f.sy) - TILE * 0.2;
-            const x = f.sx + (ex - f.sx) * e, y = f.sy + (ey - f.sy) * e - Math.sin(Math.PI * t) * 140;
-            const sc = 1.5 * Math.min(1, 0.25 + t * 3) * (1 - 0.3 * t * t);
+            // a block jumping in by itself (no ants) hops low and stays its size, shrinking a
+            // little as it drops in
+            const x = f.sx + (ex - f.sx) * e, y = f.sy + (ey - f.sy) * e - Math.sin(Math.PI * t) * (f.hop ? 70 : 140);
+            const sc = f.hop ? 1 - 0.3 * t * t : 1.5 * Math.min(1, 0.25 + t * 3) * (1 - 0.3 * t * t);
             items.push({ ref: f, kind: 'cube', x, y, color: s.colors[f.k], size: BLOCK, scale: sc, ang: (1 - t) * 6, centered: true });
         }
 
@@ -526,8 +541,14 @@ export class Game extends Phaser.Scene {
         const s = this.sim;
         // the holders ride round with the belt, one under each slot
         this.holds.forEach((h, i) => { const [x, y] = s.slotPos(i); h.setPosition(x, y + 4); });
+        // a loose belt's arrows ride round with it too, each pointing the way it runs
+        this.arrows.forEach((a, i) => {
+            const at = (s.beltOff + (i * BELT_LEN) / BELT_ARROWS) % BELT_LEN;
+            const [x, y] = beltPoint(at), [x2, y2] = beltPoint((at + 2) % BELT_LEN);
+            a.setPosition(x, y).setRotation(Math.atan2(y2 - y, x2 - x));
+        });
         // how full the conveyor is
-        const used = s.slots.filter(Boolean).length, pct = Math.round((100 * used) / SLOTS);
+        const used = s.slots.filter(Boolean).length, pct = Math.round((100 * used) / s.slots.length);
         this.fullBar.setVisible(pct > 0).width = Math.max(52, (this.fullBar.getData('max') * pct) / 100);
         this.fullText.setText(pct + '%');
     }
@@ -700,7 +721,7 @@ export class Game extends Phaser.Scene {
         this.tweens.add({ targets: icon, y: FAN_MOUTH.y, duration: FAN.drop * 1000, ease: 'Bounce.Out', onComplete: () => icon.setDepth(D.three - 0.1) });
         // blocks nearest the mouth go in first; all of them within about a second
         const s = this.sim, near: { i: number; d: number }[] = [];
-        for (let i = 0; i < SLOTS; i++) {
+        for (let i = 0; i < s.slots.length; i++) {
             if (!s.slots[i]) continue;
             const [x, y] = s.slotPos(i);
             near.push({ i, d: Math.hypot(x - FAN_MOUTH.x, y - FAN_MOUTH.y) });
