@@ -37,7 +37,7 @@ interface EdLevel {
     autoplay?: Result;
 }
 interface Chapter { id: string; name: string; description: string; levels: string[] }
-type Tool = 'paint' | 'erase' | 'fill' | 'replace' | 'pick';
+type Tool = 'paint' | 'erase' | 'fill' | 'replace' | 'pick' | 'frozen';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -72,6 +72,8 @@ let brush = 6;
 let sandUndo: string[] = [], sandRedo: string[] = [];
 let bankUndo: string[] = [];
 let selNest: [number, number] | null = null;
+/** The frozen area picked in the Sand Editor (an index into the level's `frozen`). */
+let selIce: number | null = null;
 let mode: 'editor' | 'organizer' = 'editor';
 let bankChapter = '';
 const filters = { status: new Set<string>(), diff: new Set<string>(), check: new Set<string>() };
@@ -261,7 +263,7 @@ function commitGrains() {
     L().sand = encodeSand(h, grains, w);
     L().updated = Date.now();
 }
-const sandState = () => JSON.stringify({ sand: L().sand, n: L().n, nests: L().nests, moves: L().moves, verified: L().verified, chunk: L().chunk, order: L().order, seed: L().seed, cols: L().cols });
+const sandState = () => JSON.stringify({ sand: L().sand, n: L().n, nests: L().nests, moves: L().moves, verified: L().verified, chunk: L().chunk, order: L().order, seed: L().seed, cols: L().cols, frozen: L().frozen });
 function sandSnapshot() {
     sandUndo.push(sandState());
     if (sandUndo.length > 60) sandUndo.shift();
@@ -269,7 +271,8 @@ function sandSnapshot() {
 }
 function restoreSand(json: string) {
     const s = JSON.parse(json), l = L();
-    l.sand = s.sand; l.n = s.n; l.nests = s.nests; l.moves = s.moves; l.verified = s.verified; l.chunk = s.chunk; l.order = s.order; l.seed = s.seed; l.cols = s.cols ?? COLS;
+    l.sand = s.sand; l.n = s.n; l.nests = s.nests; l.moves = s.moves; l.verified = s.verified; l.chunk = s.chunk; l.order = s.order; l.seed = s.seed; l.cols = s.cols ?? COLS; l.frozen = s.frozen;
+    if (selIce !== null && selIce >= (l.frozen?.length ?? 0)) selIce = null;
     grains = decodeSand(l.sand);
     renderEditor();
 }
@@ -389,17 +392,24 @@ function drawSandCanvas() {
     g.imageSmoothingEnabled = false;
     g.drawImage(sandArt, 0, 0, cw, ch);
     // frozen areas: a dashed ice outline with the count
-    for (const f of L().frozen ?? []) {
+    (L().frozen ?? []).forEach((f, i) => {
+        const picked = i === selIce && tool === 'frozen';
         g.save();
-        g.strokeStyle = '#ffffff'; g.lineWidth = 3; g.setLineDash([8, 6]); g.fillStyle = 'rgba(201,227,255,.45)';
+        g.strokeStyle = picked ? '#fbbf24' : '#ffffff'; g.lineWidth = 3; g.setLineDash(picked ? [] : [8, 6]); g.fillStyle = 'rgba(201,227,255,.45)';
         g.beginPath();
         if (f.shape === 'circle') g.ellipse((f.x + f.w / 2) * s, (f.y + f.h / 2) * s, (f.w / 2) * s, (f.h / 2) * s, 0, 0, Math.PI * 2);
         else g.rect(f.x * s, f.y * s, f.w * s, f.h * s);
         g.fill(); g.stroke();
-        g.setLineDash([]); g.fillStyle = '#1b2a4a'; g.font = `bold ${Math.round(14 * s)}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+        if (picked) {
+            // its bounding box and the four corner handles that resize it
+            g.lineWidth = 1.5; g.setLineDash([4, 4]); g.strokeRect(f.x * s, f.y * s, f.w * s, f.h * s);
+            g.setLineDash([]); g.fillStyle = '#fbbf24';
+            for (const [cx, cy] of iceCorners(f)) g.fillRect(cx * s - ICE_HANDLE * s / 2, cy * s - ICE_HANDLE * s / 2, ICE_HANDLE * s, ICE_HANDLE * s);
+        }
+        g.setLineDash([]); g.fillStyle = '#1b2a4a'; g.font = `bold ${Math.round(Math.min(14, Math.min(f.w, f.h) * 0.3) * s)}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
         g.fillText('❄ ' + f.count, (f.x + f.w / 2) * s, (f.y + f.h / 2) * s);
         g.restore();
-    }
+    });
     if (hover && (tool === 'paint' || tool === 'erase')) {
         g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 1.5;
         g.beginPath(); g.arc((hover[0] + 0.5) * s, (hover[1] + 0.5) * s, brush * s, 0, Math.PI * 2); g.stroke();
@@ -461,6 +471,7 @@ sandCv.addEventListener('drop', (e) => {
     recolour(grains[c[1] * dims().w + c[0]], k);
 });
 sandCv.addEventListener('pointerdown', (e) => {
+    if (tool === 'frozen') { iceDown(e); return; }
     const c = grainAt(e);
     if (!c) return;
     const [x, y] = c, here = grains[y * dims().w + x];
@@ -479,6 +490,7 @@ sandCv.addEventListener('pointerdown', (e) => {
     if (strokeTo(x, y, painting === 'erase' ? '.' : colour)) renderSand();
 });
 sandCv.addEventListener('pointermove', (e) => {
+    if (tool === 'frozen') { iceMove(e); return; }
     const c = grainAt(e);
     hover = c;
     if (painting && c && strokeTo(c[0], c[1], painting === 'erase' ? '.' : colour)) { renderSand(); return; }
@@ -486,10 +498,139 @@ sandCv.addEventListener('pointermove', (e) => {
 });
 sandCv.addEventListener('pointerleave', () => { hover = null; drawSandCanvas(); });
 sandCv.addEventListener('pointerup', () => {
+    if (iceDrag) { iceUp(); return; }
     if (!painting) return;
     painting = null; lastStamp = null;
     pictureChanged();
 });
+
+// ---------- frozen areas ----------
+// The ❄️ tool: drag on the picture to draw a new area, drag inside an area to move it, drag a
+// corner of the picked one to resize it. Areas are in picture grains and stay inside the frame.
+const ICE_HANDLE = 5, ICE_MIN = 8;
+let iceShape: Frozen['shape'] = 'rect', iceCount = 20;
+let iceDrag: { kind: 'new' | 'move' | 'size'; i: number; x0: number; y0: number; f0: Frozen; corner: [number, number] } | null = null;
+const iceCorners = (f: Frozen): [number, number][] => [[f.x, f.y], [f.x + f.w, f.y], [f.x, f.y + f.h], [f.x + f.w, f.y + f.h]];
+/** The pointer in picture grains, not rounded and not limited to the frame. */
+function grainF(e: PointerEvent): [number, number] {
+    const r = sandCv.getBoundingClientRect(), { w, h } = dims();
+    return [((e.clientX - r.left) / r.width) * w, ((e.clientY - r.top) / r.height) * h];
+}
+function iceHit(x: number, y: number): { i: number; corner?: [number, number] } | null {
+    const list = L().frozen ?? [];
+    if (selIce !== null && list[selIce]) {
+        const f = list[selIce], k = iceCorners(f).findIndex(([cx, cy]) => Math.abs(cx - x) <= ICE_HANDLE && Math.abs(cy - y) <= ICE_HANDLE);
+        if (k >= 0) return { i: selIce, corner: [k % 2, k >> 1] };
+    }
+    for (let i = list.length - 1; i >= 0; i--) {
+        const f = list[i];
+        if (x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h) return { i };
+    }
+    return null;
+}
+/** Keep an area whole and inside the frame. */
+function clampIce(f: Frozen): Frozen {
+    const { w, h } = dims();
+    const fw = Math.max(ICE_MIN, Math.min(w, Math.round(f.w))), fh = Math.max(ICE_MIN, Math.min(h, Math.round(f.h)));
+    return { ...f, w: fw, h: fh, x: Math.max(0, Math.min(w - fw, Math.round(f.x))), y: Math.max(0, Math.min(h - fh, Math.round(f.y))), count: Math.max(1, Math.min(999, Math.round(f.count) || 1)) };
+}
+function iceDown(e: PointerEvent) {
+    if (e.button !== 0) return;
+    const [x, y] = grainF(e), hit = iceHit(x, y), l = L();
+    sandSnapshot();
+    if (hit) {
+        selIce = hit.i;
+        const f0 = { ...l.frozen![hit.i] };
+        iceDrag = { kind: hit.corner ? 'size' : 'move', i: hit.i, x0: x, y0: y, f0, corner: hit.corner ?? [0, 0] };
+    } else {
+        l.frozen = [...(l.frozen ?? []), clampIce({ shape: iceShape, x, y, w: ICE_MIN, h: ICE_MIN, count: iceCount })];
+        selIce = l.frozen.length - 1;
+        iceDrag = { kind: 'new', i: selIce, x0: x, y0: y, f0: { ...l.frozen[selIce] }, corner: [1, 1] };
+    }
+    sandCv.setPointerCapture(e.pointerId);
+    renderFrozen(); drawSandCanvas();
+}
+function iceMove(e: PointerEvent) {
+    const [x, y] = grainF(e);
+    if (!iceDrag) {
+        const hit = iceHit(x, y);
+        sandCv.style.cursor = hit?.corner ? (hit.corner[0] === hit.corner[1] ? 'nwse-resize' : 'nesw-resize') : hit ? 'move' : 'crosshair';
+        return;
+    }
+    const { kind, i, x0, y0, f0, corner } = iceDrag, list = L().frozen!, dx = x - x0, dy = y - y0;
+    let f: Frozen;
+    if (kind === 'move') f = { ...f0, x: f0.x + dx, y: f0.y + dy };
+    else if (kind === 'new') f = { ...f0, x: Math.min(x0, x), y: Math.min(y0, y), w: Math.abs(dx), h: Math.abs(dy) };
+    else {
+        // the far corner stays put; Shift keeps it square (or round)
+        const ax = corner[0] ? f0.x : f0.x + f0.w, ay = corner[1] ? f0.y : f0.y + f0.h;
+        let bx = (corner[0] ? f0.x + f0.w : f0.x) + dx, by = (corner[1] ? f0.y + f0.h : f0.y) + dy;
+        if (e.shiftKey) { const d = Math.max(Math.abs(bx - ax), Math.abs(by - ay)); bx = ax + Math.sign(bx - ax || 1) * d; by = ay + Math.sign(by - ay || 1) * d; }
+        f = { ...f0, x: Math.min(ax, bx), y: Math.min(ay, by), w: Math.abs(bx - ax), h: Math.abs(by - ay) };
+    }
+    if (kind === 'new' && e.shiftKey) { const d = Math.max(f.w, f.h); f = { ...f, w: d, h: d, x: x < x0 ? x0 - d : x0, y: y < y0 ? y0 - d : y0 }; }
+    list[i] = clampIce(f);
+    renderFrozen(); drawSandCanvas();
+}
+function iceUp() {
+    const d = iceDrag!, l = L(), f = l.frozen![d.i];
+    iceDrag = null;
+    // a click on empty sand (no drag) makes a 5 x 5 cell area centred there
+    if (d.kind === 'new' && f.w <= ICE_MIN && f.h <= ICE_MIN) l.frozen![d.i] = clampIce({ ...f, x: d.x0 - 20, y: d.y0 - 20, w: 40, h: 40 });
+    if (d.kind !== 'new' && JSON.stringify(f) === JSON.stringify(clampIce(d.f0))) { sandUndo.pop(); renderFrozen(); drawSandCanvas(); return; }
+    frozenChanged();
+}
+/** The level's frozen areas changed: the recorded win no longer applies. */
+function frozenChanged() {
+    const l = L();
+    if (!l.frozen?.length) delete l.frozen;
+    if (selIce !== null && selIce >= (l.frozen?.length ?? 0)) selIce = null;
+    delete l.moves;
+    nestsChanged();
+}
+function addIce() {
+    const l = L(), { w, h } = dims();
+    sandSnapshot();
+    l.frozen = [...(l.frozen ?? []), clampIce({ shape: iceShape, x: w / 2 - 20, y: h / 2 - 20, w: 40, h: 40, count: iceCount })];
+    selIce = l.frozen.length - 1;
+    if (tool !== 'frozen') tool = 'frozen';
+    frozenChanged();
+}
+function removeIce() {
+    const l = L();
+    if (selIce === null || !l.frozen?.[selIce]) return;
+    sandSnapshot();
+    l.frozen.splice(selIce, 1);
+    selIce = null;
+    frozenChanged();
+}
+function editIce(change: Partial<Frozen>) {
+    const l = L();
+    if (selIce === null || !l.frozen?.[selIce]) return;
+    sandSnapshot();
+    const f = l.frozen[selIce];
+    // a new shape keeps the area's middle
+    l.frozen[selIce] = clampIce({ ...f, ...change, ...(change.w !== undefined ? { x: f.x + (f.w - change.w) / 2 } : {}), ...(change.h !== undefined ? { y: f.y + (f.h - change.h) / 2 } : {}) });
+    if (change.shape) iceShape = change.shape;
+    if (change.count !== undefined) iceCount = l.frozen[selIce].count;
+    frozenChanged();
+}
+const CELL = SUB;
+function renderFrozen() {
+    const list = L().frozen ?? [], f = selIce !== null ? list[selIce] : undefined;
+    $('fz-list').innerHTML = list.length
+        ? list.map((a, i) => `<button class="fz-chip${i === selIce ? ' on' : ''}" data-i="${i}" title="Chọn vùng này">${a.shape === 'circle' ? '◯' : '▢'} ❄ ${a.count}</button>`).join('')
+        : '<span class="hint" style="margin:0">Chưa có vùng Frozen.</span>';
+    $('fz-list').querySelectorAll<HTMLButtonElement>('.fz-chip').forEach((b) => (b.onclick = () => { selIce = +b.dataset.i!; tool = 'frozen'; renderTools(); renderFrozen(); drawSandCanvas(); }));
+    $('fz-edit').style.display = f ? '' : 'none';
+    if (!f) return;
+    $('fz-rect').classList.toggle('on', f.shape === 'rect');
+    $('fz-circle').classList.toggle('on', f.shape === 'circle');
+    const put = (id: string, v: number) => { const el = $<HTMLInputElement>(id); if (document.activeElement !== el) el.value = String(v); };
+    put('fz-count', f.count);
+    put('fz-w', +(f.w / CELL).toFixed(2));
+    put('fz-h', +(f.h / CELL).toFixed(2));
+}
 
 // ---------- colour bank + tools ----------
 function pickColour(k: string) {
@@ -650,14 +791,14 @@ $('cb-reset').onclick = () => {
     saveBank(BANK_COLOURS.map((c) => ({ ...c })));
 };
 
-const TOOLS: [Tool, string, string][] = [['paint', '✏️', 'Vẽ (B)'], ['erase', '🧽', 'Tẩy (E)'], ['fill', '🪣', 'Đổ màu vùng (G)'], ['replace', '🔁', 'Thay cả màu (R)'], ['pick', '💧', 'Hút màu (I)']];
+const TOOLS: [Tool, string, string][] = [['paint', '✏️', 'Vẽ (B)'], ['erase', '🧽', 'Tẩy (E)'], ['fill', '🪣', 'Đổ màu vùng (G)'], ['replace', '🔁', 'Thay cả màu (R)'], ['pick', '💧', 'Hút màu (I)'], ['frozen', '❄️', 'Frozen: vẽ / dời / đổi cỡ vùng băng (F)']];
 function renderTools() {
     $('tools').innerHTML = '';
     for (const [t, icon, tip] of TOOLS) {
         const b = document.createElement('button');
         b.className = 'tool' + (tool === t ? ' on' : '');
         b.textContent = icon; b.title = tip;
-        b.onclick = () => { tool = t; renderTools(); renderColourBank(); };
+        b.onclick = () => { tool = t; renderTools(); renderColourBank(); renderFrozen(); drawSandCanvas(); };
         $('tools').appendChild(b);
     }
     $<HTMLInputElement>('brush').value = String(brush);
@@ -1034,7 +1175,7 @@ function renderBankStore() {
 function selectLevel(i: number) {
     cur = Math.max(0, Math.min(levels.length - 1, i));
     grains = decodeSand(L().sand);
-    sandUndo = []; sandRedo = []; selNest = null;
+    sandUndo = []; sandRedo = []; selNest = null; selIce = null;
     renderAll();
 }
 function newLevel() {
@@ -1615,7 +1756,7 @@ function renderDirty() {
     $('lvl-name').textContent = L().name;
 }
 function renderEditor() {
-    renderColourBank(); renderTools(); renderSand(); renderSandInfo(); renderSettings(); renderNests(); renderBank(); renderDirty();
+    renderColourBank(); renderTools(); renderSand(); renderFrozen(); renderSandInfo(); renderSettings(); renderNests(); renderBank(); renderDirty();
 }
 function renderAll() {
     renderEditor();
@@ -1642,6 +1783,13 @@ $<HTMLSelectElement>('s-cols').onchange = (e) => {
 $<HTMLInputElement>('s-seed').onchange = (e) => { sandSnapshot(); L().seed = Math.max(0, Math.min(99, parseInt((e.target as HTMLInputElement).value, 10) || 0)); delete L().nests; delete L().moves; nestsChanged(); };
 $<HTMLInputElement>('brush').oninput = (e) => { brush = +(e.target as HTMLInputElement).value; $('brush-v').textContent = String(brush); };
 $('btn-undo').onclick = undoSand;
+$('fz-add').onclick = addIce;
+$('fz-del').onclick = removeIce;
+$('fz-rect').onclick = () => editIce({ shape: 'rect' });
+$('fz-circle').onclick = () => editIce({ shape: 'circle' });
+$<HTMLInputElement>('fz-count').onchange = (e) => editIce({ count: parseInt((e.target as HTMLInputElement).value, 10) || 1 });
+$<HTMLInputElement>('fz-w').onchange = (e) => editIce({ w: (parseFloat((e.target as HTMLInputElement).value) || 1) * CELL });
+$<HTMLInputElement>('fz-h').onchange = (e) => editIce({ h: (parseFloat((e.target as HTMLInputElement).value) || 1) * CELL });
 $('pic-left').onclick = () => movePicture(-1, 0);
 $('pic-right').onclick = () => movePicture(1, 0);
 $('pic-up').onclick = () => movePicture(0, -1);
@@ -1721,8 +1869,9 @@ window.addEventListener('keydown', (e) => {
     if (e.key === '[') { brush = Math.max(2, brush - 1); renderTools(); drawSandCanvas(); return; }
     if (e.key === ']') { brush = Math.min(24, brush + 1); renderTools(); drawSandCanvas(); return; }
     if (/^[0-9]$/.test(e.key)) { const k = activeKeys()[(+e.key + 9) % 10]; if (k) pickColour(k); return; }
-    const t = ({ b: 'paint', e: 'erase', g: 'fill', r: 'replace', i: 'pick' } as Record<string, Tool>)[e.key.toLowerCase()];
-    if (t) { tool = t; renderTools(); renderColourBank(); }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && tool === 'frozen' && selIce !== null) { e.preventDefault(); removeIce(); return; }
+    const t = ({ b: 'paint', e: 'erase', g: 'fill', r: 'replace', i: 'pick', f: 'frozen' } as Record<string, Tool>)[e.key.toLowerCase()];
+    if (t) { tool = t; renderTools(); renderColourBank(); renderFrozen(); drawSandCanvas(); }
 });
 window.addEventListener('beforeunload', (e) => { if (isDirty()) e.preventDefault(); });
 window.addEventListener('resize', () => renderSand());

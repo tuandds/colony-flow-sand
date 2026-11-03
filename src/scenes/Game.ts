@@ -393,17 +393,16 @@ export class Game extends Phaser.Scene {
         for (const f of this.ice) f.box.destroy();
         this.ice = [];
         const s = this.sim, rnd = mulberry32(77 + this.levelIndex);
-        for (const f of s.frozen) {
+        s.frozen.forEach((f, i) => {
             const w = (f.x1 - f.x0 + 1) * s.gs, h = (f.y1 - f.y0 + 1) * s.gs, round = f.def.shape === 'circle';
             const box = this.add.container(s.ox + f.x0 * s.gs + w / 2, s.oy + f.y0 * s.gs + h / 2).setDepth(D.sand + 0.3);
+            const frost = this.frostTexture('ice' + i, f.x0, f.y0, f.x1, f.y1, round);
             const g = this.add.graphics();
             const shape = (inset: number) => round ? g.fillEllipse(0, 0, w - 2 * inset, h - 2 * inset) : g.fillRoundedRect(-w / 2 + inset, -h / 2 + inset, w - 2 * inset, h - 2 * inset, Math.max(4, 10 - inset));
             const outline = (inset: number) => round ? g.strokeEllipse(0, 0, w - 2 * inset, h - 2 * inset) : g.strokeRoundedRect(-w / 2 + inset, -h / 2 + inset, w - 2 * inset, h - 2 * inset, Math.max(4, 10 - inset));
             // a soft glow round it, the frosted sheet, a lighter core
             g.lineStyle(10, 0xe6f4ff, 0.4); outline(-4);
-            g.fillStyle(0x9cc8ef, 0.92); shape(0);
-            g.fillStyle(0xc4e0f8, 0.9); shape(4);
-            g.fillStyle(0xe4f2ff, 0.55); shape(w * 0.14);
+            g.fillStyle(0xeaf6ff, 0.18); shape(w * 0.14);
             // light facets and cracks, like broken ice
             const inside = (x: number, y: number) => round ? (x / (w / 2)) ** 2 + (y / (h / 2)) ** 2 < 0.8 : Math.abs(x) < w / 2 - 6 && Math.abs(y) < h / 2 - 6;
             const pt = () => { for (;;) { const x = (rnd() - 0.5) * w, y = (rnd() - 0.5) * h; if (inside(x, y)) return [x, y] as const; } };
@@ -421,10 +420,47 @@ export class Game extends Phaser.Scene {
             // a bright rim
             g.lineStyle(3, 0xffffff, 0.9); outline(1.5);
             const text = this.text(0, 2, String(f.count), Math.round(Math.min(56, Math.max(30, Math.min(w, h) * 0.32))), '#1b2a4a', '#ffffff', 8);
-            box.add([g, text]);
+            box.add([this.add.image(0, 0, frost).setDisplaySize(w, h), g, text]);
             this.ice.push({ box, text, count: f.count, broken: f.broke !== null });
             if (f.broke !== null) box.setVisible(false);
+        });
+    }
+
+    /** Frosted glass for one frozen area: the picture's grains under it (which cannot change
+     * while it is frozen), blurred and washed pale blue, cut to the area's shape, so the pattern
+     * and colours show faintly through the ice. */
+    private frostTexture(key: string, x0: number, y0: number, x1: number, y1: number, round: boolean) {
+        const s = this.sim, cw = x1 - x0 + 1, ch = y1 - y0 + 1, k = 4, W = cw * k, H = ch * k;
+        const src = document.createElement('canvas');
+        src.width = cw; src.height = ch;
+        const img = src.getContext('2d')!.createImageData(cw, ch), px = new Uint32Array(img.data.buffer);
+        for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+            const p = (y0 + y) * s.G + x0 + x;
+            px[y * cw + x] = s.key[p] ? s.rgb[p] : 0xffd8c8b8;
         }
+        src.getContext('2d')!.putImageData(img, 0, 0);
+        if (this.textures.exists(key)) this.textures.remove(key);
+        const tex = this.textures.createCanvas(key, W, H)!, ctx = tex.getContext();
+        ctx.save();
+        ctx.beginPath();
+        if (round) ctx.ellipse(W / 2, H / 2, W / 2, H / 2, 0, 0, Math.PI * 2);
+        else ctx.roundRect(0, 0, W, H, 10 * k / s.gs);
+        ctx.clip();
+        // drawn a little larger than the area so the blur doesn't fade its edges
+        ctx.filter = `blur(${1.6 * k}px)`;
+        ctx.drawImage(src, -2 * k, -2 * k, W + 4 * k, H + 4 * k);
+        ctx.filter = 'none';
+        ctx.fillStyle = 'rgba(214, 236, 255, 0.45)';
+        ctx.fillRect(0, 0, W, H);
+        const sheen = ctx.createLinearGradient(0, 0, W, H);
+        sheen.addColorStop(0, 'rgba(255,255,255,0.3)');
+        sheen.addColorStop(0.5, 'rgba(255,255,255,0.05)');
+        sheen.addColorStop(1, 'rgba(160,200,240,0.25)');
+        ctx.fillStyle = sheen;
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
+        tex.refresh();
+        return key;
     }
 
     /** The ice follows the frozen areas: the number pops as it counts down; at 0 the ice

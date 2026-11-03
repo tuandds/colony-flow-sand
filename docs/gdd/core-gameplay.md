@@ -92,8 +92,8 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <li><b>Locked:</b> the sand under the ice cannot be swept and never comes loose by itself (small islands next to it still do). Falling sand cannot enter it, so loose sand piles up on top of it.</li>
 <li><b>Count:</b> the number goes down by 1 each time a nest is removed (a full nest pops and leaves its column). It pops a little each time it changes.</li>
 <li><b>Break:</b> at 0 the ice shatters: its shards fly out and fall, the sheet fades out, and the sand it held becomes ordinary fixed sand that the player can sweep.</li>
-<li><b>Look:</b> frosted pale blue ice with a white rim, light facets and cracks, a soft glow round it; a dark number with a white outline in the middle.</li>
-<li><b>Level Editor:</b> a level's areas are kept when it is edited and saved, and drawn on the Sand Editor as a dashed outline with ❄ and the count. They are placed in the level data for now (no tool to draw them yet).</li>
+<li><b>Look:</b> frosted glass: the picture under it shows through blurred and washed pale blue, so its pattern and colours can still be made out. A white rim, light facets and cracks, a soft glow round it; a dark number with a white outline in the middle.</li>
+<li><b>Level Editor:</b> the ❄️ tool (<code>F</code>) draws, moves and resizes areas on the picture; the Frozen section sets each one's shape, count and size, or deletes it (see the <a href="../guide/level-editor">Level Editor guide</a>). Areas show on the Sand Editor as a dashed outline with ❄ and the count.</li>
 <li><b>In the levels:</b> level_6, one 44 × 44 grain square on the sail, count 20.</li>
 </ul>
 </td>

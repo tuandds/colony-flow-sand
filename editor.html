@@ -110,6 +110,11 @@
   .tools { display: flex; gap: 4px; }
   .tool { width: 34px; height: 32px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--panel2); font-size: 15px; }
   .tool.on { border-color: var(--gold); background: #2a2208; }
+  .fz-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .fz-chip { border: 1.5px solid var(--line2); background: #13203a; color: #cbd5e1; border-radius: 7px; padding: 4px 8px; font-weight: 700; font-size: 11px; }
+  .fz-chip.on, .fz-seg .btn.on { border-color: var(--gold); background: #2a2208; color: #fde68a; }
+  .fz-seg { display: flex; gap: 6px; }
+  #fz-edit .setting-row input[type=number] { width: 64px; flex: 0 0 64px; }
   /* the game's frame around the sand: the canvas is exactly the frame's inside */
   .sand-wrap { margin-top: 8px; display: grid; place-items: center; }
   /* like the game's frame art: a lilac-white rim with a dark navy outline (the canvas draws the
@@ -322,7 +327,17 @@
       <label class="hint" style="margin:0;display:flex;align-items:center;gap:6px">Cọ <input type="range" id="brush" min="2" max="24" step="1" style="width:110px" /><b id="brush-v" class="setting-val"></b></label>
     </div>
     <div class="sand-wrap"><div class="sand-frame"><canvas id="sand"></canvas></div></div>
-    <div class="hint">✏️ B vẽ · 🧽 E tẩy · 🪣 G đổ màu vùng · 🔁 R thay cả màu · 💧 I hút màu · chuột phải = tẩy · [ ] đổi cỡ cọ. Mỗi 64 hạt cùng màu thành 1 khối; khi chơi, mỗi màu được cắt cho vừa khít số khối.</div>
+    <div class="hint">✏️ B vẽ · 🧽 E tẩy · 🪣 G đổ màu vùng · 🔁 R thay cả màu · 💧 I hút màu · ❄️ F Frozen · chuột phải = tẩy · [ ] đổi cỡ cọ. Mỗi 64 hạt cùng màu thành 1 khối; khi chơi, mỗi màu được cắt cho vừa khít số khối.</div>
+
+    <div class="elabel">❄ Frozen<span class="spacer"></span><button class="btn" id="fz-add" title="Thêm 1 vùng Frozen giữa tranh">＋ Thêm vùng</button></div>
+    <div class="fz-list" id="fz-list"></div>
+    <div id="fz-edit">
+      <div class="setting-row"><label>Hình dạng</label><div class="fz-seg"><button class="btn" id="fz-rect">▢ Vuông</button><button class="btn" id="fz-circle">◯ Tròn</button></div></div>
+      <div class="setting-row"><label for="fz-count">Số đếm</label><input id="fz-count" type="number" min="1" max="999" step="1" /></div>
+      <div class="setting-row"><label for="fz-w">Rộng × cao (ô)</label><input id="fz-w" type="number" min="1" max="23.5" step="0.5" /><span class="hint" style="margin:0">×</span><input id="fz-h" type="number" min="1" max="22" step="0.5" /></div>
+      <div class="row"><span class="spacer"></span><button class="btn" id="fz-del" title="Xoá vùng đang chọn (Delete)">🗑 Xoá vùng</button></div>
+    </div>
+    <div class="hint">❄️ F: kéo trên tranh để vẽ vùng mới (bấm 1 lần = vùng 5 × 5 ô) · kéo trong vùng để dời · kéo góc để đổi cỡ (Shift giữ vuông / tròn đều) · Delete xoá. Cát dưới băng không quét được; mỗi tổ bị xoá thì số giảm 1, về 0 thì băng vỡ.</div>
 
     <div class="elabel">Settings</div>
     <div class="setting-row"><label for="s-name">Tên màn</label><input id="s-name" maxlength="40" /></div>
