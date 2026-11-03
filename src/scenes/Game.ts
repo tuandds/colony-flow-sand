@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { RULES, VARIANT } from '../game/variant';
+import { LOOSE_CUBE } from '../game/belt-physics';
 import {
     BELT, BLOCK, BOOSTER_IMAGES, BOOSTER_POS, BOOSTER_SIZE, FRAME_ART, GATE_OUT, H, INNER, NEST_BOXES, PAUSE_BTN, PIC,
     BELT_LEN, SLOTS, SPEED_BTN, TILE, W, beltPoint,
@@ -300,8 +301,7 @@ export class Game extends Phaser.Scene {
         for (let i = 0; i < s.slots.length; i++) {
             const b = s.slots[i];
             if (!b) continue;
-            let [x, y] = s.slotPos(i);
-            x += b.jx; y += b.jy;
+            let [x, y] = s.blockPos(i);
             if (b.drop < 1) { const t = b.drop; x = GATE_OUT.x + (x - GATE_OUT.x) * t; y = GATE_OUT.y + (y - GATE_OUT.y) * t; }
             // Fan: the block is sucked into the cannon, its shadow fading as it rises; swallowed
             // blocks are not drawn
@@ -311,7 +311,8 @@ export class Game extends Phaser.Scene {
             g.fillStyle(0x24345e, 0.25 * (1 - up.e));
             g.fillEllipse(x, y + BLOCK * 0.55, BLOCK * 1.05 * (1 - up.e * 0.5), BLOCK * 0.32 * (1 - up.e * 0.5));
             if (up.e > 0) items.push({ ref: b, kind: 'cube', x: up.x, y: up.y, color: s.colors[b.k], size: BLOCK, ang: up.ang, scale: up.scale, centered: true });
-            else items.push({ ref: b, kind: 'cube', x, y: y + BLOCK * 0.36, color: s.colors[b.k], size: BLOCK, ang: b.ja });
+            else if (b.body) items.push({ ref: b, kind: 'cube', x, y: y + LOOSE_CUBE * 0.36, color: s.colors[b.k], size: LOOSE_CUBE, spin: [b.body.rx, b.body.yaw, b.body.rz], shiny: true });
+            else items.push({ ref: b, kind: 'cube', x, y: y + BLOCK * 0.36, color: s.colors[b.k], size: BLOCK });
         }
         if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: GATE_OUT.x, y: GATE_OUT.y, color: s.colors[s.pipe[0]], size: 25 });
         // Fan: blocks shot from the cannon's mouth arc into their nests, growing out of the mouth to
@@ -327,7 +328,7 @@ export class Game extends Phaser.Scene {
             // little as it drops in
             const x = f.sx + (ex - f.sx) * e, y = f.sy + (ey - f.sy) * e - Math.sin(Math.PI * t) * (f.hop ? 70 : 140);
             const sc = f.hop ? 1 - 0.3 * t * t : 1.5 * Math.min(1, 0.25 + t * 3) * (1 - 0.3 * t * t);
-            items.push({ ref: f, kind: 'cube', x, y, color: s.colors[f.k], size: BLOCK, scale: sc, ang: (1 - t) * 6, centered: true });
+            items.push({ ref: f, kind: 'cube', x, y, color: s.colors[f.k], size: f.hop ? LOOSE_CUBE : BLOCK, scale: sc, ang: (1 - t) * 6, centered: true, shiny: RULES.looseBelt });
         }
 
         // nest boxes (img/nest_box_*.png) in the nest's colour, each row drawn over the row above
@@ -560,10 +561,13 @@ export class Game extends Phaser.Scene {
         return t;
     }
 
-    /** The nest box art in colour `hex` (made once per colour): of the box arts, the one whose
-     * colour is nearest; each pixel's hue becomes the colour's, its saturation and brightness
-     * scaled by the colour's against those of the art's top face (outline and shading stay), so a
-     * colour the art already has comes out as the art. */
+    /** The nest box art in colour `hex` (made once per colour), from the box art whose colour is
+     * nearest. Each pixel of the art is read as its top face's colour, shaded (k) and mixed with
+     * white (a): k * face * (1 - a) + a, solved from the pixel's brightest and dimmest channels.
+     * The pixel is then made the same way from the new colour, with its white mixed in so that it
+     * stands out from the face at least as much as in the art, so the light ring on the top face
+     * shows clearly on every box (a light colour takes more white, up to all of it). A near-white
+     * box's face is drawn a little greyer so its ring still shows. */
     private nestTexture(hex: string) {
         const key = `nest_box:${hex}`;
         if (this.textures.exists(key)) return key;
@@ -574,20 +578,19 @@ export class Game extends Phaser.Scene {
         const tex = this.textures.createCanvas(key, src.width, src.height)!, ctx = tex.getContext();
         ctx.drawImage(src, 0, 0);
         const img = ctx.getImageData(0, 0, src.width, src.height), d = img.data;
-        const hsv = (r: number, g: number, b: number) => {
-            const mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn;
-            const h = c === 0 ? 0 : mx === r ? ((g - b) / c + 6) % 6 : mx === g ? (b - r) / c + 2 : (r - g) / c + 4;
-            return [h * 60, mx ? c / mx : 0, mx / 255];
-        };
-        const [th, ts, tv] = hsv(rgb[0], rgb[1], rgb[2]), [, bs, bv] = hsv(...base);
+        const lum = (c: number[]) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+        let T = rgb.map((v) => v / 255);
+        if (Math.min(...T) > 0.75) T = T.map((v) => v * (0.84 / Math.max(...T)));
+        const F = base.map((v) => v / 255), fHi = Math.max(...F), fLo = Math.min(...F);
+        // white that lifts the art's face by some amount lifts the new face by at least as much
+        // (dark colours keep the art's amount of white, so their ring stays as bright)
+        const more = Math.max(1, (1 - lum(F)) / Math.max(0.05, 1 - lum(T)));
         for (let p = 0; p < d.length; p += 4) {
             if (!d[p + 3]) continue;
-            const [, s0, v0] = hsv(d[p], d[p + 1], d[p + 2]);
-            const sat = Math.min(1, (s0 * ts) / bs), val = Math.min(1, (v0 * tv) / bv);
-            // HSV back to RGB
-            const c = val * sat, x = c * (1 - Math.abs(((th / 60) % 2) - 1)), m = val - c, sector = Math.floor(th / 60) % 6;
-            const [r, g, b] = [[c, x, 0], [x, c, 0], [0, c, x], [0, x, c], [x, 0, c], [c, 0, x]][sector];
-            d[p] = (r + m) * 255; d[p + 1] = (g + m) * 255; d[p + 2] = (b + m) * 255;
+            const hi = Math.max(d[p], d[p + 1], d[p + 2]) / 255, lo = Math.min(d[p], d[p + 1], d[p + 2]) / 255;
+            const q = Math.max(0, (hi - lo) / (fHi - fLo)), a = Math.min(1, Math.max(0, lo - q * fLo));
+            const k = a < 1 ? q / (1 - a) : 0, a2 = Math.min(1, a * more);
+            for (let c = 0; c < 3; c++) d[p + c] = Math.min(1, Math.max(0, k * T[c] * (1 - a2) + a2)) * 255;
         }
         ctx.putImageData(img, 0, 0);
         tex.refresh();
@@ -723,7 +726,7 @@ export class Game extends Phaser.Scene {
         const s = this.sim, near: { i: number; d: number }[] = [];
         for (let i = 0; i < s.slots.length; i++) {
             if (!s.slots[i]) continue;
-            const [x, y] = s.slotPos(i);
+            const [x, y] = s.blockPos(i);
             near.push({ i, d: Math.hypot(x - FAN_MOUTH.x, y - FAN_MOUTH.y) });
         }
         near.sort((p, q) => p.d - q.d);

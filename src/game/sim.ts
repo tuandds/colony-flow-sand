@@ -7,6 +7,7 @@ import {
 import { Frozen, Level, buildLevel, decodeSand, toCurrentFrame } from './levels';
 import { hash, mulberry32, packColor } from './util';
 import { RULES } from './variant';
+import { BODY_R, type Body, LANE, beltAt, stepBodies } from './belt-physics';
 
 export type Sfx = 'pop' | 'drop' | 'pick' | 'nest' | 'lose' | 'win' | 'click' | 'add';
 
@@ -18,9 +19,9 @@ export interface Nest {
 }
 export interface Block {
     k: string; claimed: Ant | null; drop: number;
-    /** On a loose belt (RULES.looseBelt): how far the block lies off its slot (px) and how it is
-     * turned (radians); looks only. */
-    jx: number; jy: number; ja: number;
+    /** On a loose belt (RULES.looseBelt) the block is a body the belt carries and the other
+     * blocks push (belt-physics); its slot is then only its place in the count. */
+    body?: Body;
 }
 export interface Ant {
     x: number; y: number; slot: number; block: Block; nest: Nest; col: number;
@@ -36,6 +37,8 @@ export const FAN_SHOT_GAP = 0.2, FAN_FLIGHT = 0.5;
  * itself as it passes a nest of its colour (no ants, RULES.ants off). */
 export interface Flyer { k: string; sx: number; sy: number; nest: Nest; t: number; dur: number; hop?: boolean }
 /** A block's jump from the belt into a nest, in seconds. */
+/** Blocks that may wait in the pipe before they plug the hole (a loose belt takes them faster). */
+const PIPE_MAX = RULES.looseBelt ? 4 : 1;
 export const HOP_FLIGHT = 0.3;
 export interface Spark { x: number; y: number; vx: number; vy: number; life: number; t: number; color: number; s: number }
 
@@ -92,6 +95,8 @@ export class Sim {
     slots: (Block | null)[] = []; beltOff = 0;
     /** Belt length between two slots (RULES.slots round the belt). */
     slotGap = SLOT_GAP;
+    /** A loose belt's physics time not yet stepped. */
+    private physT = 0;
     cols: Nest[][] = []; ants: Ant[] = []; fx: Spark[] = []; flyers: Flyer[] = [];
     /** Falling and loose-island settings scaled to this level's grain size (start). */
     private gravity = GRAVITY; private maxFall = MAX_FALL; private smallIsland = SMALL_ISLAND; private thinIsland = THIN_ISLAND;
@@ -180,7 +185,7 @@ export class Sim {
         this.picDirty = true;
         this.exitCarry = 0;
         this.hopper = {}; this.pipe = []; this.dropping = [];
-        this.slots = new Array(RULES.slots).fill(null); this.beltOff = 0; this.slotGap = BELT_LEN / RULES.slots;
+        this.slots = new Array(RULES.slots).fill(null); this.beltOff = 0; this.slotGap = BELT_LEN / RULES.slots; this.physT = 0;
         this.ncols = Math.max(MIN_COLS, Math.min(MAX_COLS, L.cols ?? COLS));
         this.cols = this.makeNests(i, L, key, keys);
         this.ants = []; this.fx = []; this.flyers = [];
@@ -340,14 +345,15 @@ export class Sim {
         const free = (q: number) => !key[q] && !wall[q] && !this.ice[q];
         const board = G * G, bottom = (GH - 1) * G;
         let moved = false;
-        // the hole: a finished block still sitting in it plugs it, and the sand above waits
+        // the hole: a finished block still sitting in it plugs it, and the sand above waits (a
+        // loose belt takes blocks faster, so a few may wait before the hole plugs)
         this.exitCarry = Math.min(this.exitCarry + MOUTH_RATE / SIM_HZ, (MOUTH_RATE / SIM_HZ) * 2);
-        if (this.exitCarry >= 1 && !this.pipe.length) {
+        if (this.exitCarry >= 1 && this.pipe.length < PIPE_MAX) {
             const out: number[] = [];
             for (let p = bottom; p < bottom + G; p++) if (key[p]) out.push(p);
             out.sort((a, b) => seq[a] - seq[b]);
             for (const p of out) {
-                if (this.exitCarry < 1 || this.pipe.length) break;
+                if (this.exitCarry < 1 || this.pipe.length >= PIPE_MAX) break;
                 this.addToHopper(this.keys[key[p]]!, 1);
                 key[p] = 0; loose[p] = 0; vx[p] = 0; vy[p] = 0;
                 this.exitCarry--; moved = true;
@@ -476,20 +482,52 @@ export class Sim {
 
     // ---------- conveyor ----------
     slotPos(i: number): [number, number] {
-        return beltPoint((((this.beltOff + i * this.slotGap) % BELT_LEN) + BELT_LEN) % BELT_LEN);
+        return beltPoint(this.slotS(i));
+    }
+    /** How far round the belt slot i is now. */
+    private slotS(i: number) { return (((this.beltOff + i * this.slotGap) % BELT_LEN) + BELT_LEN) % BELT_LEN; }
+    /** Where the block in slot i lies: its slot, or on a loose belt where its body is. */
+    blockPos(i: number): [number, number] {
+        const body = this.slots[i]?.body;
+        return body ? [body.x, body.y] : this.slotPos(i);
+    }
+    /** A loose belt: a block lands at the mouth when there is room for it there (no other block
+     * within a block of it); then the bodies move. */
+    private stepLooseBelt(dt: number) {
+        // blocks land across the belt's width, already riding at nearly its speed (they drop onto
+        // a moving belt), so the next has room soon; a few may land in one frame
+        const [mx, my] = beltPoint(DROP_S);
+        for (let tries = 0; tries < 3 && this.pipe.length; tries++) {
+            const free = this.slots.indexOf(null);
+            if (free < 0) break;
+            const x = mx + (this.rand() - 0.5) * 10, y = my + (this.rand() - 0.5) * 2 * LANE;
+            if (!this.slots.every((b) => !b?.body || Math.hypot(b.body.x - x, b.body.y - y) > BODY_R * 1.8)) continue;
+            const at = beltAt(x, y);
+            const body: Body = { x, y, vx: at.vx * 0.85, vy: at.vy * 0.85, yaw: this.rand() * Math.PI * 2, wy: 0, rx: 0, rz: 0 };
+            const b: Block = { k: this.pipe.shift()!, claimed: null, drop: 0, body };
+            this.slots[free] = b;
+            this.dropping.push(b);
+            this.sfx('drop', 0.5);
+        }
+        // the bodies step at 120 Hz (a frame is one or two steps)
+        this.physT += dt;
+        const bodies: Body[] = [];
+        for (const b of this.slots) if (b?.body) bodies.push(b.body);
+        let n = 0;
+        while (this.physT >= 1 / 120 && n++ < 4) { this.physT -= 1 / 120; stepBodies(bodies, 1 / 120, this.rand); }
+        if (n >= 4) this.physT = 0;
     }
     private stepBelt(dt: number) {
         this.beltOff = (this.beltOff + BELT_SPEED * dt) % BELT_LEN;
-        // drop a block from the pipe into an empty slot passing under the mouth (one landing at a
-        // time; on a loose belt they may land on top of each other)
-        if (this.pipe.length && (!this.dropping.length || RULES.looseBelt)) {
+        if (RULES.looseBelt) this.stepLooseBelt(dt);
+        // drop a block from the pipe into an empty slot passing under the mouth
+        else if (this.pipe.length && !this.dropping.length) {
             const gap = this.slotGap;
             for (let i = 0; i < this.slots.length; i++) {
                 const s = (((this.beltOff + i * gap) % BELT_LEN) + BELT_LEN) % BELT_LEN;
                 const d = DROP_S - s;
                 if (d > -gap * 0.35 && d < gap * 0.2 && !this.slots[i]) {
-                    const r = () => Math.random() - 0.5, loose = RULES.looseBelt;
-                    const b: Block = { k: this.pipe.shift()!, claimed: null, drop: 0, jx: loose ? r() * 14 : 0, jy: loose ? r() * 20 : 0, ja: loose ? r() * 0.8 : 0 };
+                    const b: Block = { k: this.pipe.shift()!, claimed: null, drop: 0 };
                     this.slots[i] = b;
                     this.dropping.push(b);
                     this.sfx('drop', 0.7); // a new block lands on the belt: short, soft cube sound
@@ -571,15 +609,15 @@ export class Sim {
     /** No ants: blocks of the nest's colour passing right over it on the belt's bottom run jump in,
      * as many as it still wants. */
     private hopIn(nest: Nest, ci: number, ri: number) {
-        const [nx] = this.nestAt(ci, ri), bottom = BELT.cy + BELT.r - 1;
+        const [nx] = this.nestAt(ci, ri);
         for (let i = 0; i < this.slots.length && nest.got + nest.inflight < nest.need; i++) {
             const b = this.slots[i];
             if (!b || b.k !== nest.color || b.drop < 1) continue;
-            const [bx, by] = this.slotPos(i);
-            if (by < bottom || Math.abs(bx - nx) > this.slotGap / 2) continue;
+            const [sx, sy] = this.blockPos(i);
+            if (sy < BELT.cy || sx < BELT.cxL || sx > BELT.cxR || Math.abs(sx - nx) > BODY_R) continue;
             this.slots[i] = null;
             nest.inflight++;
-            this.flyers.push({ k: b.k, sx: bx + b.jx, sy: by + b.jy, nest, t: 0, dur: HOP_FLIGHT, hop: true });
+            this.flyers.push({ k: b.k, sx, sy, nest, t: 0, dur: HOP_FLIGHT, hop: true });
             this.sfx('pick', 0.3);
         }
     }
@@ -700,7 +738,7 @@ export class Sim {
             const b = this.slots[i];
             if (!b) continue;
             let target: Nest | null = null, bd = 1e9;
-            const [bx, by] = this.slotPos(i);
+            const [bx, by] = this.blockPos(i);
             for (let ri = 0; !target && ri < Math.max(...this.cols.map((c) => c.length)); ri++) {
                 this.cols.forEach((col, ci) => {
                     const nest = col[ri];

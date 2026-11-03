@@ -20,6 +20,12 @@ export interface Item3D {
     /** Cubes: (x, y) is the cube's centre, and it turns about its centre (blocks in flight).
      * Otherwise (x, y) is the point under the cube. */
     centered?: boolean;
+    /** Cubes: a turn of the cube itself about its own centre, x/y/z in radians (blocks lying
+     * loose on the belt, turned every which way). */
+    spin?: [number, number, number];
+    /** Cubes: shiny like jelly sweets, with a bright highlight where the light hits (made so;
+     * changing it later has no effect). */
+    shiny?: boolean;
 }
 
 interface Model { parts: THREE.BufferGeometry[]; size: THREE.Vector3 }
@@ -28,6 +34,8 @@ interface Live {
     yaw?: THREE.Group; carry?: THREE.Group;
     /** Cubes: the tilted group, and half the cube's size. */
     tilt?: THREE.Group; half?: number;
+    /** Cubes: the group that turns the cube about its centre (Item3D.spin). */
+    spin?: THREE.Group;
 }
 
 const meshes = (group: THREE.Group) => {
@@ -52,6 +60,13 @@ function lambert(color: THREE.ColorRepresentation) {
 /** Ants are glossy, as in Colony Flow: a shiny material with a white highlight. */
 function glossy(color: THREE.ColorRepresentation) {
     return new THREE.MeshPhongMaterial({ color, specular: 0x5a5a5a, shininess: 60, side: THREE.DoubleSide, transparent: true });
+}
+
+/** Shiny cubes (Item3D.shiny): a strong white highlight and a little glow of their own colour, so
+ * they look lit and glossy, like jelly sweets. */
+function jelly(color: THREE.ColorRepresentation) {
+    const c = new THREE.Color(color);
+    return new THREE.MeshPhongMaterial({ color: c, specular: 0x6e6e6e, shininess: 45, emissive: c.clone().multiplyScalar(0.12), side: THREE.DoubleSide, transparent: true });
 }
 
 /** An ant's body colour: black is lifted just enough (to a near-black) that the light still
@@ -110,10 +125,10 @@ export class ThreeLayer {
         this.models = { ant: prep(ant), cube: prep(cube) };
     }
 
-    private cubeMesh(color: THREE.ColorRepresentation, size: number) {
+    private cubeMesh(color: THREE.ColorRepresentation, size: number, shiny = false) {
         const M = this.models.cube, s = size / M.size.x;
         const g = new THREE.Group();
-        for (const p of M.parts) g.add(new THREE.Mesh(p, lambert(color)));
+        for (const p of M.parts) g.add(new THREE.Mesh(p, shiny ? jelly(color) : lambert(color)));
         g.scale.setScalar(s);
         return g;
     }
@@ -140,9 +155,13 @@ export class ThreeLayer {
         } else {
             const tilt = new THREE.Group(); tilt.rotation.x = CUBE_ELEV;
             o.tilt = tilt; o.half = (it.size ?? 50) / 2;
-            const c = this.cubeMesh(it.color, it.size ?? 50);
+            const c = this.cubeMesh(it.color, it.size ?? 50, it.shiny);
             c.traverse((m) => { const mat = (m as THREE.Mesh).material as THREE.Material | undefined; if (mat) o.mats.push(mat); });
-            tilt.add(c); root.add(tilt);
+            // the cube stands on y = 0: the spin group sits at its centre, so it turns about it
+            const spin = new THREE.Group();
+            spin.position.y = o.half; c.position.y = -o.half;
+            spin.add(c); tilt.add(spin); root.add(tilt);
+            o.spin = spin;
         }
         this.scene.add(root);
         return o;
@@ -168,6 +187,8 @@ export class ThreeLayer {
             // cubes turn about the screen axis (the Fan's whirl); 0 when not given
             if (it.kind === 'cube') {
                 o.root.rotation.z = it.ang ?? 0;
+                const [sx, sy, sz] = it.spin ?? [0, 0, 0];
+                o.spin!.rotation.set(sx, sy, sz);
                 // centred: shift the cube so its middle (half its size up the tilted cube) is on
                 // the anchor point, which the turn then goes about
                 const h = it.centered ? o.half! : 0;
