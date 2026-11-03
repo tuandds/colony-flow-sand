@@ -286,11 +286,11 @@ export class Demo {
             low[x] = y;
         }
         if (x1 < 0) return null;
-        const sx = (x: number) => s.ox + (x + 0.5) * s.gs, sy = (y: number) => s.oy + (y + 0.5) * s.gs;
+        const sx = (x: number) => s.ox + (x + 0.5) * s.gsx, sy = (y: number) => s.oy + (y + 0.5) * s.gs;
         const L = sx(x0), R = sx(x1), T = sy(y0), w = R - L, h = sy(y1) - T, r = Math.random;
         /** Just under the lowest fixed sand near screen x. */
         const bottom = (x: number) => {
-            const gx = Math.round((x - s.ox) / s.gs - 0.5);
+            const gx = Math.round((x - s.ox) / s.gsx - 0.5);
             let y = -1;
             for (let k = gx - 2; k <= gx + 2; k++) if (k >= 0 && k < G) y = Math.max(y, low[k]);
             return sy(y < 0 ? y1 : y) + s.gs * 2;
@@ -329,7 +329,7 @@ export class Demo {
             for (let i = 0; i + 1 < pts.length; i++) {
                 const [ax, ay] = pts[i], [bx, by] = pts[i + 1], n = Math.ceil(Math.hypot(bx - ax, by - ay) / 10);
                 for (let k = 0; k <= n; k++) {
-                    const gx = Math.floor((ax + ((bx - ax) * k) / n - s.ox) / s.gs), gy = Math.floor((ay + ((by - ay) * k) / n - s.oy) / s.gs);
+                    const gx = Math.floor((ax + ((bx - ax) * k) / n - s.ox) / s.gsx), gy = Math.floor((ay + ((by - ay) * k) / n - s.oy) / s.gs);
                     if (gx < 0 || gy < 0 || gx >= G || gy >= G) continue;
                     const p = gy * G + gx;
                     if (s.key[p] && !s.loose[p]) v += want.has(s.keys[s.key[p]]!) ? 1 : -0.6;

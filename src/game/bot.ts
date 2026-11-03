@@ -38,7 +38,7 @@ export function pickStroke(s: Sim, mode: 'play' | 'jam' = 'play'): [number, numb
         for (let y = G - 1; y >= 0; y--) {
             const p = y * G + x;
             if (!s.key[p] || s.loose[p]) continue;
-            const pt: [number, number] = [s.ox + (x + 0.5) * s.gs, s.oy + (y + 0.5) * s.gs];
+            const pt: [number, number] = [s.ox + (x + 0.5) * s.gsx, s.oy + (y + 0.5) * s.gs];
             any.push(pt);
             (need.has(s.keys[s.key[p]]!) ? want : other).push(pt);
             break;
@@ -137,7 +137,7 @@ export function recordPlay(sim: Sim, variant: number, maxSec = 1500): Recording 
                 for (let y = G - 1; y >= 0; y--) {
                     const p = y * G + x;
                     // lowest first, and colours an open nest still wants before the rest
-                    if (s.key[p] && !s.loose[p]) { pts.push([s.ox + (x + 0.5) * s.gs, s.oy + (y + 0.5) * s.gs, y + rng() * 6 + (wanted.has(s.keys[s.key[p]]!) ? 14 : 0)]); break; }
+                    if (s.key[p] && !s.loose[p]) { pts.push([s.ox + (x + 0.5) * s.gsx, s.oy + (y + 0.5) * s.gs, y + rng() * 6 + (wanted.has(s.keys[s.key[p]]!) ? 14 : 0)]); break; }
                 }
             }
             pts.sort((a, b) => b[2] - a[2]);

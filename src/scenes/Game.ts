@@ -230,7 +230,7 @@ export class Game extends Phaser.Scene {
         this.sandImg = this.sandCanvas.getContext('2d')!.createImageData(G, GH);
         this.sandTex = this.textures.addCanvas('sand', this.sandCanvas)!;
         this.sandTex.setFilter(Phaser.Textures.FilterMode.NEAREST);
-        this.sandImage.setTexture('sand').setPosition(this.sim.ox, this.sim.oy).setDisplaySize(G * this.sim.gs, GH * this.sim.gs);
+        this.sandImage.setTexture('sand').setPosition(this.sim.ox, this.sim.oy).setDisplaySize(G * this.sim.gsx, GH * this.sim.gs);
         this.drawIce();
         this.closeOverlay();
         this.setPicking(false);
@@ -395,11 +395,11 @@ export class Game extends Phaser.Scene {
         this.ice = [];
         const s = this.sim;
         s.frozen.forEach((f, i) => {
-            const w = (f.x1 - f.x0 + 1) * s.gs, h = (f.y1 - f.y0 + 1) * s.gs;
-            const box = this.add.container(s.ox + f.x0 * s.gs + w / 2, s.oy + f.y0 * s.gs + h / 2).setDepth(D.sand + 0.3);
+            const w = (f.x1 - f.x0 + 1) * s.gsx, h = (f.y1 - f.y0 + 1) * s.gs;
+            const box = this.add.container(s.ox + f.x0 * s.gsx + w / 2, s.oy + f.y0 * s.gs + h / 2).setDepth(D.sand + 0.3);
             const { key, margin } = this.frostTexture('ice' + i, f.x0, f.y0, f.x1, f.y1, f.def.shape === 'circle', 77 + this.levelIndex * 13 + i);
             const text = this.text(0, 2, String(f.count), Math.round(Math.min(52, Math.max(28, Math.min(w, h) * 0.2))), '#1b2a4a', '#ffffff', 8);
-            box.add([this.add.image(0, 0, key).setDisplaySize(w + 2 * margin * s.gs, h + 2 * margin * s.gs), text]);
+            box.add([this.add.image(0, 0, key).setDisplaySize(w + 2 * margin * s.gsx, h + 2 * margin * s.gs), text]);
             this.ice.push({ box, text, count: f.count, broken: f.broke !== null });
             if (f.broke !== null) box.setVisible(false);
         });

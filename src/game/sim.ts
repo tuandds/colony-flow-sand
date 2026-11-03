@@ -2,7 +2,7 @@
 // nests and ants. The scene calls update() every frame and reads the fields to draw them.
 import {
     ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, COLS, DROP_S, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS, TUNED_GRAIN_PX, frameZoom, zoomFrameN,
-    FRAME_N, MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colGap, colX, frameGrains, funnelHalf, grainInFrame, nestPos,
+    FRAME_N, INNER, MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colGap, colX, frameGrains, funnelHalf, grainInFrame, nestPos,
 } from './layout';
 import { Frozen, Level, buildLevel, decodeSand, toCurrentFrame } from './levels';
 import { hash, mulberry32, packColor } from './util';
@@ -69,7 +69,9 @@ export class Sim {
     total = 0; drained = 0;
     /** Grains still on the board (the picture frame); 0 once all its sand has fallen. */
     left = 0;
-    cell = 0; gs = 0; ox = 0; oy = 0;
+    /** gs: a grain's size in px (its height); gsx: its width, a little more, so the frame's grains
+     * span its inside from side to side exactly (a whole number of grains seldom does). */
+    cell = 0; gs = 0; gsx = 0; ox = 0; oy = 0;
     picDirty = true;
     /** Grains the hole may still take this step (MOUTH_RATE a second, carried over). */
     exitCarry = 0;
@@ -114,7 +116,7 @@ export class Sim {
         this.smallIsland = Math.round(SMALL_ISLAND / (zoom * zoom)); this.thinIsland = Math.max(2, Math.round(THIN_ISLAND * kN / zoom));
         const G = (this.G = PG + 2 * pad);
         // the funnel's rows: from under the board down to the hole
-        const oy = PIC.y - top * gs, GH = (this.GH = G + Math.round((MOUTH.y - (oy + G * gs)) / gs));
+        const oy = PIC.y - top * gs, GH = (this.GH = G + Math.round((MOUTH.y - (oy + G * gs)) / gs)), gsx = INNER.w / G;
         const keys = (this.keys = [null, ...Object.keys(L.colors)]);
         const key = new Uint8Array(G * GH), rgb = new Uint32Array(G * GH);
         // grain-level pictures (level editor) give every grain; the others one key per cell of an
@@ -135,7 +137,7 @@ export class Sim {
             if (!grainInFrame(x, y - top, nF)) { wall[y * G + x] = 1; key[y * G + x] = 0; }
         }
         for (let y = G; y < GH; y++) for (let x = 0; x < G; x++) {
-            if (Math.abs(PIC.x + (x - pad + 0.5) * gs - MOUTH.x) > funnelHalf(oy + (y + 0.5) * gs)) wall[y * G + x] = 1;
+            if (Math.abs(INNER.x + (x + 0.5) * gsx - MOUTH.x) > funnelHalf(oy + (y + 0.5) * gs)) wall[y * G + x] = 1;
         }
         // frozen areas: their cells are marked as ice; empty ones also act as walls until it breaks
         const ice = (this.ice = new Uint8Array(G * GH));
@@ -163,7 +165,7 @@ export class Sim {
         this.seq = new Uint32Array(G * GH); this.seqN = 0; this.stepOf = new Uint32Array(G * GH); this.stepN = 0;
         this.vx = new Float32Array(G * GH); this.vy = new Float32Array(G * GH);
         this.colors = L.colors; this.total = total; this.drained = 0; this.left = total;
-        this.cell = PIC.size / FRAME_N; this.gs = gs; this.ox = PIC.x - pad * gs; this.oy = oy;
+        this.cell = PIC.size / FRAME_N; this.gs = gs; this.gsx = gsx; this.ox = INNER.x; this.oy = oy;
         this.picDirty = true;
         this.exitCarry = 0;
         this.hopper = {}; this.pipe = []; this.dropping = [];
@@ -286,13 +288,13 @@ export class Sim {
     // ---------- swiping ----------
     /** Swiping frees the sand under the finger; freed (loose) sand then falls. */
     private brush(px: number, py: number) {
-        const G = this.G, gs = this.gs, r = BRUSH_R, { key, loose } = this;
-        const x0 = Math.max(0, Math.floor((px - r - this.ox) / gs)), x1 = Math.min(G - 1, Math.floor((px + r - this.ox) / gs));
+        const G = this.G, gs = this.gs, gsx = this.gsx, r = BRUSH_R, { key, loose } = this;
+        const x0 = Math.max(0, Math.floor((px - r - this.ox) / gsx)), x1 = Math.min(G - 1, Math.floor((px + r - this.ox) / gsx));
         const y0 = Math.max(0, Math.floor((py - r - this.oy) / gs)), y1 = Math.min(this.GH - 1, Math.floor((py + r - this.oy) / gs));
         if (x0 > x1 || y0 > y1) return;
         let added = 0;
         for (let y = y1; y >= y0; y--) for (let x = x0; x <= x1; x++) {
-            const cx = this.ox + (x + 0.5) * gs, cy = this.oy + (y + 0.5) * gs;
+            const cx = this.ox + (x + 0.5) * gsx, cy = this.oy + (y + 0.5) * gs;
             if ((cx - px) ** 2 + (cy - py) ** 2 > r * r) continue;
             const p = y * G + x;
             if (!key[p] || loose[p] || this.ice[p]) continue;

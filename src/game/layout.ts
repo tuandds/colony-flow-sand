@@ -65,10 +65,11 @@ export function insideFrame(x: number, y: number) {
 }
 
 /** Whether grain (c, r) of the full frame picture (frameGrains(n), as the level editor keeps it)
- * lies inside the frame's rounded inside; the game cuts the grains that don't. */
+ * lies inside the frame's rounded inside; the game cuts the grains that don't. Across, the frame's
+ * grains are stretched to fill its inside exactly (see Sim.gsx). */
 export function grainInFrame(c: number, r: number, n = FRAME_N) {
-    const { pad, gs } = frameGrains(n);
-    return insideFrame(PIC.x + (c - pad + 0.5) * gs, PIC.y + (r + 0.5) * gs);
+    const { w, gs } = frameGrains(n);
+    return insideFrame(INNER.x + ((c + 0.5) * INNER.w) / w, PIC.y + (r + 0.5) * gs);
 }
 
 export function funnelHalf(y: number) {
