@@ -267,8 +267,8 @@
     .org-side { flex: 1 1 100%; }
   }
 </style>
-  <script type="module" crossorigin src="./assets/editor-C86qiW6E.js"></script>
-  <link rel="modulepreload" crossorigin href="./assets/sim-dsHBRR0q.js">
+  <script type="module" crossorigin src="./assets/editor-D5Bf0vJG.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/sim-C_IWNIlL.js">
 </head>
 <body>
 <div class="edit-header">
@@ -346,8 +346,7 @@
     <div class="setting-row"><label for="s-diff">Độ khó (cỡ tổ)</label><select id="s-diff">
       <option value="3,5">Rất dễ · 6–10 khối</option><option value="4,6">Dễ · 8–12</option><option value="4,7">Vừa · 8–14</option>
       <option value="5,8">Khó · 10–16</option><option value="6,9">Rất khó · 12–18</option></select></div>
-    <div class="setting-row"><label for="s-zoom">Phóng to hạt</label><select id="s-zoom">
-      <option value="1">1× · hạt thường</option><option value="1.25">1,25×</option><option value="1.5">1,5×</option><option value="2">2× · hạt to gấp đôi</option></select></div>
+    <div class="setting-row"><label for="s-zoom">Phóng to hạt</label><input type="range" id="s-zoom" min="1" max="2" step="0.05" /><b class="setting-val" id="s-zoom-v" style="min-width:150px"></b></div>
     <div class="hint">Phóng to hạt làm tranh to ra mà không thêm hạt: mỗi hạt to hơn, khung chứa ít hạt hơn. Tranh được đặt giữa khung; cát tràn ra ngoài bị cắt. Tạo tranh từ ảnh đưa màn về 1×.</div>
     <div class="setting-row"><label for="s-status">Trạng thái</label><select id="s-status"><option>WIP</option><option>REVIEW</option><option>LIVE</option></select></div>
     <div class="wip-head"><label for="comment">WIP Comment</label><span class="wip-pill">WIP</span><span class="spacer"></span><span class="hint" style="margin:0" id="comment-count">0/500</span></div>
