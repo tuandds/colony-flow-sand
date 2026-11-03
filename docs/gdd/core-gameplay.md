@@ -60,15 +60,15 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <p><b>Structure:</b> about 57 % of the screen height: the picture frame and its funnel, one piece of art (<code>img/frame.png</code>).</p>
 <ul>
 <li><b>Board:</b> the frame's inside, 824 × 776 px at (128, 330), under the frame's lilac top band. Its corners are rounded like the art's (the top corners of the light blue, and the bottom corners where they begin to curve into the funnel); no sand goes there.</li>
-<li><b>Picture:</b> up to 188 × 176 grains (22 cells tall; a cell is 8 × 8 grains, 35 px; a grain is about 4.4 px). The scale is the same in every level; a smaller picture sits centred. A full frame is exactly 517 blocks.</li>
+<li><b>Picture:</b> up to 136 × 128 grains (16 cells tall; a cell is 8 × 8 grains, 48 px; a grain is about 6 px). The scale is the same in every level; a smaller picture sits centred. A full frame is exactly 272 blocks.</li>
 <li><b>Colours:</b> each level uses its own few colours (4 to 6 in the current levels, up to 12) from the 30 standard colours, the colours of Cube Blast's voxel materials (see <a href="../guide/level-editor#_1-colour-bank">Colour Bank</a>).</li>
 <li><b>Funnel:</b> as wide as the board at the top (824 px), its sides curve in, as the art's do, to the hole (about 75 px wide) 183 px under the board. The spout ends over the <b>gate</b> at the bottom of the frame, just above the conveyor.</li>
 </ul>
 <p><b>Sand:</b></p>
 <ul>
-<li>Sand is <b>fixed</b> until swiped. A swipe frees the sand within 38.5 px of the finger (1.1 cells); freed sand is <b>loose</b> and drawn 22 % brighter.</li>
-<li>Loose sand falls with gravity 0.09 grains/step² up to 3.5 grains/step, at 110 steps per second. Blocked below, it slides down-left or down-right; on gentle slopes it creeps sideways toward a drop within 2 grains, with friction 0.82.</li>
-<li>Small or thin islands of fixed sand (48 grains or fewer, or narrower than 4 grains) come loose by themselves every 0.5 s.</li>
+<li>Sand is <b>fixed</b> until swiped. A swipe frees the sand within 38.5 px of the finger; freed sand is <b>loose</b> and drawn 22 % brighter.</li>
+<li>Loose sand falls with gravity 0.065 grains/step² up to 2.5 grains/step (the same speed on screen as with the earlier, smaller grains), at 110 steps per second. Blocked below, it slides down-left or down-right; on gentle slopes it creeps sideways toward a drop within 2 grains, with friction 0.82.</li>
+<li>Small or thin islands of fixed sand (40 grains or fewer, or narrower than 3 grains) come loose by themselves every 0.5 s.</li>
 <li><b>The picture plays as drawn:</b> no grain is added, removed or recoloured when a level loads. Every 64 grains of a colour make a block, and a colour's leftover grains make its last block, so each colour makes its grains ÷ 64 blocks, rounded up.</li>
 </ul>
 <p><b>Funnel and hole:</b></p>

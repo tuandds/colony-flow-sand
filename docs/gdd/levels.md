@@ -1,34 +1,34 @@
 # 4. Levels
 
-Twenty pictures; the game plays them from `src/game/level-edits.json` in the order below, named `level_1` to `level_20` in the game and in the Level Editor, whatever name a saved or imported copy carries (`GAME_ORDER` in `src/game/levels.ts`).
+Twenty pictures of 136 × 128-grain frames (grains of about 6 px); the game plays them from `src/game/level-edits.json` in the order below, named `level_1` to `level_20` in the game and in the Level Editor, whatever name a saved or imported copy carries (`GAME_ORDER` in `src/game/levels.ts`).
 
-- **Levels 1–10** (ids `builtin-10` to `builtin-19`): one subject on the empty frame, no outline, 3 colours (4 on levels 5, 9 and 10), from about 5,900 to 15,000 grains. Made in the Level Editor from images (colony-flow-levels (7).json). They exist only in `level-edits.json` (no older drawing in `levels.ts`).
+- **Levels 1–10** (ids `builtin-10` to `builtin-19`): one subject on the empty frame, no outline, 3 colours (4 on levels 5, 9 and 10), from about 3,100 to 7,900 grains. Made in the Level Editor from images (colony-flow-levels (7).json). They exist only in `level-edits.json` (no older drawing in `levels.ts`).
 - **Levels 11–20** are the earlier set (ids `builtin-0` to `builtin-9`, their own slots kept), moved back by ten: two small pictures, then eight full-frame scenes.
 
-"Hand-set" nests come from the Level Editor; the game builds the others. Difficulty rises through picture size, number of colours and nest size (`chunk`, in blocks before the ×2 nest scale). Not yet checked with the test bot.
+The game builds every level's nests (the hand-set ones were dropped when the grains grew, since the pictures' blocks changed; make new ones with **Tự sinh tổ kiến**). Difficulty rises through picture size, number of colours and nest size (`chunk`, in blocks before the ×2 nest scale). Not yet checked with the test bot.
 
 | # | Subject | Grains | Blocks | Colours | Chunk | Nests |
 |---|---|---|---|---|---|---|
-| 1 | Strawberry | 5,884 | 94 | green, red, yellow | 3–5 | rows (3 columns) |
-| 2 | Mushroom | 6,113 | 97 | red, white, orange | 3–5 | rows (3 columns) |
-| 3 | Donut | 7,563 | 119 | orange, pink, cyan | 3–5 | rows |
-| 4 | Bee | 7,958 | 125 | black, white, yellow | 4–6 | rows |
-| 5 | Tulips in a pot | 10,446 | 166 | pink, green, brown, orangered | 4–6 | hand-set |
-| 6 | Whale | 7,181 | 114 | navy, white, teal | 3–5 | hand-set (3 columns) |
-| 7 | Chick | 9,292 | 147 | yellow, brown, orangered | 3–5 | hand-set (3 columns) |
-| 8 | Clownfish | 12,052 | 190 | orangered, white, purple | 3–5 | hand-set |
-| 9 | Octopus | 13,054 | 206 | magenta, purple, white, pink | 4–6 | rows |
-| 10 | Ladybug on a leaf | 15,027 | 236 | black, green, white, red | 4–6 | rows |
-| 11 | Cherries | | 108 | 3 | 3–5 | rows |
-| 12 | Ice cream | | 105 | 3 | 4–6 | rows |
-| 13 | Rocket | | 506 | 4 | 4–6 | hand-set |
-| 14 | Sleeping cat with flowers | | 506 | 4 | 4–6 | rows, seed 5 |
-| 15 | Black cat peeking | | 507 | 6 | 5–8 | hand-set |
-| 16 | Sailboat | | 507 | 4 | 4–6 | hand-set |
-| 17 | Sea turtle | | 506 | 4 | 4–6 | hand-set |
-| 18 | Panda | | 507 | 4 | 4–6 | hand-set |
-| 19 | Cottage with garden | | 507 | 4 | 4–7 | hand-set |
-| 20 | Toucan | | 508 | 6 | 5–8 | hand-set |
+| 1 | Strawberry | 3,105 | 49 | green, red, yellow | 3–5 | rows (3 columns) |
+| 2 | Mushroom | 3,232 | 52 | red, white, orange | 3–5 | rows (3 columns) |
+| 3 | Donut | 4,003 | 64 | orange, pink, cyan | 3–5 | rows |
+| 4 | Bee | 4,210 | 67 | black, white, yellow | 4–6 | rows |
+| 5 | Tulips in a pot | 5,513 | 87 | pink, green, brown, orangered | 4–6 | rows |
+| 6 | Whale | 3,811 | 61 | navy, white, teal | 3–5 | rows (3 columns) |
+| 7 | Chick | 4,917 | 78 | yellow, brown, orangered | 3–5 | rows (3 columns) |
+| 8 | Clownfish | 6,384 | 102 | orangered, white, purple | 3–5 | rows |
+| 9 | Octopus | 6,921 | 111 | magenta, purple, white, skyblue | 4–6 | rows |
+| 10 | Ladybug on a leaf | 7,945 | 126 | black, green, white, red | 4–6 | rows |
+| 11 | Cherries | 3,602 | 57 | 3 | 3–5 | rows |
+| 12 | Ice cream | 3,528 | 56 | 3 | 4–6 | rows |
+| 13 | Rocket | 16,997 | 268 | 4 | 4–6 | rows |
+| 14 | Sleeping cat with flowers | 16,998 | 268 | 4 | 4–6 | rows, seed 5 |
+| 15 | Black cat peeking | 16,998 | 268 | 6 | 5–8 | rows |
+| 16 | Sailboat | 16,998 | 267 | 4 | 4–6 | rows |
+| 17 | Sea turtle | 16,998 | 268 | 4 | 4–6 | rows |
+| 18 | Panda | 16,998 | 267 | 4 | 4–6 | rows |
+| 19 | Cottage with garden | 16,998 | 268 | 4 | 4–7 | rows |
+| 20 | Toucan | 16,998 | 269 | 6 | 5–8 | rows |
 
 ## Design rules
 

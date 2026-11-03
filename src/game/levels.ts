@@ -1,7 +1,7 @@
 // Sand pictures for the levels. Each level is an N x N grid of colour keys, given either as
 // rows of characters ('.' = empty) or painted with simple shapes. Empty cells hold no sand,
 // so pictures can have any outline.
-import { FRAME_N, SUB, frameGrains } from './layout';
+import { FRAME_N, PIC, SUB, frameGrains } from './layout';
 import EDITS from './level-edits.json';
 
 type Grid = (string | null)[][];
@@ -355,17 +355,42 @@ export function decodeSand(s: Sand): string[] {
     return Array.from(out, (k) => k ?? '.');
 }
 
-/** The frame used to be 186 grains wide; it is 188 now (a full frame is then a whole number of
- * blocks). A picture made for the old frame fills the new one: its outer columns are doubled. */
-export function widenOldFrame(keys: string[], w: number, h: number) {
-    const { w: FW, h: FH } = frameGrains(FRAME_N);
-    if (w !== FW - 2 || h !== FH) return { keys, w };
-    const out: string[] = [];
-    for (let y = 0; y < h; y++) {
-        const row = keys.slice(y * w, y * w + w);
-        out.push(row[0], ...row, row[w - 1]);
+/**
+ * A picture made for an older frame, brought to the current one (frameGrains(FRAME_N)):
+ * - 186 x 176 (the first grain frame): its outer columns are doubled to make 188 x 176;
+ * - 188 x 176 (22 cells, grains of about 4.4 px): resampled to the current grains by where they
+ *   sit on screen, each new grain taking the colour that covers most of it (sampled 4 x 4).
+ * Frozen areas are moved and scaled the same way (`frozen`). Other sizes come back as they are.
+ */
+export function toCurrentFrame(keys: string[], w: number, h: number) {
+    const F = frameGrains(FRAME_N), same = (f: Frozen) => f;
+    if (w === 186 && h === 176) {
+        const out: string[] = [];
+        for (let y = 0; y < h; y++) { const row = keys.slice(y * w, y * w + w); out.push(row[0], ...row, row[w - 1]); }
+        keys = out; w = 188;
     }
-    return { keys: out, w: FW };
+    if (w !== 188 || h !== 176 || (F.w === 188 && F.h === 176)) return { keys, w, h, frozen: same };
+    // both frames start at the picture square's top; across, each reaches `pad` grains past it
+    const O = { gs: PIC.size / h, pad: (w - h) / 2 }, ox = (x: number, g: { gs: number; pad: number }) => (x - g.pad) * g.gs;
+    const out = new Array<string>(F.w * F.h), n = new Map<string, number>(), S = 4;
+    for (let y = 0; y < F.h; y++) for (let x = 0; x < F.w; x++) {
+        n.clear();
+        let best = '.', bn = 0;
+        for (let sy = 0; sy < S; sy++) for (let sx = 0; sx < S; sx++) {
+            const px = ox(x + (sx + 0.5) / S, F), py = (y + (sy + 0.5) / S) * F.gs;
+            const cx = Math.floor(px / O.gs + O.pad), cy = Math.floor(py / O.gs);
+            const k = cx >= 0 && cy >= 0 && cx < w && cy < h ? keys[cy * w + cx] : '.';
+            const c = (n.get(k) ?? 0) + 1; n.set(k, c);
+            if (c > bn) { bn = c; best = k; }
+        }
+        out[y * F.w + x] = best;
+    }
+    const k = O.gs / F.gs;
+    const frozen = (f: Frozen): Frozen => {
+        const x = Math.round(((f.x - O.pad) * O.gs) / F.gs + F.pad), y = Math.round(f.y * k);
+        return { ...f, x, y, w: Math.max(2, Math.round(f.w * k)), h: Math.max(2, Math.round(f.h * k)) };
+    };
+    return { keys: out, w: F.w, h: F.h, frozen };
 }
 
 /** Where the level editor keeps its levels; the game plays them with ?custom=1. */
@@ -383,12 +408,15 @@ export const builtinId = (i: number) => 'builtin-' + i;
  */
 export function builtinDefs(): LevelDef[] {
     return LEVELS.map((L, i) => {
-        const { w, h } = frameGrains(FRAME_N), keys = new Array<string>(w * h).fill('.');
-        const g = buildDef(L).grid, s = L.n * SUB, x0 = Math.floor((w - s) / 2), y0 = Math.floor((h - s) / 2);
-                for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+        // the cell pictures were made for the 22-cell frame (188 x 176 grains): drawn there, then
+        // brought to the current grains
+        const W0 = 188, H0 = 176, old = new Array<string>(W0 * H0).fill('.');
+        const g = buildDef(L).grid, s = L.n * SUB, x0 = Math.floor((W0 - s) / 2), y0 = Math.floor((H0 - s) / 2);
+        for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
             const c = g[(y / SUB) | 0][(x / SUB) | 0];
-            if (c) keys[(y + y0) * w + x + x0] = c;
+            if (c) old[(y + y0) * W0 + x + x0] = c;
         }
+        const { keys, w, h } = toCurrentFrame(old, W0, H0);
         const colors: Record<string, string> = {};
         // buildDef's grid is already in the standard colours
         for (const k of new Set(keys)) if (k !== '.') colors[k] = STD.get(k) ?? L.colors[k];

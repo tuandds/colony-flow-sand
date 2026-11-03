@@ -25,10 +25,11 @@ export function outlineKey() {
     const ink = BANK.find((c) => c.name === 'black');
     return ink ? ink.key : [...BANK].sort((a, b) => hexLab(a.hex)[0] - hexLab(b.hex)[0])[0].key;
 }
-/** Sand the game would shed at once: islands this small fall off by themselves (sim.ts). */
-const MIN_ISLAND = 64;
+/** Sand the game would shed at once: islands this small fall off by themselves (sim.ts: 40 grains
+ * or fewer). */
+const MIN_ISLAND = 41;
 /** Outline width in grains; thinner rims would count as debris in the game. */
-const RIM = 4;
+const RIM = 3;
 
 // ---------- colour maths (sRGB -> CIELAB; distance = how different two colours look) ----------
 export type Lab = [number, number, number];

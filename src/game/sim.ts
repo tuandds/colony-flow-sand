@@ -1,10 +1,10 @@
 // The whole game state and rules, independent of Phaser: sand picture, funnel, conveyor,
 // nests and ants. The scene calls update() every frame and reads the fields to draw them.
 import {
-    ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, COLS, DROP_S, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS,
+    ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, COLS, DROP_S, GRAIN_K, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS,
     FRAME_N, MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colGap, colX, frameGrains, funnelHalf, grainInFrame, nestPos,
 } from './layout';
-import { Frozen, Level, buildLevel, decodeSand, widenOldFrame } from './levels';
+import { Frozen, Level, buildLevel, decodeSand, toCurrentFrame } from './levels';
 import { hash, mulberry32, packColor } from './util';
 
 export type Sfx = 'pop' | 'drop' | 'pick' | 'nest' | 'lose' | 'win' | 'click' | 'add';
@@ -33,8 +33,12 @@ export interface Spark { x: number; y: number; vx: number; vy: number; life: num
 /** Test-only: force a nest order/seed for a level (used to search solvable layouts). */
 export const levelOverride: { order?: 'rows' | 'onion'; seed?: number } = {};
 
-const GRAVITY = 0.09, MAX_FALL = 3.5, FRICTION = 0.82;
-const SMALL_ISLAND = 48, THIN_ISLAND = 4;
+// tuned at 4.4 px grains; in grains a step, so scaled to the grain size (GRAIN_K) to look the same
+const GRAVITY = 0.09 * GRAIN_K, MAX_FALL = 3.5 * GRAIN_K, FRICTION = 0.82;
+// islands of SMALL_ISLAND grains or fewer, or thinner than THIN_ISLAND, come loose by themselves
+const SMALL_ISLAND = 40, THIN_ISLAND = Math.max(2, Math.round(4 * GRAIN_K));
+/** The swipe frees sand within BRUSH_R px of the finger (it was 1.1 cells of 35 px). */
+const BRUSH_R = 38.5, BRUSH_STEP = 14;
 
 export class Sim {
     levelIndex: number;
@@ -106,9 +110,9 @@ export class Sim {
         // grain-level pictures (level editor) give every grain; the others one key per cell of an
         // n-cell square. Either way the picture sits centred in the frame (anything outside the
         // frame is cut off).
-        const wide = L.sand ? widenOldFrame(decodeSand(L.sand), L.sand.w ?? L.sand.size, L.sand.size) : null;
+        const wide = L.sand ? toCurrentFrame(decodeSand(L.sand), L.sand.w ?? L.sand.size, L.sand.size) : null;
         const grains = wide ? wide.keys : null;
-        const SH = grains ? L.sand!.size : L.n * SUB, SW = wide ? wide.w : SH;
+        const SH = wide ? wide.h : L.n * SUB, SW = wide ? wide.w : SH;
         const x0 = Math.floor((G - SW) / 2), y0 = top + Math.floor((PG - SH) / 2);
         for (let gy = 0; gy < SH; gy++) for (let gx = 0; gx < SW; gx++) {
             const k = grains ? grains[gy * SW + gx] : L.grid[(gy / SUB) | 0][(gx / SUB) | 0];
@@ -126,7 +130,8 @@ export class Sim {
         }
         // frozen areas: their cells are marked as ice; empty ones also act as walls until it breaks
         const ice = (this.ice = new Uint8Array(G * GH));
-        this.frozen = (L.frozen ?? []).map((f) => {
+        this.frozen = (L.frozen ?? []).map((f0) => {
+            const f = wide ? wide.frozen(f0) : f0;
             const cells: number[] = [], fx0 = f.x + x0, fy0 = f.y + y0, cx = fx0 + f.w / 2, cy = fy0 + f.h / 2;
             for (let y = fy0; y < fy0 + f.h; y++) for (let x = fx0; x < fx0 + f.w; x++) {
                 if (x < 0 || y < 0 || x >= G || y >= G) continue;
@@ -272,7 +277,7 @@ export class Sim {
     // ---------- swiping ----------
     /** Swiping frees the sand under the finger; freed (loose) sand then falls. */
     private brush(px: number, py: number) {
-        const G = this.G, gs = this.gs, r = Math.max(this.cell * 1.1, 34), { key, loose } = this;
+        const G = this.G, gs = this.gs, r = BRUSH_R, { key, loose } = this;
         const x0 = Math.max(0, Math.floor((px - r - this.ox) / gs)), x1 = Math.min(G - 1, Math.floor((px + r - this.ox) / gs));
         const y0 = Math.max(0, Math.floor((py - r - this.oy) / gs)), y1 = Math.min(this.GH - 1, Math.floor((py + r - this.oy) / gs));
         if (x0 > x1 || y0 > y1) return;
@@ -288,7 +293,7 @@ export class Sim {
     }
     swipeTo(px: number, py: number) {
         if (!this.lastBrush) { this.brush(px, py); this.lastBrush = [px, py]; return; }
-        const [lx, ly] = this.lastBrush, d = Math.hypot(px - lx, py - ly), step = Math.max(8, this.cell * 0.4);
+        const [lx, ly] = this.lastBrush, d = Math.hypot(px - lx, py - ly), step = BRUSH_STEP;
         const k = Math.max(1, Math.ceil(d / step));
         for (let i = 1; i <= k; i++) this.brush(lx + ((px - lx) * i) / k, ly + ((py - ly) * i) / k);
         this.lastBrush = [px, py];

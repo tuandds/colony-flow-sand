@@ -16,11 +16,11 @@ The voxel guide builds a 3D model whose outer art hides coloured inner shells, c
 
 | Voxel guide (Cube Blast) | This game |
 |---|---|
-| A 3D model, up to 30 × 30 × 30 blocks | A sand picture, up to 188 × 176 grains (22 cells of 8 × 8 grains tall); a full frame is 517 blocks |
+| A 3D model, up to 30 × 30 × 30 blocks | A sand picture, up to 136 × 128 grains (16 cells of 8 × 8 grains tall); a full frame is 272 blocks |
 | Exterior art over inner colour shells, revealed by shooting | The whole picture shows from the start. The "reveal" is the order colours reach the hole: swiped sand falls straight down, and the funnel lets the first sand down out first |
 | Shooters of 20–40 shots in 3 banks | Nests of `chunk × 2` blocks in 2–6 columns (4 by default); only the front nest of a column takes blocks |
 | The tray / conveyor | The conveyor: 36 slots; full with no block wanted = lost |
-| Six-neighbour connectivity: no floating voxels | Sand islands must hold together: 48 grains or fewer, or thinner than 4 grains, fall by themselves |
+| Six-neighbour connectivity: no floating voxels | Sand islands must hold together: 40 grains or fewer, or thinner than 3 grains, fall by themselves |
 | Exact ammunition per colour | Nests hold exactly the picture's blocks of each colour (64 grains a block) |
 | Validation: an exact winning replay and three play styles | The Level Editor's **Tự sinh tổ kiến**: the bot plays and must win twice (✓), then a playtest |
 | A unique subject, kept in subjects.json | A unique subject, kept in the [Levels](./levels) table |
@@ -95,8 +95,8 @@ Measured with CIEDE2000 (ΔE₀₀, the distance the eye sees) and the lightness
 
 ### 4.1 Size and composition
 
-- Two formats: a **subject on the empty frame** (levels 1–12: 6,000–15,000 grains, about 95–240 blocks, 18–45 % of the frame) or a **full-frame scene** (levels 13–20: about 506 blocks, 98 %).
-- **Size curve:** levels 1–10 rise in two runs of five, about 6,000 → 8,250 → 10,500 → 12,750 → 15,000 grains. A 15,000-grain subject fills most of the frame, so it must be roughly as wide as it is tall (a tall, thin subject cannot reach it: make it a group, as the three tulips of level 5).
+- Two formats: a **subject on the empty frame** (levels 1–12: about 3,100–7,900 grains, 50–125 blocks, 18–45 % of the frame) or a **full-frame scene** (levels 13–20: about 268 blocks, 98 %).
+- **Size curve:** levels 1–10 rise from about 3,100 to 7,900 grains (they were 6,000–15,000 before grains grew 1.375 times). A subject near the top of the range fills most of the frame, so it must be roughly as wide as it is tall (a tall, thin subject cannot: make it a group, as the three tulips of level 5).
 - Centre the subject; leave the bottom of the frame's rounded corners empty (sand is cut there).
 - Build the big shapes first, then the features; exaggerate the recognition features.
 - **Parts of one colour merge** where they touch (there is no outline between them): leave a gap of at least 4 grains between parts that must read apart (tentacles, legs, petals), or put another colour between them.
@@ -104,11 +104,11 @@ Measured with CIEDE2000 (ΔE₀₀, the distance the eye sees) and the lightness
 
 ### 4.2 Sizes (must)
 
-At game size a grain is about 4.4 px and a cell (8 grains) about 35 px.
+At game size a grain is about 6 px and a cell (8 grains) about 48 px.
 
 | What | Minimum | Why |
 |---|---|---|
-| Any piece of sand | 64 grains, 4 grains thick | Smaller islands (48 grains or fewer, or thinner than 4) come loose by themselves every 0.5 s; the image converter drops pieces under 64 |
+| Any piece of sand | 41 grains, 3 grains thick | Smaller islands (40 grains or fewer, or thinner than 3) come loose by themselves every 0.5 s; the image converter drops pieces under 41 |
 | A readable detail (eye, window, stripe) | 1 cell (8 grains) across | Smaller shapes don't read at game size |
 | A patch of one colour | more than 6 grains | The converter turns smaller patches into the colour round them |
 | Empty holes inside the picture | none | The frame's light blue shows through as pale dots (the converter fills holes of 6 grains or fewer) |
@@ -137,7 +137,7 @@ Sand stays put until swiped; freed sand falls straight down, runs into the funne
 
 | Lever | Easy | Normal | Hard |
 |---|---|---|---|
-| Picture | Subject on the empty frame (6,000–10,000 grains, ~95–165 blocks) | Subject (12,000–15,000 grains) or full frame | Full frame (~500 blocks) |
+| Picture | Subject on the empty frame (3,000–5,000 grains, ~50–80 blocks) | Subject (6,000–8,000 grains) or full frame | Full frame (~270 blocks) |
 | Colours | 3 | 4 | 5–6 |
 | Chunk (nest size) | 3–5 | 4–6 | 5–8 |
 | Colour spread (height each colour spans) | Compact, under ½ | Up to ¾ | Spread or layered |
@@ -163,29 +163,29 @@ Sand stays put until swiped; freed sand falls straight down, runs into the funne
 
 ## 10. Current levels against these rules
 
-Measured on 2026-11-03. Levels 1–10 follow these rules (from colony-flow-levels (7).json); 11–20 are the earlier set.
+Measured on 2026-11-03, at the current grain size (block counts about half of what they were with the smaller grains). Levels 1–10 follow these rules (from colony-flow-levels (7).json); 11–20 are the earlier set.
 
 | Level | Colours | Blocks | Largest colour | Closest pair (ΔE₀₀) | Notes |
 |---|---|---|---|---|---|
-| level_1 Strawberry | 3 | 94 | 60 % | green / yellow (37) | |
-| level_2 Mushroom | 3 | 97 | 55 % | white / orange (28) | |
-| level_3 Donut | 3 | 119 | 60 % | orange / pink (49) | |
-| level_4 Bee | 3 | 125 | 54 % | white / yellow (32) | |
-| level_5 Tulips | 4 | 166 | 47 % | brown / orangered (33) | |
-| level_6 Whale | 3 | 114 | **68 %** | navy / teal (27) | Navy over the 55 % guide |
-| level_7 Chick | 3 | 147 | 50 % | yellow / orangered (21) | |
-| level_8 Clownfish | 3 | 190 | 50 % | orangered / white (35) | A little white reaches the edge (24 grains) |
-| level_9 Octopus | **4** | 206 | **72 %** | magenta / pink (**weak**: they touch) | A 4th colour (pink mouth); magenta over the guide |
-| level_10 Ladybug | 4 | 236 | 49 % | black / red (38) | |
-| level_11 | 3 | 108 | 47 % | black / olivegreen (35) | |
-| level_12 | 3 | 105 | 53 % (black) | black / pink (50) | Outline-heavy: the outline is over half the blocks |
-| level_13 | 4 | 506 | 50 % | lightyellow / white (31) | Colours span 49–95 % of the height |
-| level_14 | 4 | 506 | 40 % | yellow / yellowgreen (22) | Colours span 62–97 % |
-| level_15 | 6 | 507 | 26 % | yellow / yellowgreen (22) | |
-| level_16 | 4 | 507 | 43 % | lightorange / white (30) | |
-| level_17 | 4 | 506 | 46 % | cyan / white (25) | Colours span 78–97 % |
-| level_18 | 4 | 507 | 49 % | yellowgreen / yellow (22) | |
-| level_19 | 4 | 507 | 30 % | pink / white (22) | |
-| level_20 | 6 | 508 | 22 % | yellowgreen / lightyellow (**14**) | Under 15: next to each other they may be hard to tell apart |
+| level_1 Strawberry | 3 | 49 | 60 % | green / yellow (37) |  |
+| level_2 Mushroom | 3 | 52 | 55 % | white / orange (28) |  |
+| level_3 Donut | 3 | 64 | 60 % | orange / pink (49) |  |
+| level_4 Bee | 3 | 67 | 54 % | white / yellow (32) |  |
+| level_5 Tulips | 4 | 87 | 47 % | brown / orangered (33) |  |
+| level_6 Whale | 3 | 61 | **68 %** | navy / teal (27) | Navy over the 55 % guide |
+| level_7 Chick | 3 | 78 | 50 % | yellow / orangered (21) |  |
+| level_8 Clownfish | 3 | 102 | 50 % | orangered / white (35) | A little white reaches the edge (24 grains) |
+| level_9 Octopus | **4** | 111 | **72 %** | magenta / purple (27) | A 4th colour (skyblue mouth, 3 blocks: one small nest); magenta over the guide |
+| level_10 Ladybug | 4 | 126 | 49 % | black / red (38) |  |
+| level_11 | 3 | 57 | 47 % | black / olivegreen (35) |  |
+| level_12 | 3 | 56 | 53 % (black) | black / pink (50) | Outline-heavy: the outline is over half the blocks |
+| level_13 | 4 | 268 | 50 % | lightyellow / white (31) | Colours span 49–95 % of the height |
+| level_14 | 4 | 268 | 40 % | yellow / yellowgreen (22) | Colours span 62–97 % |
+| level_15 | 6 | 268 | 26 % | yellow / yellowgreen (22) |  |
+| level_16 | 4 | 267 | 43 % | lightorange / white (30) |  |
+| level_17 | 4 | 268 | 46 % | cyan / white (25) | Colours span 78–97 % |
+| level_18 | 4 | 267 | 49 % | yellowgreen / yellow (22) |  |
+| level_19 | 4 | 268 | 30 % | pink / white (22) |  |
+| level_20 | 6 | 269 | 22 % | yellowgreen / lightyellow (**14**) | Under 15: next to each other they may be hard to tell apart |
 
 All 20 hold the "must" rules on sizes, specks, holes and exact nests. The full-frame levels spread most colours over most of the picture's height, which makes them harder than their colour count suggests (see 5).

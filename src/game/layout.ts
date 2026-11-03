@@ -4,15 +4,15 @@ export const W = 1080, H = 1920;
 /** Bumped when the board, funnel, conveyor or picture scale change, the funnel's or ants' rules change,
  * or the whole-block trim takes different grains: recorded swipes from an older version no longer
  * replay, so the level editor asks for new ones. */
-export const LAYOUT_VERSION = 15;
+export const LAYOUT_VERSION = 16;
 
 // Laid out like the Sugar Drop prototype: a HUD row, big boosters under it with the x2 button
 // beside them, the picture frame with its funnel ending in a gate on the conveyor, then the nests.
 /** The FRAME_N-cell picture square: as tall as the frame's inside, centred across it. */
 export const PIC = { x: 540 - 385, y: 333, size: 770 };
-/** Inner edge of the board frame; sand never goes outside it. Its width makes the frame 188 grains
- * wide (frameGrains: 6 grains either side of the picture square), so a full frame, 188 x 176
- * grains, is exactly 517 blocks. */
+/** Inner edge of the board frame; sand never goes outside it. Its width makes the frame 136 grains
+ * wide (frameGrains: 4 grains either side of the picture square), so a full frame, 136 x 128
+ * grains, is exactly 272 blocks. */
 export const INNER = { x: 540 - 412, y: PIC.y - 3, w: 824, h: PIC.size + 6 };
 /** Top of the funnel: as wide as the sand frame, right under it (the frame art's light blue runs on
  * into the funnel, so sand leaving the board drops straight in). */
@@ -116,8 +116,13 @@ export const SPEED_BTN = { x: 850, y: 173, w: 140, h: 72 };
 export const ANT_SPEED = 420; // px/s, matched to Colony Flow
 export const SUB = 8; // sand grains per picture cell, per side
 /** Every level's frame is FRAME_N cells tall, so sand cells are the same size in every level;
- * a smaller picture sits centred in the frame. */
-export const FRAME_N = 22;
+ * a smaller picture sits centred in the frame. It was 22 (188 x 176 grains of about 4.4 px); at 16
+ * a grain is about 6 px, 1.375 times as big, and a frame holds about half as many (136 x 128). */
+export const FRAME_N = 16;
+/** Grain size the sand's motion was tuned at (FRAME_N 22), in px; speeds and sizes in grains are
+ * scaled by GRAIN_K so sand moves and breaks up the same on screen at any grain size. */
+export const TUNED_GRAIN_PX = 770 / 176;
+export const GRAIN_K = TUNED_GRAIN_PX / (770 / (FRAME_N * 8));
 export const GRAINS_PER_UNIT = SUB * SUB;
 export const UNITS_PER_BLOCK = 1; // units of sand (one picture cell each) that compress into a block
 // level nest sizes were tuned for 5-unit blocks; scale them so nests ask for the same amount of sand

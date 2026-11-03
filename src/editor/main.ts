@@ -8,7 +8,7 @@
 import type { Recording } from '../game/bot';
 import { COLS, FRAME_N, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
 import EDITS from '../game/level-edits.json';
-import { BANK_COLOURS, CUSTOM_KEY, type Frozen, type LevelDef, PREVIEW_KEY, type Sand, builtinDefs, gameLevelIds, standardColours, decodeSand, encodeSand, gameLevelName, loadCustomLevels, useLevels, widenOldFrame } from '../game/levels';
+import { BANK_COLOURS, CUSTOM_KEY, type Frozen, type LevelDef, PREVIEW_KEY, type Sand, builtinDefs, gameLevelIds, standardColours, decodeSand, encodeSand, gameLevelName, loadCustomLevels, toCurrentFrame, useLevels } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
 import { BANK, type BankColour, type ConvertOpts, HEX, NAME, clipToFrame, countKeys, drawSand, fitToFrame, frameOutside, hexLab, imageToSand, moveRange, nearestKey, rowsToGrains, setBank } from './sand';
 import type { SolveJob, SolveResult } from './solver.worker';
@@ -144,11 +144,14 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
     // pictures cover the game's whole frame, which is FRAME_N cells in every level; smaller or
     // older pictures (a square, an older frame, another size) sit centred in it, as in the game
     const n = FRAME_N, { w: FW, h: FH } = frameGrains(n);
-    let sand: Sand, cut = false;
+    let sand: Sand, cut = false, rescaled = false, frozen = L.frozen;
     if (L.sand && L.sand.size === FH && (L.sand.w ?? FH) === FW) sand = L.sand;
     else {
-        const old = L.sand ? { ...widenOldFrame(decodeSand(L.sand), L.sand.w ?? L.sand.size, L.sand.size), h: L.sand.size }
-            : { keys: rowsToGrains(L.rows || [], L.n || 20, (c) => keyOf.get(c) ?? BANK[0].key), ...frameGrains(L.n || 20) };
+        // a picture for an older frame (bigger grains now) is resampled to the current grains;
+        // its blocks change, so hand-set nests no longer fit and are dropped
+        const conv = L.sand ? toCurrentFrame(decodeSand(L.sand), L.sand.w ?? L.sand.size, L.sand.size) : null;
+        if (conv && L.sand && conv.h !== L.sand.size) { rescaled = true; frozen = L.frozen?.map(conv.frozen); }
+        const old = conv ?? { keys: rowsToGrains(L.rows || [], L.n || 20, (c) => keyOf.get(c) ?? BANK[0].key), ...frameGrains(L.n || 20) };
         const fit = fitToFrame(old.keys, old.w, old.h);
         sand = encodeSand(FH, fit.keys, FW);
         cut = fit.cut;
@@ -158,7 +161,7 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
         id: L.id || uid(), name: gameLevelName(L.id) ?? (L.name || 'Màn mới'), n, chunk: L.chunk || [4, 7], sand,
         order: L.order || 'rows', seed: L.seed ?? 0, salt: L.salt ?? randomSalt(),
         cols: Math.max(MIN_COLS, Math.min(MAX_COLS, L.cols ?? COLS)),
-        nests: L.nests?.map((col) => col.map(([k, v]) => [keyOf.get(k) ?? k, v] as [string, number])),
+        nests: rescaled ? undefined : L.nests?.map((col) => col.map(([k, v]) => [keyOf.get(k) ?? k, v] as [string, number])),
         // a check made under another layout (or with sand cut off just now) no longer counts:
         // recorded swipes are screen positions, and the board has moved since
         moves: L.sand && (L.layout ?? 1) === LAYOUT_VERSION ? L.moves : undefined,
@@ -166,7 +169,7 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
         layout: LAYOUT_VERSION,
         status: L.status || 'WIP', comment: L.comment || '', updated: L.updated || Date.now(),
         palette: Array.isArray(L.palette) ? L.palette.map((k) => keyOf.get(k) ?? k) : undefined,
-        frozen: L.frozen?.length ? L.frozen : undefined,
+        frozen: frozen?.length ? frozen : undefined,
     };
 }
 function blankLevel(): EdLevel {
@@ -1274,7 +1277,7 @@ function showBackups() {
 }
 
 // ---------- generate from an image ----------
-const gen: ConvertOpts = { n: 20, colors: 6, bg: 12, outline: false, smooth: 1, fit: 'contain' };
+const gen: ConvertOpts = { n: 14, colors: 6, bg: 12, outline: false, smooth: 1, fit: 'contain' };
 let genActiveOnly = false;
 let genImage: HTMLImageElement | null = null, genName = '', genResult: string[] | null = null, genTimer = 0;
 /** Where the picture sits in the frame: grains right / down from centred (kept so its sand stays in the frame). */
