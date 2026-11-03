@@ -36,21 +36,19 @@ export default defineConfig({
             '/gdd/': [
                 { text: 'Game Design Document', items: [{ text: 'Contents', link: '/gdd/' }] },
                 {
-                    text: 'I. Vision',
-                    items: [{ text: '1. Overview', link: '/gdd/overview' }]
-                },
-                {
-                    text: 'II. Gameplay',
+                    text: 'I. Gameplay',
                     items: [
-                        { text: '2. Core loop', link: '/gdd/core-loop' },
-                        { text: '3. Rules & mechanics', link: '/gdd/rules' }
+                        { text: '1. Core gameplay', link: '/gdd/core-gameplay' },
+                        { text: '2. User Flow & UI', link: '/gdd/user-flow-ui' },
+                        { text: '3. Booster', link: '/gdd/booster' },
+                        { text: '4. Levels', link: '/gdd/levels' }
                     ]
                 },
                 {
-                    text: 'III. Production',
+                    text: 'II. Production',
                     items: [
-                        { text: '4. Roadmap & open questions', link: '/gdd/roadmap' },
-                        { text: '5. Changelog', link: '/gdd/changelog' }
+                        { text: '5. Roadmap & open questions', link: '/gdd/roadmap' },
+                        { text: '6. Changelog', link: '/gdd/changelog' }
                     ]
                 }
             ],

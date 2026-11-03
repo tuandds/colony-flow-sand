@@ -29,3 +29,43 @@
     margin-right: 6px;
     border: 1px solid rgba(0, 0, 0, 0.15);
 }
+
+/* Core gameplay tables (fakescreen | details | demo), laid out like the studio's GDD template. */
+.vp-doc table.gdd-table {
+    display: table;
+    width: 100%;
+}
+.vp-doc table.gdd-table td {
+    vertical-align: top;
+}
+.vp-doc table.gdd-table td img {
+    width: 100%;
+    max-width: 320px;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    margin-bottom: 8px;
+}
+.vp-doc table.gdd-table td p,
+.vp-doc table.gdd-table td ul {
+    margin: 4px 0 8px;
+}
+
+/* Pages of wide tables (pageClass: gdd-wide) use more of the screen (the theme's own rule,
+   688 px, is scoped and as specific, hence !important). */
+.gdd-wide .VPDoc .content-container {
+    max-width: 1000px !important;
+}
+
+/* The wire flow diagram: full width, on white in both themes. */
+.vp-doc img.gdd-flow {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid var(--vp-c-divider);
+}
+
+/* Booster button states in the booster table: small, no shadow. */
+.vp-doc table.gdd-table td img.gdd-btn {
+    width: 96px;
+    box-shadow: none;
+    border-radius: 0;
+}

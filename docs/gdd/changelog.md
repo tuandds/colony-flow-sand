@@ -1,9 +1,10 @@
-# 5. Changelog
+# 6. Changelog
 
 Every published version stays playable at its own URL. The [landing page](https://tuandds.github.io/colony-flow-sand/) lists them all.
 
 ## latest (main) <Badge type="tip" text="Live" />
 
+- **New obstacle: Frozen:** a square or round patch of the picture lies under a sheet of ice with a number on it. The sand under it cannot be swept or come loose, and falling sand piles up on it. Each nest removed counts the number down by 1; at 0 the ice shatters (shards fly out and fall) and the sand under it can be swept like any other. level_6 has one, a square on the sail counting from 20. The Level Editor keeps a level's frozen areas and outlines them on the Sand Editor. See [Core gameplay](./core-gameplay#obstacle-frozen). Not checked with the test bot.
 - **Blocks come out of the gate:** a finished block now waits in, and drops onto the belt from, the opening of the gate at the bottom of the frame (it used to appear at the end of the funnel's spout, inside the frame).
 - **Level Editor: the iPhone playtest stays in the window:** it is drawn narrower when the window is too short for its 9:16 screen, and is kept inside the window when it opens, is moved or resized, or the window is resized (it used to run off the bottom of shorter windows).
 - **Game levels always named level_x:** the game and the Level Editor name the game's ten levels `level_1` to `level_10` by their place in the game, whatever name a copy in the Level Bank or an imported file carries (an export with an old name, such as "Hot Air Balloon", still shows as `level_6`).
@@ -98,3 +99,6 @@ Every published version stays playable at its own URL. The [landing page](https:
 | 2026-10-27 | GDD created |
 | 2026-10-27 | Released v1.0.0 |
 | 2026-10-28 | Released v1.0.1 |
+| 2026-11-03 | Gameplay chapters rewritten in the core gameplay format: [Core gameplay](./core-gameplay) (overview, then one table per screen zone) and [Levels](./levels) replace Overview, Core loop and Rules & mechanics |
+| 2026-11-03 | [User Flow & UI](./user-flow-ui) added: the wire flow and every screen, the prototype's (live) and those still to build for the Unity game (Home, More Coins, New Feature, Purchase Booster, Loading screen and transition, Tutorial, Medium & Hard UI) |
+| 2026-11-03 | [Booster](./booster) added: Activate, Shuffle and Fan with their states (Lock, Number, Add, Fade), pause and cancel rules, and the purchase popup for Unity |

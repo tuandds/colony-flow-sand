@@ -4,7 +4,7 @@ import {
     ANT_SPEED, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, COLS, DROP_S, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, SLOTS,
     FRAME_N, MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colX, frameGrains, funnelHalf, grainInFrame, nestPos,
 } from './layout';
-import { Level, buildLevel, decodeSand, widenOldFrame } from './levels';
+import { Frozen, Level, buildLevel, decodeSand, widenOldFrame } from './levels';
 import { hash, mulberry32, packColor } from './util';
 
 export type Sfx = 'pop' | 'drop' | 'pick' | 'nest' | 'lose' | 'win' | 'click' | 'add';
@@ -53,6 +53,12 @@ export class Sim {
     /** Cells outside the frame art's light blue inside: the board's rounded corners and the
      * funnel's curved sides. No sand starts there or moves in. */
     wall!: Uint8Array;
+    /** Cells under a frozen area that is still frozen: their sand can't be swiped or come loose,
+     * and empty ones stop falling sand. */
+    ice!: Uint8Array;
+    /** The level's frozen areas, in grid cells (x0..x1, y0..y1 inclusive), with the count left;
+     * `broke` is set (to the game time) when the count reaches 0. */
+    frozen: { def: Frozen; x0: number; y0: number; x1: number; y1: number; count: number; cells: number[]; broke: number | null }[] = [];
     colors: Record<string, string> = {};
     total = 0; drained = 0;
     /** Grains still on the board (the picture frame); 0 once all its sand has fallen. */
@@ -118,6 +124,19 @@ export class Sim {
         for (let y = G; y < GH; y++) for (let x = 0; x < G; x++) {
             if (Math.abs(PIC.x + (x - pad + 0.5) * gs - MOUTH.x) > funnelHalf(oy + (y + 0.5) * gs)) wall[y * G + x] = 1;
         }
+        // frozen areas: their cells are marked as ice; empty ones also act as walls until it breaks
+        const ice = (this.ice = new Uint8Array(G * GH));
+        this.frozen = (L.frozen ?? []).map((f) => {
+            const cells: number[] = [], fx0 = f.x + x0, fy0 = f.y + y0, cx = fx0 + f.w / 2, cy = fy0 + f.h / 2;
+            for (let y = fy0; y < fy0 + f.h; y++) for (let x = fx0; x < fx0 + f.w; x++) {
+                if (x < 0 || y < 0 || x >= G || y >= G) continue;
+                if (f.shape === 'circle' && ((x + 0.5 - cx) / (f.w / 2)) ** 2 + ((y + 0.5 - cy) / (f.h / 2)) ** 2 > 1) continue;
+                const p = y * G + x;
+                if (wall[p]) continue;
+                ice[p] = 1; cells.push(p);
+            }
+            return { def: f, x0: fx0, y0: fy0, x1: fx0 + f.w - 1, y1: fy0 + f.h - 1, count: Math.max(1, f.count), cells, broke: null };
+        });
         for (let p = 0; p < key.length; p++) {
             if (key[p]) rgb[p] = packColor(L.colors[keys[key[p]]!], (hash(p % G, (p / G) | 0, 7) - 0.5) * 0.16);
         }
@@ -237,6 +256,19 @@ export class Sim {
         return cols;
     }
 
+    // ---------- frozen areas ----------
+    /** A nest was removed: every frozen area counts down, and breaks at 0. */
+    private nestRemoved() {
+        for (const f of this.frozen) {
+            if (f.broke !== null) continue;
+            if (--f.count > 0) continue;
+            f.broke = this.time;
+            for (const p of f.cells) this.ice[p] = 0;
+            this.picDirty = true;
+            this.sfx('pop', 1);
+        }
+    }
+
     // ---------- swiping ----------
     /** Swiping frees the sand under the finger; freed (loose) sand then falls. */
     private brush(px: number, py: number) {
@@ -249,7 +281,7 @@ export class Sim {
             const cx = this.ox + (x + 0.5) * gs, cy = this.oy + (y + 0.5) * gs;
             if ((cx - px) ** 2 + (cy - py) ** 2 > r * r) continue;
             const p = y * G + x;
-            if (!key[p] || loose[p]) continue;
+            if (!key[p] || loose[p] || this.ice[p]) continue;
             loose[p] = 1; added++;
         }
         if (added) { this.picDirty = true; this.sfx('pop', 0.6); }
@@ -275,7 +307,7 @@ export class Sim {
     private simStep() {
         const { key, rgb, loose, vx, vy, seq, stepOf, G, GH, wall } = this;
         const flip = (this.simFlip ^= 1), step = ++this.stepN;
-        const free = (q: number) => !key[q] && !wall[q];
+        const free = (q: number) => !key[q] && !wall[q] && !this.ice[q];
         const board = G * G, bottom = (GH - 1) * G;
         let moved = false;
         // the hole: a finished block still sitting in it plugs it, and the sand above waits
@@ -359,7 +391,7 @@ export class Sim {
         const { key, loose, G, GH } = this;
         const seen = new Uint8Array(G * GH), stack: number[] = [], comp: number[] = [];
         for (let s0 = 0; s0 < key.length; s0++) {
-            if (!key[s0] || loose[s0] || seen[s0]) continue;
+            if (!key[s0] || loose[s0] || seen[s0] || this.ice[s0]) continue;
             seen[s0] = 1; stack.push(s0); comp.length = 0;
             while (stack.length) {
                 const p = stack.pop()!; comp.push(p);
@@ -368,7 +400,7 @@ export class Sim {
                     const nx = x + dx, ny = y + dy;
                     if ((!dx && !dy) || nx < 0 || ny < 0 || nx >= G || ny >= GH) continue;
                     const q = ny * G + nx;
-                    if (key[q] && !loose[q] && !seen[q]) { seen[q] = 1; stack.push(q); }
+                    if (key[q] && !loose[q] && !seen[q] && !this.ice[q]) { seen[q] = 1; stack.push(q); }
                 }
             }
             let x0 = G, x1 = 0, y0 = G, y1 = 0;
@@ -459,6 +491,7 @@ export class Sim {
                     nest.pop += dt / 0.35;
                     if (nest.pop < 1) continue;
                     col.splice(ri, 1);
+                    this.nestRemoved();
                     // the nest behind a finished front nest starts work on the next frame
                     if (ri === 0) break;
                     ri--; continue;

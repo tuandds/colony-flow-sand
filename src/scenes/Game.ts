@@ -8,7 +8,7 @@ import { type Recording, botStep, pickStroke, playBot, replayStep } from '../gam
 import { FAN_FLIGHT, FAN_SHOT_GAP, Flyer, Sfx, Sim, levelOverride } from '../game/sim';
 import { Item3D, ThreeLayer } from '../game/three-layer';
 import { DEMO_SCENES, Demo } from './demo';
-import { greyed } from '../game/util';
+import { greyed, mulberry32 } from '../game/util';
 
 const FONT = '"Lilita One", "Arial Rounded MT Bold", sans-serif';
 /** Music, sound effects and vibration switches (Pause panel), kept in the browser. */
@@ -132,6 +132,8 @@ export class Game extends Phaser.Scene {
      * nests trade places. */
     private shuffleFx: { t: number; swapped: boolean } | null = null;
     private labels: Phaser.GameObjects.Text[] = [];
+    /** The ice drawn over each frozen area (same order as sim.frozen), with its count. */
+    private ice: { box: Phaser.GameObjects.Container; text: Phaser.GameObjects.Text; count: number; broken: boolean }[] = [];
     private overlay: Overlay = null;
     private overlayBox?: Phaser.GameObjects.Container;
 
@@ -229,6 +231,7 @@ export class Game extends Phaser.Scene {
         this.sandTex = this.textures.addCanvas('sand', this.sandCanvas)!;
         this.sandTex.setFilter(Phaser.Textures.FilterMode.NEAREST);
         this.sandImage.setTexture('sand').setPosition(this.sim.ox, this.sim.oy).setDisplaySize(G * this.sim.gs, GH * this.sim.gs);
+        this.drawIce();
         this.closeOverlay();
         this.setPicking(false);
         this.endFan();
@@ -259,6 +262,7 @@ export class Game extends Phaser.Scene {
                 this.sim.update(step);
             }
         }
+        this.stepIce();
         // the demo runs once play has started, panels and all (it taps their buttons)
         if (this.demo && this.started) this.demo.update(dt, this.paused, (this.capture ? this.time.now : performance.now()) / 1000);
         if (this.sim.left === 0 && this.sim.state === 'play') this.setAutoFast(true);
@@ -381,6 +385,70 @@ export class Game extends Phaser.Scene {
         this.sandCanvas.getContext('2d')!.putImageData(this.sandImg, 0, 0);
         this.sandTex.refresh();
         s.picDirty = false;
+    }
+
+    /** Frosted ice over each frozen area: a light blue sheet with a white rim, cracks and light
+     * facets, and the number of nests still to remove in the middle. */
+    private drawIce() {
+        for (const f of this.ice) f.box.destroy();
+        this.ice = [];
+        const s = this.sim, rnd = mulberry32(77 + this.levelIndex);
+        for (const f of s.frozen) {
+            const w = (f.x1 - f.x0 + 1) * s.gs, h = (f.y1 - f.y0 + 1) * s.gs, round = f.def.shape === 'circle';
+            const box = this.add.container(s.ox + f.x0 * s.gs + w / 2, s.oy + f.y0 * s.gs + h / 2).setDepth(D.sand + 0.3);
+            const g = this.add.graphics();
+            const shape = (inset: number) => round ? g.fillEllipse(0, 0, w - 2 * inset, h - 2 * inset) : g.fillRoundedRect(-w / 2 + inset, -h / 2 + inset, w - 2 * inset, h - 2 * inset, Math.max(4, 10 - inset));
+            const outline = (inset: number) => round ? g.strokeEllipse(0, 0, w - 2 * inset, h - 2 * inset) : g.strokeRoundedRect(-w / 2 + inset, -h / 2 + inset, w - 2 * inset, h - 2 * inset, Math.max(4, 10 - inset));
+            // a soft glow round it, the frosted sheet, a lighter core
+            g.lineStyle(10, 0xe6f4ff, 0.4); outline(-4);
+            g.fillStyle(0x9cc8ef, 0.92); shape(0);
+            g.fillStyle(0xc4e0f8, 0.9); shape(4);
+            g.fillStyle(0xe4f2ff, 0.55); shape(w * 0.14);
+            // light facets and cracks, like broken ice
+            const inside = (x: number, y: number) => round ? (x / (w / 2)) ** 2 + (y / (h / 2)) ** 2 < 0.8 : Math.abs(x) < w / 2 - 6 && Math.abs(y) < h / 2 - 6;
+            const pt = () => { for (;;) { const x = (rnd() - 0.5) * w, y = (rnd() - 0.5) * h; if (inside(x, y)) return [x, y] as const; } };
+            for (let i = 0; i < 7; i++) {
+                const [ax, ay] = pt(), [bx, by] = pt(), [cx, cy] = pt();
+                g.fillStyle(0xffffff, 0.07 + rnd() * 0.08); g.fillTriangle(ax, ay, bx, by, cx, cy);
+            }
+            g.lineStyle(2, 0xffffff, 0.75);
+            for (let i = 0; i < 9; i++) {
+                let [x, y] = pt();
+                g.beginPath(); g.moveTo(x, y);
+                for (let k = 0; k < 3; k++) { const [nx, ny] = pt(); x += (nx - x) * 0.45; y += (ny - y) * 0.45; g.lineTo(x, y); }
+                g.strokePath();
+            }
+            // a bright rim
+            g.lineStyle(3, 0xffffff, 0.9); outline(1.5);
+            const text = this.text(0, 2, String(f.count), Math.round(Math.min(56, Math.max(30, Math.min(w, h) * 0.32))), '#1b2a4a', '#ffffff', 8);
+            box.add([g, text]);
+            this.ice.push({ box, text, count: f.count, broken: f.broke !== null });
+            if (f.broke !== null) box.setVisible(false);
+        }
+    }
+
+    /** The ice follows the frozen areas: the number pops as it counts down; at 0 the ice
+     * shatters, its pieces flying out and falling, and fades. */
+    private stepIce() {
+        this.sim.frozen.forEach((f, i) => {
+            const v = this.ice[i];
+            if (!v || v.broken) return;
+            if (f.count !== v.count) {
+                v.count = f.count;
+                v.text.setText(String(Math.max(0, f.count)));
+                this.tweens.add({ targets: v.text, scale: { from: 1.45, to: 1 }, duration: 260, ease: 'Back.Out' });
+            }
+            if (f.broke === null) return;
+            v.broken = true;
+            const { x, y } = v.box, b = v.box.getBounds();
+            this.tweens.add({ targets: v.box, alpha: 0, scale: 1.12, duration: 320, ease: 'Quad.Out', onComplete: () => v.box.setVisible(false) });
+            for (let k = 0; k < 18; k++) {
+                const sx = x + (Math.random() - 0.5) * b.width * 0.8, sy = y + (Math.random() - 0.5) * b.height * 0.8, sz = 10 + Math.random() * 18;
+                const shard = this.add.triangle(sx, sy, 0, 0, sz, sz * 0.3, sz * 0.4, sz, 0xdff0ff, 0.95).setStrokeStyle(1.5, 0xffffff).setDepth(D.fx);
+                const vx = (sx - x) * 2.2 + (Math.random() - 0.5) * 120, vy = -120 - Math.random() * 160;
+                this.tweens.add({ targets: shard, x: sx + vx * 0.7, y: sy + vy * 0.7 + 380, angle: (Math.random() - 0.5) * 540, alpha: 0, duration: 700 + Math.random() * 300, ease: 'Quad.In', onComplete: () => shard.destroy() });
+            }
+        });
     }
 
     /** The picture frame and its funnel (one piece of art, its spout ending in a gate just above

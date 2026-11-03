@@ -46,7 +46,17 @@ export interface LevelDef {
     sand?: Sand;
     /** Number of nest columns (default 4). */
     cols?: number;
+    /** Frozen areas on the picture (see Frozen). */
+    frozen?: Frozen[];
 }
+
+/**
+ * A frozen area (obstacle): a rectangle or a circle (inscribed in the rectangle) on the picture,
+ * in grains of the full frame picture (frameGrains(FRAME_N), as the level editor keeps it: x from
+ * its left, y from its top). Its sand can't be swiped and it stops falling sand. Every nest that
+ * is removed takes 1 off `count`; at 0 the ice breaks and its sand is like the rest.
+ */
+export interface Frozen { shape: 'rect' | 'circle'; x: number; y: number; w: number; h: number; count: number }
 
 /** A sand picture at grain resolution: `size` grains tall and `w` wide (default `size`; the
  * level editor uses the whole frame, see frameGrains), `data` run-length encoded row by row
@@ -65,6 +75,7 @@ export interface Level {
     nests?: [string, number][][];
     sand?: Sand;
     cols?: number;
+    frozen?: Frozen[];
 }
 
 function painter(g: Grid): Painter {
@@ -395,5 +406,5 @@ function buildDef(L: LevelDef): Level {
     for (let y = 0; y < L.n; y++) g.push(new Array(L.n).fill(null));
     if (L.sand) { /* the sim reads the grains itself */ } else if (L.rows) L.rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') g[y][x] = ch; }));
     else L.paint?.(painter(g));
-    return { name: L.name, n: L.n, chunk: L.chunk, colors: L.colors, grid: g, order: L.order, seed: L.seed, salt: L.salt, nests: L.nests, sand: L.sand, cols: L.cols };
+    return { name: L.name, n: L.n, chunk: L.chunk, colors: L.colors, grid: g, order: L.order, seed: L.seed, salt: L.salt, nests: L.nests, sand: L.sand, cols: L.cols, frozen: L.frozen };
 }

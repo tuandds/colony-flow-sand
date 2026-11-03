@@ -8,7 +8,7 @@
 import type { Recording } from '../game/bot';
 import { COLS, FRAME_N, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, frameGrains } from '../game/layout';
 import EDITS from '../game/level-edits.json';
-import { BANK_COLOURS, CUSTOM_KEY, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, builtinDefs, decodeSand, encodeSand, gameLevelName, loadCustomLevels, useLevels, widenOldFrame } from '../game/levels';
+import { BANK_COLOURS, CUSTOM_KEY, type Frozen, type LevelDef, PREVIEW_KEY, SAND_PALETTE, type Sand, builtinDefs, decodeSand, encodeSand, gameLevelName, loadCustomLevels, useLevels, widenOldFrame } from '../game/levels';
 import { type Nest, Sim } from '../game/sim';
 import { BANK, type BankColour, type ConvertOpts, HEX, NAME, clipToFrame, countKeys, drawSand, fitToFrame, frameOutside, hexLab, imageToSand, moveRange, nearestKey, rowsToGrains, setBank } from './sand';
 import type { SolveJob, SolveResult } from './solver.worker';
@@ -22,6 +22,8 @@ interface EdLevel {
     cols: number;
     /** Nests from a recorded play or edited by hand; without them the game uses order + seed. */
     nests?: [string, number][][];
+    /** Frozen areas (obstacles), kept as they are; see Frozen in src/game/levels.ts. */
+    frozen?: Frozen[];
     /** The recorded winning strokes for `nests` (Auto Play replays them). */
     moves?: Recording['moves'];
     /** true: won twice with these nests; false: changed since; undefined: never checked. */
@@ -112,7 +114,7 @@ function loadLevels(): EdLevel[] {
 }
 /** Whether a built-in level's copy plays differently from the original (or is renamed). */
 const ORIGINALS = new Map(builtinDefs().map((d) => [d.id!, d]));
-const playSig = (d: LevelDef) => JSON.stringify([d.name, d.n, d.sand?.data, d.sand?.w, d.chunk, d.order || 'rows', d.seed ?? 0, d.salt, d.cols ?? COLS, d.nests ?? null]);
+const playSig = (d: LevelDef) => JSON.stringify([d.name, d.n, d.sand?.data, d.sand?.w, d.chunk, d.order || 'rows', d.seed ?? 0, d.salt, d.cols ?? COLS, d.nests ?? null, d.frozen ?? null]);
 const isEdited = (l: EdLevel) => { const o = ORIGINALS.get(l.id); return !!o && playSig(toDef(l)) !== playSig(o); };
 /** On the dev server, write the changed built-in levels to src/game/level-edits.json (vite.config.ts). */
 function saveEdits() {
@@ -158,6 +160,7 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
         layout: LAYOUT_VERSION,
         status: L.status || 'WIP', comment: L.comment || '', updated: L.updated || Date.now(),
         palette: Array.isArray(L.palette) ? L.palette.map((k) => keyOf.get(k) ?? k) : undefined,
+        frozen: L.frozen?.length ? L.frozen : undefined,
     };
 }
 function blankLevel(): EdLevel {
@@ -385,6 +388,18 @@ function drawSandCanvas() {
     g.stroke();
     g.imageSmoothingEnabled = false;
     g.drawImage(sandArt, 0, 0, cw, ch);
+    // frozen areas: a dashed ice outline with the count
+    for (const f of L().frozen ?? []) {
+        g.save();
+        g.strokeStyle = '#ffffff'; g.lineWidth = 3; g.setLineDash([8, 6]); g.fillStyle = 'rgba(201,227,255,.45)';
+        g.beginPath();
+        if (f.shape === 'circle') g.ellipse((f.x + f.w / 2) * s, (f.y + f.h / 2) * s, (f.w / 2) * s, (f.h / 2) * s, 0, 0, Math.PI * 2);
+        else g.rect(f.x * s, f.y * s, f.w * s, f.h * s);
+        g.fill(); g.stroke();
+        g.setLineDash([]); g.fillStyle = '#1b2a4a'; g.font = `bold ${Math.round(14 * s)}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText('❄ ' + f.count, (f.x + f.w / 2) * s, (f.y + f.h / 2) * s);
+        g.restore();
+    }
     if (hover && (tool === 'paint' || tool === 'erase')) {
         g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 1.5;
         g.beginPath(); g.arc((hover[0] + 0.5) * s, (hover[1] + 0.5) * s, brush * s, 0, Math.PI * 2); g.stroke();
