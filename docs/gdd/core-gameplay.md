@@ -161,7 +161,7 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <li><b>Settings button</b> (top left): the pause panel: close (resume), music, sound and vibration switches (kept in the browser), Restart, Home, and a cheat to jump to any level. Vibration buzzes when a nest fills, on a win and on a loss.</li>
 <li><b>Level title:</b> "Level N".</li>
 <li><b>Boosters:</b> a row of three 126 px buttons under the title, each with 1 use per level on a red badge (a green plus when none are left). They unlock one by one: Activate at level 3, Shuffle at level 6, Fan at level 9; before that the button is grey with a padlock and its level, and tapping it shows "Unlocks at Level N".</li>
-<li><b>x2:</b> double speed. Once all the sand has fallen off the picture, x2 turns on by itself and the button hides until the next level.</li>
+<li><b>x2:</b> double speed. Once all the picture's sand is swept (none of it is left fixed, though some may still be falling), x2 turns on by itself and the button hides until the next level.</li>
 </ul>
 <p><b>Boosters:</b></p>
 <ul>

@@ -81,6 +81,8 @@ export class Sim {
     total = 0; drained = 0;
     /** Grains still on the board (the picture frame); 0 once all its sand has fallen. */
     left = 0;
+    /** Grains still fixed in the picture (not yet swiped or come loose); 0 once all of it is swept. */
+    fixed = 0;
     /** gs: a grain's size in px (its height); gsx: its width, a little more, so the frame's grains
      * span its inside from side to side exactly (a whole number of grains seldom does). */
     cell = 0; gs = 0; gsx = 0; ox = 0; oy = 0;
@@ -180,7 +182,7 @@ export class Sim {
         this.loose = new Uint8Array(G * GH);
         this.seq = new Uint32Array(G * GH); this.seqN = 0; this.stepOf = new Uint32Array(G * GH); this.stepN = 0;
         this.vx = new Float32Array(G * GH); this.vy = new Float32Array(G * GH);
-        this.colors = L.colors; this.total = total; this.drained = 0; this.left = total;
+        this.colors = L.colors; this.total = total; this.drained = 0; this.left = total; this.fixed = total;
         this.cell = PIC.size / FRAME_N; this.gs = gs; this.gsx = gsx; this.ox = INNER.x; this.oy = oy;
         this.picDirty = true;
         this.exitCarry = 0;
@@ -317,7 +319,7 @@ export class Sim {
             if ((cx - px) ** 2 + (cy - py) ** 2 > r * r) continue;
             const p = y * G + x;
             if (!key[p] || loose[p] || this.ice[p]) continue;
-            loose[p] = 1; added++;
+            loose[p] = 1; added++; this.fixed--;
         }
         if (added) { this.picDirty = true; this.sfx('pop', 0.6); }
     }
@@ -443,6 +445,7 @@ export class Sim {
             for (const p of comp) { const x = p % G, y = (p / G) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
             if (comp.length <= this.smallIsland || Math.min(x1 - x0, y1 - y0) < this.thinIsland) {
                 for (const p of comp) loose[p] = 1;
+                this.fixed -= comp.length;
                 this.picDirty = true;
             }
         }

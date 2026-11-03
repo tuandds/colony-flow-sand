@@ -67,7 +67,7 @@ export class Game extends Phaser.Scene {
     private started = false;
     private paused = false;
     private speedUp = false;
-    /** x2 forced on because the picture frame is empty (its button is hidden until the next level). */
+    /** x2 forced on because all the picture's sand is swept (its button is hidden until the next level). */
     private autoFast = false;
     /** The x2 setting before autoFast turned it on, given back on the next level. */
     private speedBefore = false;
@@ -279,7 +279,7 @@ export class Game extends Phaser.Scene {
         this.stepIce();
         // the demo runs once play has started, panels and all (it taps their buttons)
         if (this.demo && this.started) this.demo.update(dt, this.paused, (this.capture ? this.time.now : performance.now()) / 1000);
-        if (this.sim.left === 0 && this.sim.state === 'play') this.setAutoFast(true);
+        if (this.sim.fixed <= 0 && this.sim.state === 'play') this.setAutoFast(true);
         if (this.sim.state !== 'play' && this.overlay !== 'end' && this.sim.endT >= (this.sim.state === 'win' ? 0.9 : 0)) this.showEnd();
         this.boosters.forEach((b, i) => {
             b.bump = Math.max(0, b.bump - dt * 5);
@@ -855,8 +855,8 @@ export class Game extends Phaser.Scene {
         this.speedParts = [this.speedBtn, this.text(sp.x + 82 * k, sp.y + 62 * k, 'x2', Math.round(50 * k * 291 / 190), '#2b2a6b', null).setDepth(D.hud + 0.1)];
     }
 
-    /** Once all the sand has fallen off the picture frame, the rest of the level (funnel, belt,
-     * ants) runs at x2 and the x2 button hides, so it cannot be turned off; the next level gives
+    /** Once all the picture's sand is swept (none of it fixed any more, though some may still be
+     * falling), the rest of the level (the sand falling, funnel, belt, ants) runs at x2 and the x2 button hides, so it cannot be turned off; the next level gives
      * back the speed the player had. */
     private setAutoFast(on: boolean) {
         if (on === this.autoFast) return;
