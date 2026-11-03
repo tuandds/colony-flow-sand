@@ -267,8 +267,8 @@
     .org-side { flex: 1 1 100%; }
   }
 </style>
-  <script type="module" crossorigin src="./assets/editor-FRKB6lWM.js"></script>
-  <link rel="modulepreload" crossorigin href="./assets/sim-0CNLfbRD.js">
+  <script type="module" crossorigin src="./assets/editor-C86qiW6E.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/sim-dsHBRR0q.js">
 </head>
 <body>
 <div class="edit-header">
@@ -326,7 +326,7 @@
     </div>
     <div class="row">
       <div class="tools" id="tools"></div>
-      <label class="hint" style="margin:0;display:flex;align-items:center;gap:6px">Cọ <input type="range" id="brush" min="2" max="24" step="1" style="width:110px" /><b id="brush-v" class="setting-val"></b></label>
+      <label class="hint" style="margin:0;display:flex;align-items:center;gap:6px">Cọ <input type="range" id="brush" min="0" max="24" step="1" style="width:110px" /><b id="brush-v" class="setting-val"></b></label>
     </div>
     <div class="sand-wrap"><div class="sand-frame"><canvas id="sand"></canvas></div></div>
     <div class="hint">✏️ B vẽ · 🧽 E tẩy · 🪣 G đổ màu vùng · 🔁 R thay cả màu · 💧 I hút màu · ❄️ F Frozen · chuột phải = tẩy · [ ] đổi cỡ cọ. Mỗi 64 hạt cùng màu thành 1 khối; khi chơi, mỗi màu được cắt cho vừa khít số khối.</div>
@@ -346,6 +346,9 @@
     <div class="setting-row"><label for="s-diff">Độ khó (cỡ tổ)</label><select id="s-diff">
       <option value="3,5">Rất dễ · 6–10 khối</option><option value="4,6">Dễ · 8–12</option><option value="4,7">Vừa · 8–14</option>
       <option value="5,8">Khó · 10–16</option><option value="6,9">Rất khó · 12–18</option></select></div>
+    <div class="setting-row"><label for="s-zoom">Phóng to hạt</label><select id="s-zoom">
+      <option value="1">1× · hạt thường</option><option value="1.25">1,25×</option><option value="1.5">1,5×</option><option value="2">2× · hạt to gấp đôi</option></select></div>
+    <div class="hint">Phóng to hạt làm tranh to ra mà không thêm hạt: mỗi hạt to hơn, khung chứa ít hạt hơn. Tranh được đặt giữa khung; cát tràn ra ngoài bị cắt. Tạo tranh từ ảnh đưa màn về 1×.</div>
     <div class="setting-row"><label for="s-status">Trạng thái</label><select id="s-status"><option>WIP</option><option>REVIEW</option><option>LIVE</option></select></div>
     <div class="wip-head"><label for="comment">WIP Comment</label><span class="wip-pill">WIP</span><span class="spacer"></span><span class="hint" style="margin:0" id="comment-count">0/500</span></div>
     <textarea id="comment" maxlength="500" placeholder="Ghi chú cho màn đang làm: góp ý, việc cần làm, cần chỉnh gì trước khi LIVE…"></textarea>
