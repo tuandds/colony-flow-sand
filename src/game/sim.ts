@@ -7,7 +7,7 @@ import {
 import { Frozen, Level, buildLevel, decodeSand, toCurrentFrame } from './levels';
 import { hash, mulberry32, packColor } from './util';
 import { RULES } from './variant';
-import { BODY_R, type Body, LANE, YARD, YARD_CUBE, beltAt, stepBodies, stepYard } from './belt-physics';
+import { BODY_R, type Body, CUBE_ELEV, GROUND_K, LANE, YARD, YARD_CUBE, beltAt, stepBodies, stepYard } from './belt-physics';
 
 export type Sfx = 'pop' | 'drop' | 'pick' | 'nest' | 'lose' | 'win' | 'click' | 'add';
 
@@ -680,7 +680,16 @@ export class Sim {
             // block; there it pulls the block across to the yard's edge (the block slides, pushing
             // others aside) and takes it once it comes no nearer; then back round to its nest
             if (RULES.yard) {
-                if (!a.route) a.route = this.rimRoute([a.x, a.y], this.blockPos(a.slot));
+                // the side of the yard its block is nearest; a block that slides nearer another side
+                // on the way sends the ant round to that side instead
+                if (!a.carry) {
+                    const to = this.pullFrom(a.block.body!), at = this.loopPoint(this.loopS(to[0], to[1])), end = a.route?.[a.route.length - 1];
+                    if (!a.route || (end && Math.hypot(end[0] - at[0], end[1] - at[1]) > 60)) {
+                        a.route = this.rimRoute([a.x, a.y], to);
+                        a.pull = undefined;
+                    }
+                }
+                a.route ??= [];
                 if (a.route.length && this.walk(a, a.route[0][0], a.route[0][1], dt)) a.route.shift();
                 if (a.route.length) continue;
                 if (!a.carry) {
@@ -775,6 +784,16 @@ export class Sim {
         const n = Math.max(1, Math.ceil(ds / 24)), route: [number, number][] = [];
         for (let k = 0; k <= n; k++) route.push(this.loopPoint(s0 + (dir * ds * k) / n));
         return route;
+    }
+    /** Where an ant should stand to pull this block out of the yard: just outside the side the
+     * block is nearest (front to back counted on the ground, as the yard is seen tipped), so it
+     * has the least way to be pulled. */
+    private pullFrom(b: Body): [number, number] {
+        const s = YARD_CUBE, out = 60;
+        const yMin = YARD.y0 + s * (Math.cos(CUBE_ELEV) - 0.36), yMax = YARD.y1 - s * 0.36;
+        const d = [b.x - YARD.x0, YARD.x1 - b.x, (b.y - yMin) / GROUND_K, (yMax - b.y) / GROUND_K];
+        const side = d.indexOf(Math.min(...d));
+        return ([[YARD.x0 - out, b.y], [YARD.x1 + out, b.y], [b.x, YARD.y0 - out], [b.x, YARD.y1 + out]] as [number, number][])[side];
     }
     /** A block reaches its nest (carried by an ant, or blown in by the Fan). */
     private deliver(nest: Nest, x: number) {
