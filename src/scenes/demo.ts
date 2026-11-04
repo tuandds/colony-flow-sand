@@ -72,56 +72,56 @@ export interface DemoScene { title: string; level: number; length: number; strok
  * own mix of strokes. They show levels 11 to 20 (the pictures they were made with).
  */
 export const DEMO_SCENES: Record<string, DemoScene> = {
-    // mostly straight drops: levels 1, 14, 17, 19
+    // mostly straight drops: levels 1, 14, 7, 3
     drops30: {
         title: 'Drops, 30 s', level: 0, length: 30, strokes: ['down', 'diagL', 'down', 'zigzag', 'down', 'diagR'], steps: [
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
-            { cut: 13, ff: 15 }, { auto: 5 }, { cut: 16, ff: 20 }, { auto: 5 }, { cut: 18, ff: 10 }, { auto: 12 },
+            { cut: 13, ff: 15 }, { auto: 5 }, { cut: 6, ff: 20 }, { auto: 5 }, { cut: 2, ff: 10 }, { auto: 12 },
         ],
     },
-    // mostly sweeps along the bottom: levels 12, 15, 18, 20
+    // mostly sweeps along the bottom: levels 12, 15, 2, 4
     sweeps30: {
         title: 'Sweeps, 30 s', level: 11, length: 30, strokes: ['sweepR', 'up', 'sweepL', 'down', 'sweepR', 'sweepL'], steps: [
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
-            { cut: 14, ff: 10 }, { auto: 5 }, { cut: 17, ff: 12 }, { auto: 5 }, { cut: 19, ff: 8 }, { auto: 12 },
+            { cut: 14, ff: 10 }, { auto: 5 }, { cut: 1, ff: 12 }, { auto: 5 }, { cut: 3, ff: 8 }, { auto: 12 },
         ],
     },
-    // mostly zigzags: levels 13, 16, 19, 1
+    // mostly zigzags: levels 13, 6, 3, 1
     zigzag30: {
         title: 'Zigzags, 30 s', level: 12, length: 30, strokes: ['zigzag', 'up', 'zigzag', 'diagR', 'zigzag', 'down'], steps: [
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
-            { cut: 15, ff: 20 }, { auto: 5 }, { cut: 18, ff: 10 }, { auto: 5 }, { cut: 0 }, { auto: 12 },
+            { cut: 5, ff: 20 }, { auto: 5 }, { cut: 2, ff: 10 }, { auto: 5 }, { cut: 0 }, { auto: 12 },
         ],
     },
-    // mostly diagonals: levels 14, 20, 12, 17
+    // mostly diagonals: levels 14, 4, 12, 7
     diagonals30: {
         title: 'Diagonals, 30 s', level: 13, length: 30, strokes: ['diagL', 'diagR', 'sweepR', 'diagR', 'diagL', 'up'], steps: [
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
-            { cut: 19, ff: 8 }, { auto: 5 }, { cut: 11, ff: 3 }, { auto: 5 }, { cut: 16, ff: 20 }, { auto: 12 },
+            { cut: 3, ff: 8 }, { auto: 5 }, { cut: 11, ff: 3 }, { auto: 5 }, { cut: 6, ff: 20 }, { auto: 12 },
         ],
     },
-    // mostly up from the bottom: levels 15, 18, 13, 16
+    // mostly up from the bottom: levels 15, 2, 13, 6
     rises30: {
         title: 'Rises, 30 s', level: 14, length: 30, strokes: ['up', 'sweepL', 'up', 'down', 'up', 'zigzag'], steps: [
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
-            { cut: 17, ff: 12 }, { auto: 5 }, { cut: 12, ff: 12 }, { auto: 5 }, { cut: 15, ff: 20 }, { auto: 12 },
+            { cut: 1, ff: 12 }, { auto: 5 }, { cut: 12, ff: 12 }, { auto: 5 }, { cut: 5, ff: 20 }, { auto: 12 },
         ],
     },
-    // every kind of stroke in turn: levels 1, 13, 15, 17, 19, 12, 14, 16
+    // every kind of stroke in turn: levels 1, 13, 15, 7, 3, 12, 14, 6
     mix60: {
         title: 'Mix, 60 s', level: 0, length: 60, steps: [
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
-            { cut: 12, ff: 12 }, { auto: 5.5 }, { cut: 14, ff: 10 }, { auto: 5.5 }, { cut: 16, ff: 20 }, { auto: 5.5 },
-            { cut: 18, ff: 10 }, { auto: 5.5 }, { cut: 11, ff: 3 }, { auto: 5.5 }, { cut: 13, ff: 15 }, { auto: 5.5 },
-            { cut: 15, ff: 20 }, { auto: 12 },
+            { cut: 12, ff: 12 }, { auto: 5.5 }, { cut: 14, ff: 10 }, { auto: 5.5 }, { cut: 6, ff: 20 }, { auto: 5.5 },
+            { cut: 2, ff: 10 }, { auto: 5.5 }, { cut: 11, ff: 3 }, { auto: 5.5 }, { cut: 13, ff: 15 }, { auto: 5.5 },
+            { cut: 5, ff: 20 }, { auto: 12 },
         ],
     },
-    // levels 20 to 12, then level 1, about five seconds each
+    // levels 4, 3, 2, 7, 6, 15, 14, 13, 12, then level 1, about five seconds each
     tour60: {
-        title: 'Tour, 60 s', level: 19, length: 60, strokes: ['zigzag', 'sweepL', 'diagR', 'up', 'down', 'sweepR', 'diagL'], steps: [
+        title: 'Tour, 60 s', level: 3, length: 60, strokes: ['zigzag', 'sweepL', 'diagR', 'up', 'down', 'sweepR', 'diagL'], steps: [
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
-            { cut: 18, ff: 10 }, { auto: 4 }, { cut: 17, ff: 12 }, { auto: 4 }, { cut: 16, ff: 20 }, { auto: 4 },
-            { cut: 15, ff: 20 }, { auto: 4 }, { cut: 14, ff: 10 }, { auto: 4 }, { cut: 13, ff: 15 }, { auto: 4 },
+            { cut: 2, ff: 10 }, { auto: 4 }, { cut: 1, ff: 12 }, { auto: 4 }, { cut: 6, ff: 20 }, { auto: 4 },
+            { cut: 5, ff: 20 }, { auto: 4 }, { cut: 14, ff: 10 }, { auto: 4 }, { cut: 13, ff: 15 }, { auto: 4 },
             { cut: 12, ff: 12 }, { auto: 4 }, { cut: 11, ff: 3 }, { auto: 4 }, { cut: 0 }, { auto: 10 },
         ],
     },

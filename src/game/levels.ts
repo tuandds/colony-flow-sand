@@ -425,14 +425,12 @@ export function builtinDefs(): LevelDef[] {
     });
 }
 
-/** The order the game plays the built-in levels in, by index (`builtin-<i>`): the Level Bank's order.
- * Levels 10 to 19 have no drawing in LEVELS: they live only in src/game/level-edits.json. */
-const GAME_ORDER = [0, 12, 10, 11, 13, 14, 15, 16, 17, 18, 19, 1, 3, 4, 2, 5, 6, 7, 8, 9];
-/** The game's level ids, in the order it plays them (all of them: the Level Editor lists them all). */
+/** The order the game plays the built-in levels in, by index (`builtin-<i>`): the Level Bank's order,
+ * 15 levels. Levels 10 to 19 have no drawing in LEVELS: they live only in src/game/level-edits.json;
+ * builtin-5 to builtin-9 are no longer in the game. */
+const GAME_ORDER = [0, 12, 10, 11, 13, 14, 15, 16, 17, 18, 19, 1, 3, 4, 2];
+/** The game's level ids, in the order it plays them. */
 export const gameLevelIds = () => GAME_ORDER.map(builtinId);
-/** The game plays the first GAME_PLAYS of them; the rest stay in the Level Editor (and the
- * marketing reels, which play all of them). */
-export const GAME_PLAYS = 15;
 
 /** A game level's name, `level_<n>` with n its place in the game (from 1), whatever name a saved
  * copy carries; null for a level that is not one of the game's. */
@@ -442,13 +440,13 @@ export function gameLevelName(id: string | undefined) {
 }
 
 /**
- * The game's levels, in GAME_ORDER (the first GAME_PLAYS, or all with `all`): each built-in level, unless the level editor has a saved copy
+ * The game's levels, in GAME_ORDER: each built-in level, unless the level editor has a saved copy
  * of it (`builtin-<i>`). Copies come from this browser's Level Bank and from
  * src/game/level-edits.json (which the editor writes on the dev server); the newer one wins.
  */
-export function gameLevels(all = false): LevelDef[] {
+export function gameLevels(): LevelDef[] {
     const saved = loadCustomLevels(CUSTOM_KEY), file = EDITS as unknown as LevelDef[];
-    return GAME_ORDER.slice(0, all ? undefined : GAME_PLAYS).flatMap((i) => {
+    return GAME_ORDER.flatMap((i) => {
         const L = LEVELS[i] as LevelDef | undefined, id = builtinId(i), a = saved.find((x) => x.id === id), b = file.find((x) => x.id === id);
         const def = (a && b ? ((a.updated ?? 0) >= (b.updated ?? 0) ? a : b) : a ?? b) ?? L;
         return def ? [{ ...def, name: gameLevelName(id)! }] : [];
