@@ -10,7 +10,7 @@ import { type Recording, botStep, pickStroke, playBot, replayStep } from '../gam
 import { FAN_FLIGHT, FAN_SHOT_GAP, Flyer, Sfx, Sim, levelOverride } from '../game/sim';
 import { GROUND_DEPTH, Item3D, ThreeLayer } from '../game/three-layer';
 import { DEMO_SCENES, Demo } from './demo';
-import { greyed, mulberry32 } from '../game/util';
+import { brighten, greyed, lightness, mulberry32 } from '../game/util';
 
 const FONT = '"Lilita One", "Arial Rounded MT Bold", sans-serif';
 /** Music, sound effects and vibration switches (Pause panel), kept in the browser. */
@@ -22,9 +22,11 @@ const VIBES: Partial<Record<Sfx, number | number[]>> = { nest: 25, win: [60, 40,
 const BOOSTER_USES = [1, 1, 1];
 /** The level (1-based) from which each booster can be used; before it the booster shows locked. */
 const BOOSTER_UNLOCK = [3, 6, 9];
-/** Nests waiting behind the front row sit under a light, half-clear overlay: its opacity on the
- * tile, its brightness, and the darker grey it gives the number's white fill and black stroke. */
-const WAIT = { a: 0.45, light: 0xe0, text: 0xb0 };
+/** Nests waiting behind the front row keep their colour, a little brighter (FAR.light of the way to
+ * white, as vivid), and their number fades into it: a white just tinted by the box (its colour
+ * mixed FAR.num of the way to white, like white seen a little see-through), stroked with its colour FAR.stroke of the way to black (a near-white box: a
+ * grey number with a darker grey stroke). */
+const FAR = { light: 0.12, num: 0.72, stroke: 0.45 };
 
 // Depths, back to front.
 const D = { bg: 0, chute: 1, funnel: 2, board: 3, sand: 4, belt: 5, shadows: 6, three: 7, labels: 8, fx: 9, tray: 10, hud: 11, overlay: 20 };
@@ -357,8 +359,8 @@ export class Game extends Phaser.Scene {
 
         // nest boxes (img/nest_box_*.png) in the nest's colour, each row drawn over the row above
         // it: the nests ants work for (the front row, and nests woken by Activate) are full height
-        // inside a white frame (img/nest_frame.png); the other nests queued behind are lower, under a light
-        // overlay. The box art is 302 x 387, drawn TILE * 0.92 wide and placed by the centre of
+        // inside a white frame (img/nest_frame.png); the other nests queued behind are lower, a little
+        // brighter, with their numbers faded into their colour (FAR). The box art is 302 x 387, drawn TILE * 0.92 wide and placed by the centre of
         // its top face (151, 136), where the nest's point and number are; the frame's hole is
         // centred at (167.5, 202) of its 335 x 404, round the box body's centre (151, 184).
         let li = 0;
@@ -376,17 +378,20 @@ export class Game extends Phaser.Scene {
             const hex = s.colors[nest.color];
             const sx = k * sc, sy = sx * (front ? 1 : 0.8), depth = D.three - 0.3 + ri * 0.01;
             const box = (this.nestBoxes[li] ??= this.add.image(0, 0, 'nest_frame').setOrigin(151 / 302, 136 / 387));
-            box.setTexture(this.nestTexture(front ? hex : '#' + greyed(hex, WAIT.a, WAIT.light).toString(16).padStart(6, '0')))
+            // front nests; every nest waiting behind them keeps its colour, its number faded
+            const far = !front, css = (c: number) => '#' + c.toString(16).padStart(6, '0');
+            const boxHex = far ? css(brighten(hex, FAR.light)) : hex;
+            box.setTexture(this.nestTexture(boxHex))
                 .setPosition(nest.dx, y).setScale(sx, sy).setAlpha(alpha).setDepth(depth).setVisible(true);
             const frame = (this.nestFrames[li] ??= this.add.image(0, 0, 'nest_frame').setOrigin(167.5 / 335, 202 / 404));
             frame.setPosition(nest.dx, y + 48 * sy).setScale(sx, sy).setAlpha(alpha).setDepth(depth + 0.005).setVisible(front);
             const label = this.label(li++);
             label.setText(String(nest.need - nest.got)).setPosition(nest.dx, y + 2).setVisible(true);
             label.setFontSize(Math.round((front ? 50 : 46) * sc));
-            // white number with a black stroke; on waiting nests the light overlay covers it too
-            const css = (c: number) => '#' + c.toString(16).padStart(6, '0');
-            if (front) label.setColor('#ffffff').setStroke('#000000', 9 * sc);
-            else label.setColor(css(greyed('#ffffff', WAIT.a, WAIT.text))).setStroke(css(greyed('#000000', 0.6, WAIT.text)), 8 * sc);
+            // white number with a black stroke; further back it fades into the box's own colour
+            if (!far) label.setColor('#ffffff').setStroke('#000000', (front ? 9 : 8) * sc);
+            else if (lightness(hex) > 0.8) label.setColor(css(greyed(hex, 0.35, 150))).setStroke(css(greyed(hex, 0.6, 90)), 8 * sc);
+            else label.setColor(css(greyed(boxHex, FAR.num, 255))).setStroke(css(greyed(hex, FAR.stroke, 0)), 8 * sc);
             label.setAlpha(alpha);
         }
         for (let i = li; i < this.nestBoxes.length; i++) { this.nestBoxes[i].setVisible(false); this.nestFrames[i].setVisible(false); }

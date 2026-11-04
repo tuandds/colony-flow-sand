@@ -133,7 +133,7 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <p><b>Structure:</b> about 17 % of the screen height: two rows of nests and the third down to its number; the rest wait below the screen.</p>
 <ul>
 <li><b>Columns:</b> 4 (a level from the Level Editor can have 2 to 6), 172 px apart. Rows are 130 px apart, with 28 px more under the front row.</li>
-<li><b>Nest:</b> a box in its colour showing how many blocks it still needs (a white number with a black stroke). Front nests are full height in a white frame; waiting nests are lower and paler.</li>
+<li><b>Nest:</b> a box in its colour showing how many blocks it still needs (a white number with a black stroke). Front nests are full height in a white frame. Waiting nests are lower, keep their colour (a little brighter) and their number fades into it (white just tinted by the box, with a darker stroke of the box's colour), so every nest's colour reads at a glance.</li>
 <li><b>Nest sizes:</b> set by hand in the Level Editor, or built by the game from the picture: the blocks are listed in the order the sand naturally comes out, cut into nests of <code>chunk × 2</code> blocks and dealt to the column with the least sand still queued.</li>
 </ul>
 <p><b>Behaviour:</b></p>

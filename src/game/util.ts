@@ -20,6 +20,24 @@ export function greyed(hex: string, a: number, grey: number): number {
     return (r << 16) | (g << 8) | b;
 }
 
+/** A hex colour's lightness (HSL, 0 to 1). */
+export function lightness(hex: string) {
+    const [r, g, b] = hexToRgb(hex);
+    return (Math.max(r, g, b) + Math.min(r, g, b)) / 510;
+}
+
+/** Lighten a hex colour by f of the way to white in lightness (HSL), keeping its hue and
+ * saturation, so it stays as vivid; returns 0xRRGGBB. */
+export function brighten(hex: string, f: number): number {
+    const [r, g, b] = hexToRgb(hex).map((c) => c / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+    const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+    let h = 0;
+    if (d) h = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    const l2 = l + (1 - l) * f, c = (1 - Math.abs(2 * l2 - 1)) * s, x = c * (1 - Math.abs((h % 2) - 1)), m = l2 - c / 2;
+    const [r2, g2, b2] = [[c, x, 0], [x, c, 0], [0, c, x], [0, x, c], [x, 0, c], [c, 0, x]][Math.floor(h) % 6];
+    return (Math.round((r2 + m) * 255) << 16) | (Math.round((g2 + m) * 255) << 8) | Math.round((b2 + m) * 255);
+}
+
 /** Same as shade() but as a CSS colour string (for Text strokes). */
 export function shadeCss(hex: string, f: number): string {
     return '#' + shade(hex, f).toString(16).padStart(6, '0');
