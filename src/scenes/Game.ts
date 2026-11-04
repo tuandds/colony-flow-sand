@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { RULES, VARIANT } from '../game/variant';
 import { LOOSE_CUBE, YARD, YARD_CUBE } from '../game/belt-physics';
 import {
-    BELT, BLOCK, BOOSTER_IMAGES, BOOSTER_POS, BOOSTER_SIZE, FRAME_ART, GATE_OUT, H, INNER, NEST_BOXES, PAUSE_BTN, PIC,
+    BELT, BLOCK, BOOSTER_IMAGES, BOOSTER_POS, BOOSTER_SIZE, FRAME_ART, GATE_OUT, H, INNER, NEST_BOXES, PAUSE_BTN, PIC, RIM_IN,
     BELT_LEN, SLOTS, SPEED_BTN, TILE, W, beltPoint,
 } from '../game/layout';
 import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useLevels } from '../game/levels';
@@ -192,7 +192,7 @@ export class Game extends Phaser.Scene {
                 g.generateTexture('belt_arrow', 26, 26).destroy();
             }
             for (let i = 0; i < BELT_ARROWS; i++) this.arrows.push(this.add.image(0, 0, 'belt_arrow').setTint(0x2b2f63).setAlpha(0.35).setDepth(D.belt));
-        } else if (!RULES.yard) for (let i = 0; i < SLOTS; i++) this.holds.push(this.add.image(0, 0, 'conveyor_hold').setDisplaySize(BLOCK, BLOCK).setDepth(D.belt));
+        } else if (!RULES.yard) for (let i = 0; i < SLOTS; i++) this.holds.push(this.add.image(0, 0, 'conveyor_hold').setDisplaySize(BLOCK * 0.9, BLOCK * 0.9).setDepth(D.belt));
         // in the middle of the gauge's groove (y 14 to 66 of its 95 px art, so 7.5 px above the art's middle)
         this.fullText = this.text(GAUGE.x, GAUGE.y + 1, '0%', 24, '#ffffff', null).setDepth(D.belt + 0.5);
         this.shadowGfx = this.add.graphics().setDepth(D.shadows);
@@ -542,6 +542,31 @@ export class Game extends Phaser.Scene {
     private drawBoard() {
         const A = FRAME_ART, kx = INNER.w / A.w, ky = INNER.h / A.h, x = INNER.x - A.x * kx, y = INNER.y - A.y * ky;
         this.add.image(x, y, 'frame').setOrigin(0).setDisplaySize(A.imgW * kx, A.imgH * ky).setDepth(D.board);
+        // the sand is cut grain by grain at the board's rounded top corners, so its edge steps;
+        // over it lie the art's own corners, cut along the smooth curve (RIM_IN), so the corners
+        // look as round as the art's
+        const key = 'frame_corners';
+        if (!this.textures.exists(key)) {
+            const top = RIM_IN.filter(([ay]) => ay <= A.y + 50), y1 = top[top.length - 1][0], cw = top[0][1] + 4;
+            const src = this.textures.get('frame').getSourceImage() as HTMLImageElement;
+            const tex = this.textures.createCanvas(key, A.w, y1 - A.y + 2)!, ctx = tex.getContext();
+            for (const side of [-1, 1]) {
+                // one corner: from the frame's side in to the curve, row by row, smoothed
+                const ex = side < 0 ? 0 : A.w;
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(ex, -1);
+                for (const [ay, inset] of top) ctx.lineTo(ex - side * inset, ay - A.y);
+                ctx.lineTo(ex, y1 - A.y + 1);
+                ctx.closePath();
+                ctx.clip();
+                const sx = side < 0 ? A.x : A.x + A.w - cw;
+                ctx.drawImage(src, sx, A.y, cw, y1 - A.y + 2, sx - A.x, 0, cw, y1 - A.y + 2);
+                ctx.restore();
+            }
+            tex.refresh();
+        }
+        this.add.image(INNER.x, INNER.y, key).setOrigin(0).setScale(kx, ky).setDepth(D.sand + 0.1);
     }
 
     /** The belt art (img/conveyor.png, 1872 x 454, with its own hollow in the wood drawn round

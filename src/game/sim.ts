@@ -30,6 +30,12 @@ export interface Ant {
     lead: number;
     /** Where on the nest's top edge the ant leaves from and comes back to (px from its centre). */
     ox: number;
+    /** The yard (variant 3): the points it walks through first, round the outside of the yard,
+     * before it pulls its block out (or heads for its nest). */
+    route?: [number, number][];
+    /** The yard: while it pulls its block to the edge, the nearest the block has come and how
+     * long it has not come nearer (s). */
+    pull?: { best: number; t: number };
 }
 /** Fan booster: seconds between two blocks leaving the cannon, and each block's flight time. */
 export const FAN_SHOT_GAP = 0.2, FAN_FLIGHT = 0.5;
@@ -41,6 +47,10 @@ export interface Flyer { k: string; sx: number; sy: number; nest: Nest; t: numbe
 const PIPE_MAX = RULES.looseBelt || RULES.yard ? 4 : 1;
 /** The yard: the least time between two blocks dropping in (s). */
 const YARD_DROP = 0.12;
+/** The yard: how fast an ant pulls its block toward itself (px/s). */
+const PULL_SPEED = 260;
+/** The yard: how far outside it the ants' loop runs, at its top and ends (px). */
+const LOOP_OUT = 34;
 export const HOP_FLIGHT = 0.3;
 export interface Spark { x: number; y: number; vx: number; vy: number; life: number; t: number; color: number; s: number }
 
@@ -666,6 +676,28 @@ export class Sim {
         for (let i = this.ants.length - 1; i >= 0; i--) {
             const a = this.ants[i];
             a.t += dt;
+            // the yard: an ant keeps out of it, walking round its outside to the point nearest its
+            // block; there it pulls the block across to the yard's edge (the block slides, pushing
+            // others aside) and takes it once it comes no nearer; then back round to its nest
+            if (RULES.yard) {
+                if (!a.route) a.route = this.rimRoute([a.x, a.y], this.blockPos(a.slot));
+                if (a.route.length && this.walk(a, a.route[0][0], a.route[0][1], dt)) a.route.shift();
+                if (a.route.length) continue;
+                if (!a.carry) {
+                    const body = a.block.body!, dx = a.x - body.x, dy = a.y - body.y, d = Math.hypot(dx, dy) || 1;
+                    a.ang += (Math.atan2(-dy, -dx) - a.ang) * Math.min(1, dt * 10);
+                    body.vx = (dx / d) * PULL_SPEED; body.vy = (dy / d) * PULL_SPEED;
+                    a.pull ??= { best: d, t: 0 };
+                    if (d < a.pull.best - 0.5) { a.pull.best = d; a.pull.t = 0; } else a.pull.t += dt;
+                    if (a.pull.t < 0.12) continue;
+                    a.carry = a.block.k;
+                    this.slots[a.slot] = null;
+                    this.sfx('pick', 0.45);
+                    const [hx, hy] = this.nestAt(a.col, Math.max(0, this.cols[a.col].indexOf(a.nest)));
+                    a.route = this.rimRoute([a.x, a.y], [hx + a.ox, hy - TILE / 2]);
+                    continue;
+                }
+            }
             let tx: number, ty: number, ax: number, ay: number;
             if (!a.carry) { [tx, ty] = this.blockPos(a.slot); [ax, ay] = RULES.yard ? [tx, ty] : this.intercept(a, tx, ty); }
             else { [tx, ty] = this.nestAt(a.col, Math.max(0, this.cols[a.col].indexOf(a.nest))); tx += a.ox; ty -= TILE / 2; ax = tx; ay = ty; }
@@ -692,6 +724,57 @@ export class Sim {
                 a.x += dx * k; a.y += dy * k;
             }
         }
+    }
+    /** Move ant a toward (x, y) at ANT_SPEED, turning to face its way; whether it got there. */
+    private walk(a: Ant, x: number, y: number, dt: number) {
+        const dx = x - a.x, dy = y - a.y, d = Math.hypot(dx, dy), step = ANT_SPEED * dt;
+        if (d > 1) {
+            let da = Math.atan2(dy, dx) - a.ang;
+            da = Math.atan2(Math.sin(da), Math.cos(da));
+            a.ang += da * Math.min(1, dt * 18);
+        }
+        if (d <= step) { a.x = x; a.y = y; return true; }
+        a.x += (dx / d) * step; a.y += (dy / d) * step;
+        return false;
+    }
+    /** Where ants walk round the yard: a loop round its outside, like a running track (straight
+     * along its top and bottom, round at its ends), clear of its border; the bottom straight runs
+     * along the yard's fill gauge. */
+    private loop() {
+        const cy = (YARD.y0 + YARD.y1) / 2, R = (YARD.y1 - YARD.y0) / 2 + LOOP_OUT;
+        return { lx: YARD.x0 - LOOP_OUT + R, rx: YARD.x1 + LOOP_OUT - R, cy, R };
+    }
+    /** How far round the loop (clockwise from the left end of its top straight) the loop point
+     * nearest (x, y) is. */
+    private loopS(x: number, y: number) {
+        const { lx, rx, cy, R } = this.loop(), w = rx - lx, arc = Math.PI * R;
+        if (x >= lx && x <= rx) return y < cy ? x - lx : w + arc + (rx - x);
+        const a = Math.atan2(y - cy, x - (x > rx ? rx : lx));
+        // the right end runs from the top (-90 degrees) round to the bottom; the left from the bottom up
+        if (x > rx) return w + (a + Math.PI / 2) * R;
+        return 2 * w + arc + (((a - Math.PI / 2) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI)) * R;
+    }
+    /** The loop point s round it. */
+    private loopPoint(s: number): [number, number] {
+        const { lx, rx, cy, R } = this.loop(), w = rx - lx, arc = Math.PI * R, L = 2 * w + 2 * arc;
+        s = ((s % L) + L) % L;
+        if (s < w) return [lx + s, cy - R];
+        if (s < w + arc) { const a = -Math.PI / 2 + (s - w) / R; return [rx + Math.cos(a) * R, cy + Math.sin(a) * R]; }
+        if (s < 2 * w + arc) return [rx - (s - w - arc), cy + R];
+        const a = Math.PI / 2 + (s - 2 * w - arc) / R;
+        return [lx + Math.cos(a) * R, cy + Math.sin(a) * R];
+    }
+    /** The way from `from` onto the loop and round it the shorter way to the loop point nearest
+     * `to`, as points close enough together to follow its curves. */
+    private rimRoute(from: [number, number], to: [number, number]): [number, number][] {
+        const { lx, rx, R } = this.loop(), L = 2 * (rx - lx) + 2 * Math.PI * R;
+        const s0 = this.loopS(from[0], from[1]), s1 = this.loopS(to[0], to[1]);
+        let ds = (((s1 - s0) % L) + L) % L;
+        const dir = ds <= L / 2 ? 1 : -1;
+        if (dir < 0) ds = L - ds;
+        const n = Math.max(1, Math.ceil(ds / 24)), route: [number, number][] = [];
+        for (let k = 0; k <= n; k++) route.push(this.loopPoint(s0 + (dir * ds * k) / n));
+        return route;
     }
     /** A block reaches its nest (carried by an ant, or blown in by the Fan). */
     private deliver(nest: Nest, x: number) {

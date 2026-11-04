@@ -51,11 +51,12 @@ const FUNNEL_SIDES: [number, number][] = [
     [1676, 250.5], [1688, 229], [1700, 208.5], [1712, 187.5], [1724, 168], [1736, 149], [1748, 130.5], [1760, 114],
     [1772, 99.5], [1784, 87.5], [1796, 79.5], [1808, 72.5], [1813, 67],
 ];
-// how far the frame art's rim reaches into its inside on each side at art y: the art's top corners
-// round off above the board (by art y 96 its inside is full width), and at the bottom its corners
-// begin to round toward the funnel
-const RIM_IN: [number, number][] = [
-    [92, 2], [96, 0], [1443, 0], [1454, 1.5], [1466, 4], [1474, 6], [1480, 8], [1484, 9],
+// how far the frame art's rim reaches into its inside on each side at art y: the grey band along
+// its top rounds into the light blue at the top corners (the sand follows that curve), and at the
+// bottom its corners begin to round toward the funnel
+export const RIM_IN: [number, number][] = [
+    [92, 39], [93, 36], [94, 33], [96, 29], [98, 25], [100, 22], [102, 20], [104, 17], [106, 15], [108, 13], [110, 12],
+    [113, 10], [116, 8], [120, 6], [125, 4], [130, 2], [135, 0], [1443, 0], [1454, 1.5], [1466, 4], [1474, 6], [1480, 8], [1484, 9],
 ];
 /** Whether screen point (x, y) of the picture area is inside the frame art's light blue: sand
  * outside it (the rounded corners) would show over the rim. */
@@ -68,9 +69,14 @@ export function insideFrame(x: number, y: number) {
  * lies inside the frame's rounded inside; the game cuts the grains that don't. Across, the frame's
  * grains are stretched to fill its inside exactly (see Sim.gsx). */
 export function grainInFrame(c: number, r: number, n = FRAME_N) {
-    const { w, gs } = frameGrains(n);
-    return insideFrame(INNER.x + ((c + 0.5) * INNER.w) / w, PIC.y + (r + 0.5) * gs);
+    const { w, gs } = frameGrains(n), gw = INNER.w / w, x = INNER.x + (c + 0.5) * gw, y = PIC.y + (r + 0.5) * gs;
+    // in the top corners a grain that reaches into the frame's inside at all is kept: the game
+    // draws the art's smooth corners over the sand there (Game.drawBoard), trimming it to the curve
+    if (artY(y) < TOP_CORNER_END) return insideFrame(x + gw / 2, y + gs / 2) || insideFrame(x - gw / 2, y + gs / 2);
+    return insideFrame(x, y);
 }
+/** Below this art y the frame's top corners have stopped rounding (RIM_IN). */
+const TOP_CORNER_END = 140;
 
 export function funnelHalf(y: number) {
     return lookup(FUNNEL_SIDES, artY(y)) * ART_KX;
