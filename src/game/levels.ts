@@ -427,8 +427,8 @@ export function builtinDefs(): LevelDef[] {
 
 /** The order the game plays the built-in levels in, by index (`builtin-<i>`): the Level Bank's order,
  * 15 levels. Levels 10 to 19 have no drawing in LEVELS: they live only in src/game/level-edits.json;
- * builtin-5 to builtin-9 are no longer in the game. */
-const GAME_ORDER = [0, 12, 10, 11, 13, 14, 15, 16, 17, 18, 19, 1, 3, 4, 2];
+ * builtin-1, -16, -17, -18 and -19 are no longer in the game. */
+const GAME_ORDER = [0, 12, 10, 11, 13, 14, 3, 4, 6, 15, 5, 7, 8, 9, 2];
 /** The game's level ids, in the order it plays them. */
 export const gameLevelIds = () => GAME_ORDER.map(builtinId);
 

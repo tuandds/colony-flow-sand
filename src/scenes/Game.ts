@@ -40,7 +40,7 @@ type Overlay = 'start' | 'settings' | 'end' | null;
 const FAN = { x: 540, y: 900, size: 300, drop: 0.45, suck: 0.5, shot: 0.06 };
 /** The fill gauge: on the conveyor, along its middle; for the yard, under it. */
 const GAUGE = RULES.yard
-    ? { x: 540, y: YARD.y1 + 8 + 5 + 24, w: 600 }
+    ? { x: 540, y: YARD.y1 + 46, w: 600 }  // clear of the yard's rim (22 px out), above the nests
     : { x: 540, y: BELT.cy, w: BELT.cxR - BELT.cxL + 12 };
 /** The gauge's track (px), inside its white rim. */
 const GAUGE_TRACK = { w: GAUGE.w - 46, h: 30 };
@@ -617,15 +617,31 @@ export class Game extends Phaser.Scene {
         return key;
     }
 
-    /** Variant 3's yard in place of the conveyor: a sunken tray with a light rim, like the picture
-     * frame's inside, where the blocks lie; its fill gauge is under it. */
+    /** Variant 3's yard in place of the conveyor, sunk into the table like the conveyor art: from
+     * the outside in, a hollow cut in the wood (darker at the top, lit at the bottom), a navy
+     * outline, a white rim, a lilac band, and the floor with a soft shadow round its edge, where the
+     * blocks lie. Its rounded corners stay the yard's own. Drawn once into a canvas texture; its
+     * fill gauge is under it. */
     private drawYard() {
         this.drawGauge();
-        const g = this.add.graphics().setDepth(D.belt - 0.5), { x0, x1, y0, y1 } = YARD, m = 8, r = 34;
-        g.fillStyle(0x2b2f63, 1).fillRoundedRect(x0 - m - 5, y0 - m - 5, x1 - x0 + 2 * m + 10, y1 - y0 + 2 * m + 10, r + 6);
-        g.fillStyle(0xe8ecff, 1).fillRoundedRect(x0 - m, y0 - m, x1 - x0 + 2 * m, y1 - y0 + 2 * m, r + 2);
-        g.fillStyle(0x8f98c4, 1).fillRoundedRect(x0, y0, x1 - x0, y1 - y0, r - 6);
-        g.fillStyle(0xa9b2dc, 1).fillRoundedRect(x0, y0 + 6, x1 - x0, y1 - y0 - 6, r - 6);
+        const { x0, x1, y0, y1 } = YARD, w = x1 - x0, h = y1 - y0, r = 34, out = 22, key = 'yard_tray';
+        if (!this.textures.exists(key)) {
+            const tex = this.textures.createCanvas(key, w + 2 * out, h + 2 * out)!, c = tex.getContext();
+            const ring = (pad: number, fill: string | CanvasGradient) => {
+                c.beginPath(); c.roundRect(out - pad, out - pad, w + 2 * pad, h + 2 * pad, r + pad); c.fillStyle = fill; c.fill();
+            };
+            const wood = c.createLinearGradient(0, 0, 0, h + 2 * out);
+            wood.addColorStop(0, '#d38a4c'); wood.addColorStop(1, '#fbe6c8');
+            ring(22, wood); ring(18, '#2b3258'); ring(13, '#eef0ff'); ring(7, '#aeb6ee'); ring(2, '#99a1c4');
+            // the floor's shadow: a dark line just outside it, blurred, seen only inside the floor
+            c.save();
+            c.beginPath(); c.roundRect(out - 2, out - 2, w + 4, h + 4, r + 2); c.clip();
+            c.shadowColor = 'rgba(20,22,50,0.85)'; c.shadowBlur = 16; c.lineWidth = 12; c.strokeStyle = 'rgba(20,22,50,1)';
+            c.beginPath(); c.roundRect(out - 8, out - 8, w + 16, h + 16, r + 8); c.stroke();
+            c.restore();
+            tex.refresh();
+        }
+        this.add.image(x0 - out, y0 - out, key).setOrigin(0).setDepth(D.belt - 0.5);
     }
 
     private drawBelt() {
