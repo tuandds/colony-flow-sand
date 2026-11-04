@@ -118,9 +118,10 @@ function rims(bodies: Body[]) {
 }
 
 /** The yard (variant 3), in place of the conveyor: from the conveyor art's top (inside its border)
- * down to YARD_GAUGE (its fill gauge sits under it, above the nests), centred, and YARD_W wide, so
+ * (just clear of the gate above it) down to YARD_GAUGE above the conveyor's bottom (its fill gauge
+ * sits under it, clear of the nests' frames), centred, and YARD_W wide, so
  * its 36 blocks (SLOTS) fill it when it is full. */
-const YARD_W = 745, YARD_GAUGE = 30;
+const YARD_W = 830, YARD_GAUGE = 40;
 export const YARD = { x0: 540 - YARD_W / 2, x1: 540 + YARD_W / 2, y0: BELT.cy - BELT.r - BELT.band / 2 + 8, y1: BELT.cy + BELT.r + BELT.band / 2 - 8 - YARD_GAUGE };
 /** A cube in the yard is YARD_CUBE px wide (variant 1's blocks are 32). */
 export const YARD_CUBE = 36;

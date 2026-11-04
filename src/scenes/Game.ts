@@ -374,7 +374,9 @@ export class Game extends Phaser.Scene {
             const front = s.isActive(nest, ri);
             if (this.picking && this.canWake(ci, ri)) sc *= 1.04 + 0.04 * Math.sin(this.time.now / 110);
             const hex = s.colors[nest.color];
-            const sx = k * sc, sy = sx * (front ? 1 : 0.8), depth = D.three - 0.3 + ri * 0.01;
+            // the boxes stand over the 3D layer: an ant walking up to its nest goes behind it, as
+            // under a raised box (their numbers are above them, D.labels)
+            const sx = k * sc, sy = sx * (front ? 1 : 0.8), depth = D.three + 0.3 + ri * 0.01;
             const box = (this.nestBoxes[li] ??= this.add.image(0, 0, 'nest_frame').setOrigin(151 / 302, 136 / 387));
             // front nests; every nest waiting behind them keeps its colour, its number faded
             const far = !front, css = (c: number) => '#' + c.toString(16).padStart(6, '0');
