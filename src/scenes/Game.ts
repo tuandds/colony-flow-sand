@@ -50,6 +50,8 @@ const GAUGE_COLOURS = [
     { at: 80, c: ['#ffb27a', '#ff7a2e', '#e2570f'] },
     { at: 90, c: ['#ff9a9a', '#ff4d4d', '#d92626'] },
 ];
+/** The marketing reels (?demo=) play all the game's levels; the game itself the first GAME_PLAYS. */
+const ALL_LEVELS = new URLSearchParams(location.search).has('demo');
 /** Variants 2 and 3 draw their blocks glossy (jelly sweets); variant 1's are matte. */
 const SHINY = RULES.looseBelt || RULES.yard;
 /** Direction arrows round a loose belt (variant 2). */
@@ -174,7 +176,7 @@ export class Game extends Phaser.Scene {
         if (custom) {
             useLevels(loadCustomLevels(custom === 'preview' ? PREVIEW_KEY : CUSTOM_KEY));
             this.levelKey = custom === 'preview' ? '' : 'cf_level_custom';
-        } else useLevels(gameLevels());
+        } else useLevels(gameLevels(ALL_LEVELS));
         let level = 0;
         try { if (this.levelKey) level = Math.min(levelCount() - 1, parseInt(localStorage.getItem(this.levelKey) || '0', 10) || 0); } catch { /* storage blocked */ }
         const qp = q.get('level');
@@ -246,7 +248,7 @@ export class Game extends Phaser.Scene {
     // ---------- level ----------
     private startLevel(i: number) {
         // the level editor may have saved changes to the built-in levels since
-        if (!new URLSearchParams(location.search).get('custom')) useLevels(gameLevels());
+        if (!new URLSearchParams(location.search).get('custom')) useLevels(gameLevels(ALL_LEVELS));
         this.levelIndex = i;
         try { if (this.levelKey) localStorage.setItem(this.levelKey, String(i)); } catch { /* storage blocked */ }
         this.three.clear();
