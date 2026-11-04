@@ -4,6 +4,9 @@ Every published version stays playable at its own URL. The [landing page](https:
 
 ## latest (main) <Badge type="tip" text="Live" />
 
+- **level_1 updated** from the Level Editor: 3 nest columns (was 4) with hand-set nests.
+- **Level Editor: saves write only the game's levels:** saving on the dev server writes only the game's 15 levels to `src/game/level-edits.json`; built-in levels no longer in the game (16–20) stay in the browser's bank and are not written back.
+- **Level Editor: the bank in game order:** the Level Bank now lists the game's levels first, in the game's order (once, when the game's level set changes), so a level's number in the bank matches its level_N. Other levels in the bank (unfinished projects, the old levels 16–20) follow in their own order.
 - **15 levels:** levels 16–20 (sailboat, sea turtle, panda, cottage, toucan) are removed: the game, `level-edits.json` and the Level Editor's Game chapter have levels 1–15 only (from colony-flow-levels (14).json, same order and pictures; names level_1 to level_15). The marketing reels that showed them now show levels 2–7 instead.
 - **Waiting nests keep their colour:** instead of a white overlay that washed their colour out, waiting nests now keep their colour (12 % brighter, as vivid) and their number fades into it (white just tinted by the box, as if a little see-through, with a darker stroke of the box's colour; on a near-white box a grey number). All variants.
 - **level_7 updated** (level_7.json): the palm tree and sandcastle picture redrawn, with 4 nest columns (was 3) and hand-set nests.

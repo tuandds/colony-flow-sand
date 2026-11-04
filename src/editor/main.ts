@@ -49,7 +49,7 @@ const BANK_KEY = 'cf_editor_bank';
 const BANK_VER_KEY = 'cf_editor_bank_v', BANK_VER = 3;
 const MAX_BACKUPS = 15, MAX_HISTORY = 10;
 /** Set once the built-in levels have been added to a saved Level Bank (see loadLevels). */
-const BUILTIN_KEY = 'cf_editor_builtin_v', BUILTIN_VER = 4, BUILTIN_CHAPTER = 'builtin';
+const BUILTIN_KEY = 'cf_editor_builtin_v', BUILTIN_VER = 5, BUILTIN_CHAPTER = 'builtin';
 const DIFFS: { key: string; label: string; short: string; chunk: [number, number] }[] = [
     { key: '3,5', label: 'Rất dễ', short: 'Rất dễ', chunk: [3, 5] }, { key: '4,6', label: 'Dễ', short: 'Dễ', chunk: [4, 6] },
     { key: '4,7', label: 'Vừa', short: 'Vừa', chunk: [4, 7] }, { key: '5,8', label: 'Khó', short: 'Khó', chunk: [5, 8] },
@@ -104,12 +104,15 @@ function loadLevels(): EdLevel[] {
     const game = gameLevelIds().flatMap((id) => { const d = file.find((x) => x.id === id) ?? originals.find((x) => x.id === id); return d ? [d] : []; });
     // a copy saved in the repo after this browser's copy (another computer, git pull) replaces it
     const list = saved.map((l) => { const f = file.find((x) => x.id === l.id); return f && (f.updated ?? 0) > (l.updated ?? 0) ? f : l; });
-    // once per change of the game's level set, the game's levels missing here are added at the
-    // top, and the Game chapter lists them in the game's order; one deleted later stays deleted
-    // (the game then plays its own copy)
+    // once per change of the game's level set, the game's levels missing here are added, the
+    // bank puts the game's levels first in the game's order (so a level's number in the bank is
+    // its number in the game), and the Game chapter lists them in that order; one deleted later
+    // stays deleted (the game then plays its own copy)
     if (loadJson<number>(BUILTIN_KEY, 0) < BUILTIN_VER) {
         list.unshift(...game.filter((d) => !list.some((x) => x.id === d.id)).map((d) => ({ status: 'LIVE' as Status, ...d })));
         const ids = game.map((d) => d.id!), ch = chapters.find((c) => c.id === BUILTIN_CHAPTER);
+        const rank = (id: string | undefined) => { const k = ids.indexOf(id ?? ''); return k < 0 ? ids.length : k; };
+        list.sort((a, b) => rank(a.id) - rank(b.id));
         if (!ch) chapters.unshift({ id: BUILTIN_CHAPTER, name: 'Game', description: 'Các màn có sẵn trong game', levels: ids });
         // (built-in levels no longer in the game leave the chapter; they stay in the bank)
         else ch.levels = [...ids, ...ch.levels.filter((id) => !ids.includes(id) && !/^builtin-\d+$/.test(id))];
@@ -125,7 +128,8 @@ const isEdited = (l: EdLevel) => { const o = ORIGINALS.get(l.id); return o ? pla
 /** On the dev server, write the changed built-in levels to src/game/level-edits.json (vite.config.ts). */
 function saveEdits() {
     if (!import.meta.env.DEV) return;
-    const body = JSON.stringify(levels.filter(isEdited).map(toDef));
+    // only the game's levels: built-in levels no longer in the game stay in this bank, not the file
+    const body = JSON.stringify(levels.filter((l) => gameLevelName(l.id) !== null && isEdited(l)).map(toDef));
     fetch('/__level-edits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body })
         .then((r) => r.json()).then((r: { written?: boolean; count: number }) => { if (r.written) toast(`Đã ghi ${r.count} màn game đã sửa vào src/game/level-edits.json`); })
         .catch(() => toast('Không ghi được src/game/level-edits.json'));
