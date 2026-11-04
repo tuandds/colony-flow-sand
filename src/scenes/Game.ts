@@ -1,6 +1,6 @@
 import * as Phaser from 'phaser';
 import { RULES, VARIANT } from '../game/variant';
-import { LOOSE_CUBE } from '../game/belt-physics';
+import { LOOSE_CUBE, YARD, YARD_CUBE } from '../game/belt-physics';
 import {
     BELT, BLOCK, BOOSTER_IMAGES, BOOSTER_POS, BOOSTER_SIZE, FRAME_ART, GATE_OUT, H, INNER, NEST_BOXES, PAUSE_BTN, PIC,
     BELT_LEN, SLOTS, SPEED_BTN, TILE, W, beltPoint,
@@ -8,7 +8,7 @@ import {
 import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useLevels } from '../game/levels';
 import { type Recording, botStep, pickStroke, playBot, replayStep } from '../game/bot';
 import { FAN_FLIGHT, FAN_SHOT_GAP, Flyer, Sfx, Sim, levelOverride } from '../game/sim';
-import { Item3D, ThreeLayer } from '../game/three-layer';
+import { GROUND_DEPTH, Item3D, ThreeLayer } from '../game/three-layer';
 import { DEMO_SCENES, Demo } from './demo';
 import { greyed, mulberry32 } from '../game/util';
 
@@ -36,6 +36,22 @@ type Overlay = 'start' | 'settings' | 'end' | null;
  * the last block is in its nest. Times in s: the drop, each block's trip into the mouth, the gap
  * between shots. */
 const FAN = { x: 540, y: 900, size: 300, drop: 0.45, suck: 0.5, shot: 0.06 };
+/** The fill gauge: on the conveyor, along its middle; for the yard, under it. */
+const GAUGE = RULES.yard
+    ? { x: 540, y: YARD.y1 + 8 + 5 + 24, w: 600 }
+    : { x: 540, y: BELT.cy, w: BELT.cxR - BELT.cxL + 12 };
+/** The gauge's track (px), inside its white rim. */
+const GAUGE_TRACK = { w: GAUGE.w - 46, h: 30 };
+/** The gauge's fill colours (top, middle, bottom of the bar) from `at` % full: light blue, then
+ * orange, deep orange and red (pulsing) as the conveyor nears full. */
+const GAUGE_COLOURS = [
+    { at: 0, c: ['#c9f1ff', '#7fd6ff', '#4bb8ef'] },
+    { at: 70, c: ['#ffd9a0', '#ffad4d', '#f28c1c'] },
+    { at: 80, c: ['#ffb27a', '#ff7a2e', '#e2570f'] },
+    { at: 90, c: ['#ff9a9a', '#ff4d4d', '#d92626'] },
+];
+/** Variants 2 and 3 draw their blocks glossy (jelly sweets); variant 1's are matte. */
+const SHINY = RULES.looseBelt || RULES.yard;
 /** Direction arrows round a loose belt (variant 2). */
 const BELT_ARROWS = 20;
 /** Shuffle booster: seconds the game holds on the nests before they move, and their move. */
@@ -103,7 +119,8 @@ export class Game extends Phaser.Scene {
     private fxGfx!: Phaser.GameObjects.Graphics;
     private fullText!: Phaser.GameObjects.Text;
     /** The fullness bar's fill: above the white bar track (drawBeltBase), below the % text. */
-    private fullBar!: Phaser.GameObjects.NineSlice;
+    /** The gauge's fills, one for each of GAUGE_COLOURS; the one for how full it is shows. */
+    private fullBars: Phaser.GameObjects.NineSlice[] = [];
     /** Nest boxes and the white frame round the active ones, reused frame to frame (like the labels). */
     private nestBoxes: Phaser.GameObjects.Image[] = [];
     private nestFrames: Phaser.GameObjects.Image[] = [];
@@ -175,8 +192,9 @@ export class Game extends Phaser.Scene {
                 g.generateTexture('belt_arrow', 26, 26).destroy();
             }
             for (let i = 0; i < BELT_ARROWS; i++) this.arrows.push(this.add.image(0, 0, 'belt_arrow').setTint(0x2b2f63).setAlpha(0.35).setDepth(D.belt));
-        } else for (let i = 0; i < SLOTS; i++) this.holds.push(this.add.image(0, 0, 'conveyor_hold').setDisplaySize(22, 22).setDepth(D.belt));
-        this.fullText = this.text(540, BELT.cy + 1, '0%', 24, '#14203a', null).setDepth(D.belt + 0.5);
+        } else if (!RULES.yard) for (let i = 0; i < SLOTS; i++) this.holds.push(this.add.image(0, 0, 'conveyor_hold').setDisplaySize(BLOCK, BLOCK).setDepth(D.belt));
+        // in the middle of the gauge's groove (y 14 to 66 of its 95 px art, so 7.5 px above the art's middle)
+        this.fullText = this.text(GAUGE.x, GAUGE.y + 1, '0%', 24, '#ffffff', null).setDepth(D.belt + 0.5);
         this.shadowGfx = this.add.graphics().setDepth(D.shadows);
         // Phaser canvas textures need a 2D canvas, so each frame the WebGL output of the 3D
         // layer is copied into one
@@ -309,12 +327,16 @@ export class Game extends Phaser.Scene {
             if (up.e >= 1) continue;
             // a soft contact shadow tucked under the cube, sized with it
             g.fillStyle(0x24345e, 0.25 * (1 - up.e));
-            g.fillEllipse(x, y + BLOCK * 0.55, BLOCK * 1.05 * (1 - up.e * 0.5), BLOCK * 0.32 * (1 - up.e * 0.5));
+            const bs = b.body ? (RULES.yard ? YARD_CUBE : LOOSE_CUBE) : BLOCK;
+            g.fillEllipse(x, y + bs * 0.55, bs * 1.05 * (1 - up.e * 0.5), bs * 0.32 * (1 - up.e * 0.5));
             if (up.e > 0) items.push({ ref: b, kind: 'cube', x: up.x, y: up.y, color: s.colors[b.k], size: BLOCK, ang: up.ang, scale: up.scale, centered: true });
-            else if (b.body) items.push({ ref: b, kind: 'cube', x, y: y + LOOSE_CUBE * 0.36, color: s.colors[b.k], size: LOOSE_CUBE, spin: [b.body.rx, b.body.yaw, b.body.rz], shiny: true });
+            else if (b.body) {
+                const size = bs;
+                items.push({ ref: b, kind: 'cube', x, y: y + size * 0.36, color: s.colors[b.k], size, spin: [b.body.rx, b.body.yaw, b.body.rz], shiny: SHINY, depthK: RULES.yard ? GROUND_DEPTH : undefined });
+            }
             else items.push({ ref: b, kind: 'cube', x, y: y + BLOCK * 0.36, color: s.colors[b.k], size: BLOCK });
         }
-        if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: GATE_OUT.x, y: GATE_OUT.y, color: s.colors[s.pipe[0]], size: 25 });
+        if (s.pipe.length) items.push({ ref: s.pipe, kind: 'cube', x: GATE_OUT.x, y: GATE_OUT.y, color: s.colors[s.pipe[0]], size: 25, shiny: SHINY });
         // Fan: blocks shot from the cannon's mouth arc into their nests, growing out of the mouth to
         // 1.5 times their size and turning as they fly, then shrinking back as they drop in; a block
         // still waiting its turn is inside the cannon
@@ -328,7 +350,7 @@ export class Game extends Phaser.Scene {
             // little as it drops in
             const x = f.sx + (ex - f.sx) * e, y = f.sy + (ey - f.sy) * e - Math.sin(Math.PI * t) * (f.hop ? 70 : 140);
             const sc = f.hop ? 1 - 0.3 * t * t : 1.5 * Math.min(1, 0.25 + t * 3) * (1 - 0.3 * t * t);
-            items.push({ ref: f, kind: 'cube', x, y, color: s.colors[f.k], size: f.hop ? LOOSE_CUBE : BLOCK, scale: sc, ang: (1 - t) * 6, centered: true, shiny: RULES.looseBelt });
+            items.push({ ref: f, kind: 'cube', x, y, color: s.colors[f.k], size: f.hop ? LOOSE_CUBE : BLOCK, scale: sc, ang: (1 - t) * 6, centered: true, shiny: SHINY });
         }
 
         // nest boxes (img/nest_box_*.png) in the nest's colour, each row drawn over the row above
@@ -376,7 +398,7 @@ export class Game extends Phaser.Scene {
         });
         for (let i = s.ants.length; i < this.antShadows.length; i++) this.antShadows[i].setVisible(false);
         for (const a of s.ants) {
-            items.push({ ref: a, kind: 'ant', x: a.x, y: a.y + 10, ang: a.ang, color: s.colors[a.nest.color], carry: a.carry ? parseInt(s.colors[a.carry].slice(1), 16) : null });
+            items.push({ ref: a, kind: 'ant', x: a.x, y: a.y + 10, ang: a.ang, color: s.colors[a.nest.color], carry: a.carry ? parseInt(s.colors[a.carry].slice(1), 16) : null, shiny: SHINY });
         }
         this.three.render(items, s.time);
         this.threeCtx.clearRect(0, 0, this.threeCtx.canvas.width, this.threeCtx.canvas.height);
@@ -525,21 +547,60 @@ export class Game extends Phaser.Scene {
     /** The belt art (img/conveyor.png, 1872 x 454, with its own hollow in the wood drawn round
      * it): its slate band with its dark outline (x 64 to 1807, y 61 to 393 of the art, centred on
      * its middle row) lies on the track, 2 x (BELT.r + BELT.band / 2) tall; only its middle is
-     * stretched, so the round ends keep their shape. Its fill gauge (img/progress_bar.png) runs
+     * stretched, so the round ends keep their shape. Its fill gauge (drawGauge) runs
      * along the middle. */
     private drawBeltBase() {
+        if (RULES.yard) { this.drawYard(); return; }
         const R = BELT.r + BELT.band / 2, k = (2 * R) / 332, w = (BELT.cxR - BELT.cxL + 2 * R) / k + 64 + 64;
         this.add.nineslice(540, BELT.cy, 'conveyor', undefined, w, undefined, 250, 250, 0, 0).setScale(k).setDepth(D.belt - 0.5);
-        // the gauge's groove is x 22 to 1378, y 14 to 66 of its 1400 x 95 art; the green fill is
-        // exactly as tall as the groove
-        const bw = BELT.cxR - BELT.cxL + 12, gk = bw / 1400;
-        this.add.image(540, BELT.cy, 'progress_bar').setScale(gk).setDepth(D.belt + 0.1);
-        this.fullBar = this.add.nineslice(540 - bw / 2 + 22 * gk, BELT.cy + (40 - 47.5) * gk, 'progress', undefined, 52, undefined, 26, 26, 0, 0)
-            .setOrigin(0, 0.5).setScale(gk).setDepth(D.belt + 0.2).setData('max', 1356);
+        this.drawGauge();
+    }
+
+    /** The fill gauge at GAUGE: a dark navy track with a white rim; the fill grows along it from
+     * the left, in GAUGE_COLOURS by how full the conveyor (or yard) is; a navy label with a white
+     * rim stays in the middle, showing the percentage. */
+    private drawGauge() {
+        const { x, y } = GAUGE, w = GAUGE_TRACK.w, h = GAUGE_TRACK.h, g = this.add.graphics().setDepth(D.belt + 0.1);
+        g.fillStyle(0xf5f7ff, 1).fillRoundedRect(x - w / 2 - 6, y - h / 2 - 6, w + 12, h + 12, h / 2 + 6);
+        g.lineStyle(2, 0x283064, 0.35).strokeRoundedRect(x - w / 2 - 6, y - h / 2 - 6, w + 12, h + 12, h / 2 + 6);
+        g.fillStyle(0x22396b, 1).fillRoundedRect(x - w / 2, y - h / 2, w, h, h / 2);
+        const fh = h - 6;
+        this.fullBars = GAUGE_COLOURS.map(({ c }, i) =>
+            this.add.nineslice(x - w / 2 + 3, y, this.gaugeFill(i, c, fh), undefined, fh * 2, fh, fh / 2 + 1, fh / 2 + 1, 0, 0)
+                .setOrigin(0, 0.5).setDepth(D.belt + 0.2).setVisible(false));
+        const lw = 68, lh = 34, l = this.add.graphics().setDepth(D.belt + 0.3);
+        l.fillStyle(0x1e2c57, 1).fillRoundedRect(x - lw / 2, y - lh / 2, lw, lh, 12);
+        l.lineStyle(3, 0xffffff, 1).strokeRoundedRect(x - lw / 2, y - lh / 2, lw, lh, 12);
+    }
+    /** One of the gauge's fills (a rounded bar `h` tall, stretched across by a nine-slice): light on
+     * top, deeper below (colours c: top, middle, bottom), with a white shine along its top. */
+    private gaugeFill(i: number, c: string[], h: number) {
+        const key = `gauge_fill_${i}`;
+        if (this.textures.exists(key)) return key;
+        const w = h * 2, tex = this.textures.createCanvas(key, w, h)!, ctx = tex.getContext();
+        const pill = (x: number, y: number, pw: number, ph: number) => { ctx.beginPath(); ctx.roundRect(x, y, pw, ph, ph / 2); };
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, c[0]); grad.addColorStop(0.45, c[1]); grad.addColorStop(1, c[2]);
+        ctx.fillStyle = grad; pill(0, 0, w, h); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.45)'; pill(h * 0.3, 3, w - h * 0.6, 5); ctx.fill();
+        tex.refresh();
+        return key;
+    }
+
+    /** Variant 3's yard in place of the conveyor: a sunken tray with a light rim, like the picture
+     * frame's inside, where the blocks lie; its fill gauge is under it. */
+    private drawYard() {
+        this.drawGauge();
+        const g = this.add.graphics().setDepth(D.belt - 0.5), { x0, x1, y0, y1 } = YARD, m = 8, r = 34;
+        g.fillStyle(0x2b2f63, 1).fillRoundedRect(x0 - m - 5, y0 - m - 5, x1 - x0 + 2 * m + 10, y1 - y0 + 2 * m + 10, r + 6);
+        g.fillStyle(0xe8ecff, 1).fillRoundedRect(x0 - m, y0 - m, x1 - x0 + 2 * m, y1 - y0 + 2 * m, r + 2);
+        g.fillStyle(0x8f98c4, 1).fillRoundedRect(x0, y0, x1 - x0, y1 - y0, r - 6);
+        g.fillStyle(0xa9b2dc, 1).fillRoundedRect(x0, y0 + 6, x1 - x0, y1 - y0 - 6, r - 6);
     }
 
     private drawBelt() {
         const s = this.sim;
+        this.drawFill();
         // the holders ride round with the belt, one under each slot
         this.holds.forEach((h, i) => { const [x, y] = s.slotPos(i); h.setPosition(x, y + 4); });
         // a loose belt's arrows ride round with it too, each pointing the way it runs
@@ -548,9 +609,19 @@ export class Game extends Phaser.Scene {
             const [x, y] = beltPoint(at), [x2, y2] = beltPoint((at + 2) % BELT_LEN);
             a.setPosition(x, y).setRotation(Math.atan2(y2 - y, x2 - x));
         });
-        // how full the conveyor is
-        const used = s.slots.filter(Boolean).length, pct = Math.round((100 * used) / s.slots.length);
-        this.fullBar.setVisible(pct > 0).width = Math.max(52, (this.fullBar.getData('max') * pct) / 100);
+    }
+
+    /** How full the conveyor (or yard) is: the gauge fills from the left, light blue, then orange,
+     * deep orange and red (pulsing a little) as it nears full (GAUGE_COLOURS). */
+    private drawFill() {
+        const s = this.sim, used = s.slots.filter(Boolean).length, pct = Math.round((100 * used) / s.slots.length);
+        let level = 0;
+        GAUGE_COLOURS.forEach((g, i) => { if (pct >= g.at) level = i; });
+        const t = this.time.now / 1000, fh = GAUGE_TRACK.h - 6, full = GAUGE_TRACK.w - 6;
+        this.fullBars.forEach((b, i) => {
+            b.setVisible(pct > 0 && i === level).width = Math.max(fh * 2, (full * pct) / 100);
+            b.setAlpha(i === GAUGE_COLOURS.length - 1 ? 0.88 + 0.12 * Math.sin(t * 12) : 1);
+        });
         this.fullText.setText(pct + '%');
     }
 

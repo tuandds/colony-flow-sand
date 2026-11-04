@@ -3,10 +3,10 @@
 // and the UI layer. Phaser 4 has no 3D objects of its own, so three.js does this part.
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { CUBE_ELEV } from './belt-physics';
 import { H, W } from './layout';
 
 const ANT_ELEV = 0.95, ANT_LEN = 74, CARRY_CUBE = 26;
-const CUBE_ELEV = 0.95;
 /** The 3D layer renders below full resolution; it is uploaded to Phaser every frame. */
 const RES = 1;
 
@@ -23,10 +23,16 @@ export interface Item3D {
     /** Cubes: a turn of the cube itself about its own centre, x/y/z in radians (blocks lying
      * loose on the belt, turned every which way). */
     spin?: [number, number, number];
-    /** Cubes: shiny like jelly sweets, with a bright highlight where the light hits (made so;
-     * changing it later has no effect). */
+    /** Cubes, and the cube an ant carries: shiny like jelly sweets, with a bright highlight where
+     * the light hits (made so; changing it later has no effect). */
     shiny?: boolean;
+    /** How far toward the camera (3D z) the item comes for each px lower on screen; 0.2 unless
+     * given. Cubes lying on one ground (the yard) use GROUND_DEPTH, the true depth for the tipped
+     * view, so their meshes meet as solid cubes and never pass into each other. */
+    depthK?: number;
 }
+/** The true depth per screen px for things on the ground, seen tipped by CUBE_ELEV. */
+export const GROUND_DEPTH = 1 / Math.tan(CUBE_ELEV);
 
 interface Model { parts: THREE.BufferGeometry[]; size: THREE.Vector3 }
 interface Live {
@@ -62,11 +68,14 @@ function glossy(color: THREE.ColorRepresentation) {
     return new THREE.MeshPhongMaterial({ color, specular: 0x5a5a5a, shininess: 60, side: THREE.DoubleSide, transparent: true });
 }
 
+/** How much a shiny cube glows in its own colour. */
+const JELLY_GLOW = 0.12;
+
 /** Shiny cubes (Item3D.shiny): a strong white highlight and a little glow of their own colour, so
  * they look lit and glossy, like jelly sweets. */
 function jelly(color: THREE.ColorRepresentation) {
     const c = new THREE.Color(color);
-    return new THREE.MeshPhongMaterial({ color: c, specular: 0x6e6e6e, shininess: 45, emissive: c.clone().multiplyScalar(0.12), side: THREE.DoubleSide, transparent: true });
+    return new THREE.MeshPhongMaterial({ color: c, specular: 0x6e6e6e, shininess: 45, emissive: c.clone().multiplyScalar(JELLY_GLOW), side: THREE.DoubleSide, transparent: true });
 }
 
 /** An ant's body colour: black is lifted just enough (to a near-black) that the light still
@@ -146,7 +155,7 @@ export class ThreeLayer {
                 o.mats.push(m); body.add(new THREE.Mesh(p, m));
             });
             yaw.add(body);
-            const carry = this.cubeMesh('#ffffff', CARRY_CUBE);
+            const carry = this.cubeMesh('#ffffff', CARRY_CUBE, it.shiny);
             carry.position.set(0, M.size.y * s * 1.05, M.size.z * s * 0.42);
             carry.visible = false;
             yaw.add(carry);
@@ -194,14 +203,20 @@ export class ThreeLayer {
                 const h = it.centered ? o.half! : 0;
                 o.tilt!.position.set(0, -h * Math.cos(CUBE_ELEV), -h * Math.sin(CUBE_ELEV));
             }
-            o.root.position.set(it.x, -y, layer + y * 0.2);
+            o.root.position.set(it.x, -y, layer + y * (it.depthK ?? 0.2));
             o.root.scale.setScalar(sc);
             for (const m of o.mats) { m.opacity = alpha; if (m.userData.time) m.userData.time.value = time; }
             if (o.carry) {
                 o.carry.visible = it.carry != null;
                 if (it.carry != null) {
                     const color = it.carry;
-                    o.carry.traverse((m) => { const mat = (m as THREE.Mesh).material as THREE.MeshLambertMaterial | undefined; if (mat) mat.color.set(color); });
+                    // a shiny (jelly) cube's glow follows its colour too
+                    o.carry.traverse((m) => {
+                        const mat = (m as THREE.Mesh).material as THREE.MeshLambertMaterial | THREE.MeshPhongMaterial | undefined;
+                        if (!mat) return;
+                        mat.color.set(color);
+                        if (mat instanceof THREE.MeshPhongMaterial) mat.emissive.set(color).multiplyScalar(JELLY_GLOW);
+                    });
                 }
             }
         }

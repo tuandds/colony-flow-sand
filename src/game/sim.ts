@@ -1,13 +1,13 @@
 // The whole game state and rules, independent of Phaser: sand picture, funnel, conveyor,
 // nests and ants. The scene calls update() every frame and reads the fields to draw them.
 import {
-    ANT_SPEED, BELT, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, COLS, DROP_S, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, TUNED_GRAIN_PX, frameZoom, zoomFrameN,
+    ANT_SPEED, BELT, BELT_LEN, BELT_SPEED, BLOCK_GRAINS, GATE_OUT, COLS, DROP_S, MOUTH, MOUTH_RATE, NEST_SCALE, PIC, SIM_HZ, TUNED_GRAIN_PX, frameZoom, zoomFrameN,
     FRAME_N, INNER, MAX_COLS, MIN_COLS, SLOT_GAP, SUB, TILE, beltPoint, colGap, colX, frameGrains, funnelHalf, grainInFrame, nestPos,
 } from './layout';
 import { Frozen, Level, buildLevel, decodeSand, toCurrentFrame } from './levels';
 import { hash, mulberry32, packColor } from './util';
 import { RULES } from './variant';
-import { BODY_R, type Body, LANE, beltAt, stepBodies } from './belt-physics';
+import { BODY_R, type Body, LANE, YARD, YARD_CUBE, beltAt, stepBodies, stepYard } from './belt-physics';
 
 export type Sfx = 'pop' | 'drop' | 'pick' | 'nest' | 'lose' | 'win' | 'click' | 'add';
 
@@ -38,7 +38,9 @@ export const FAN_SHOT_GAP = 0.2, FAN_FLIGHT = 0.5;
 export interface Flyer { k: string; sx: number; sy: number; nest: Nest; t: number; dur: number; hop?: boolean }
 /** A block's jump from the belt into a nest, in seconds. */
 /** Blocks that may wait in the pipe before they plug the hole (a loose belt takes them faster). */
-const PIPE_MAX = RULES.looseBelt ? 4 : 1;
+const PIPE_MAX = RULES.looseBelt || RULES.yard ? 4 : 1;
+/** The yard: the least time between two blocks dropping in (s). */
+const YARD_DROP = 0.12;
 export const HOP_FLIGHT = 0.3;
 export interface Spark { x: number; y: number; vx: number; vy: number; life: number; t: number; color: number; s: number }
 
@@ -99,6 +101,8 @@ export class Sim {
     slotGap = SLOT_GAP;
     /** A loose belt's physics time not yet stepped. */
     private physT = 0;
+    /** The yard: seconds until the next block may drop in. */
+    private dropCool = 0;
     cols: Nest[][] = []; ants: Ant[] = []; fx: Spark[] = []; flyers: Flyer[] = [];
     /** Falling and loose-island settings scaled to this level's grain size (start). */
     private gravity = GRAVITY; private maxFall = MAX_FALL; private smallIsland = SMALL_ISLAND; private thinIsland = THIN_ISLAND;
@@ -187,7 +191,7 @@ export class Sim {
         this.picDirty = true;
         this.exitCarry = 0;
         this.hopper = {}; this.pipe = []; this.dropping = [];
-        this.slots = new Array(RULES.slots).fill(null); this.beltOff = 0; this.slotGap = BELT_LEN / RULES.slots; this.physT = 0;
+        this.slots = new Array(RULES.slots).fill(null); this.beltOff = 0; this.slotGap = BELT_LEN / RULES.slots; this.physT = 0; this.dropCool = 0;
         this.ncols = Math.max(MIN_COLS, Math.min(MAX_COLS, L.cols ?? COLS));
         this.cols = this.makeNests(i, L, key, keys);
         this.ants = []; this.fx = []; this.flyers = [];
@@ -494,6 +498,28 @@ export class Sim {
         const body = this.slots[i]?.body;
         return body ? [body.x, body.y] : this.slotPos(i);
     }
+    /** The yard (variant 3): a block drops in under the gate every YARD_DROP seconds at most,
+     * thrown in a little way at random, shoving aside any block lying where it lands; then the
+     * blocks slide, bump and settle. */
+    private stepYardBlocks(dt: number) {
+        const R = YARD_CUBE / 2, x = GATE_OUT.x, y = YARD.y0 + R + 2, free = this.slots.indexOf(null);
+        this.dropCool -= dt;
+        if (this.pipe.length && free >= 0 && this.dropCool <= 0) {
+            this.dropCool = YARD_DROP;
+            const a = Math.PI / 2 + (this.rand() - 0.5) * 2.8, v = 320 + this.rand() * 420;
+            const body: Body = { x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, yaw: this.rand() * Math.PI * 2, wy: (this.rand() - 0.5) * 3, rx: 0, rz: 0 };
+            const b: Block = { k: this.pipe.shift()!, claimed: null, drop: 0, body };
+            this.slots[free] = b;
+            this.dropping.push(b);
+            this.sfx('drop', 0.7);
+        }
+        this.physT += dt;
+        const bodies: Body[] = [];
+        for (const b of this.slots) if (b?.body) bodies.push(b.body);
+        let n = 0;
+        while (this.physT >= 1 / 120 && n++ < 4) { this.physT -= 1 / 120; stepYard(bodies, 1 / 120, YARD_CUBE); }
+        if (n >= 4) this.physT = 0;
+    }
     /** A loose belt: a block lands at the mouth when there is room for it there (no other block
      * within a block of it); then the bodies move. */
     private stepLooseBelt(dt: number) {
@@ -523,6 +549,7 @@ export class Sim {
     private stepBelt(dt: number) {
         this.beltOff = (this.beltOff + BELT_SPEED * dt) % BELT_LEN;
         if (RULES.looseBelt) this.stepLooseBelt(dt);
+        else if (RULES.yard) this.stepYardBlocks(dt);
         // drop a block from the pipe into an empty slot passing under the mouth
         else if (this.pipe.length && !this.dropping.length) {
             const gap = this.slotGap;
@@ -591,7 +618,7 @@ export class Sim {
                 for (let i = 0; i < this.slots.length; i++) {
                     const b = this.slots[i];
                     if (!b || b.claimed || b.k !== nest.color || b.drop < 1) continue;
-                    const [bx, by] = this.slotPos(i);
+                    const [bx, by] = this.blockPos(i);
                     const d = Math.hypot(bx - nx, by - ny);
                     if (d < bd) { bd = d; best = i; }
                 }
@@ -640,7 +667,7 @@ export class Sim {
             const a = this.ants[i];
             a.t += dt;
             let tx: number, ty: number, ax: number, ay: number;
-            if (!a.carry) { [tx, ty] = this.slotPos(a.slot); [ax, ay] = this.intercept(a, tx, ty); }
+            if (!a.carry) { [tx, ty] = this.blockPos(a.slot); [ax, ay] = RULES.yard ? [tx, ty] : this.intercept(a, tx, ty); }
             else { [tx, ty] = this.nestAt(a.col, Math.max(0, this.cols[a.col].indexOf(a.nest))); tx += a.ox; ty -= TILE / 2; ax = tx; ay = ty; }
             // it runs toward its aim point and arrives when it reaches the block (or the nest)
             const dx = ax - a.x, dy = ay - a.y, d = Math.hypot(dx, dy), step = ANT_SPEED * dt;
