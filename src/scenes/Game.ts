@@ -7,7 +7,7 @@ import {
 } from '../game/layout';
 import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useLevels } from '../game/levels';
 import { type Recording, botStep, pickStroke, playBot, replayStep } from '../game/bot';
-import { FAN_FLIGHT, FAN_SHOT_GAP, Flyer, SCROLL_STRIP, Sfx, Sim, levelOverride } from '../game/sim';
+import { FAN_FLIGHT, FAN_SHOT_GAP, Flyer, Sfx, Sim, levelOverride } from '../game/sim';
 import { GROUND_DEPTH, Item3D, ThreeLayer } from '../game/three-layer';
 import { DEMO_SCENES, Demo } from './demo';
 import { brighten, greyed, lightness, mulberry32 } from '../game/util';
@@ -561,7 +561,7 @@ export class Game extends Phaser.Scene {
             // wholly out from under the roller
             if (s.scroll) {
                 v.box.y = s.oy + (f.y0 + (f.y1 - f.y0 + 1) / 2) * s.gs;
-                v.box.setVisible(s.oy + f.y0 * s.gs >= PIC.y + SCROLL_STRIP * s.gs - 2);
+                v.box.setVisible(s.oy + f.y0 * s.gs >= PIC.y + s.scroll.strip * s.gs - 2);
             }
             if (f.count !== v.count) {
                 v.count = f.count;
@@ -606,7 +606,7 @@ export class Game extends Phaser.Scene {
             const cx = INNER.x + (INNER.w * (i + 0.5)) / 4;
             for (const dy of [16, 30]) { g.lineBetween(cx - 13, y + dy, cx, y + dy + 10); g.lineBetween(cx, y + dy + 10, cx + 13, y + dy); }
         }
-        const h = SCROLL_STRIP * s.gs;
+        const h = S.strip * s.gs;
         this.scrollGlass.setTexture(this.glassTexture(INNER.w, h)).setPosition(INNER.x + INNER.w / 2, PIC.y + h / 2);
         this.stepScrollHint();
     }
@@ -656,7 +656,7 @@ export class Game extends Phaser.Scene {
     private drawCaps() {
         const s = this.sim, S = s.scroll, g = this.scrollCaps;
         if (!S || !g) return;
-        const CAP = 26, OUT = 14, PAD = 8, N = 16, h = SCROLL_STRIP * s.gs, H = h + 2 * PAD, R = (H - 6) / 2, cy = PIC.y + h / 2;
+        const CAP = 26, OUT = 14, PAD = 8, N = 16, h = S.strip * s.gs, H = h + 2 * PAD, R = (H - 6) / 2, cy = PIC.y + h / 2;
         const phase = (S.slid * s.gs) / R;
         g.clear();
         for (const cx of [INNER.x - OUT + CAP / 2, INNER.x + INNER.w + OUT - CAP / 2]) {
@@ -696,7 +696,7 @@ export class Game extends Phaser.Scene {
         }
         ctx.putImageData(data, 0, 0);
         tex.refresh();
-        img.setTexture(key).setPosition(INNER.x, PIC.y).setDisplaySize(INNER.w, SCROLL_STRIP * s.gs);
+        img.setTexture(key).setPosition(INNER.x, PIC.y).setDisplaySize(INNER.w, S.strip * s.gs);
     }
 
     /** The picture frame and its funnel (one piece of art, its spout ending in a gate just above

@@ -1,7 +1,7 @@
 // Sand pictures for the levels. Each level is an N x N grid of colour keys, given either as
 // rows of characters ('.' = empty) or painted with simple shapes. Empty cells hold no sand,
 // so pictures can have any outline.
-import { FRAME_N, PIC, SUB, frameGrains } from './layout';
+import { FRAME_N, PIC, SUB, frameGrains, frameZoom } from './layout';
 import EDITS from './level-edits.json';
 
 type Grid = (string | null)[][];
@@ -62,7 +62,17 @@ export interface Frozen { shape: 'rect' | 'circle'; x: number; y: number; w: num
  * level editor uses the whole frame, see frameGrains; a picture as wide as the frame and taller
  * than it is a scroll painting, see Sim.scroll), `data` run-length encoded row by row
  * ('.' = empty, each key followed by its run length when longer than 1). */
-export interface Sand { size: number; w?: number; data: string }
+export interface Sand {
+    size: number; w?: number; data: string;
+    /** The grain zoom of a scroll painting at a zoom (its size alone can't tell it: it is taller
+     * than any frame); other pictures are told apart by their size (see sandZoom). */
+    zoom?: number;
+}
+
+/** A picture's grain zoom (see frameZoom): its own `zoom`, else the zoomed frame its size is, else 1. */
+export function sandZoom(s: Sand) {
+    return s.zoom ?? frameZoom(s.w ?? s.size, s.size) ?? 1;
+}
 
 export interface Level {
     name: string;

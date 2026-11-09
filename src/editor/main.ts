@@ -10,7 +10,7 @@ import { COLS, FRAME_N, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, fra
 import EDITS from '../game/level-edits.json';
 import { VARIANTS, type Variant } from '../game/variant';
 import { BANK_COLOURS, CUSTOM_KEY, type Frozen, type LevelDef, PREVIEW_KEY, type Sand, builtinDefs, gameLevelIds, standardColours, decodeSand, encodeSand, gameLevelName, loadCustomLevels, toCurrentFrame, useLevels } from '../game/levels';
-import { type Nest, SCROLL_GAP, SCROLL_STRIP, Sim } from '../game/sim';
+import { type Nest, Sim, scrollRows } from '../game/sim';
 import { BANK, type BankColour, type ConvertOpts, HEX, NAME, clipToFrame, countKeys, drawSand, fitToFrame, frameOutside, hexLab, imageToSand, moveRange, nearestKey, rowsToGrains, setBank } from './sand';
 import type { SolveJob, SolveResult } from './solver.worker';
 
@@ -154,9 +154,10 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
     let n = FRAME_N, sand: Sand, cut = false, rescaled = false, frozen = L.frozen;
     // a frame of zoomed grains (frameZoom) is kept as it is
     const zoom = L.sand ? frameZoom(L.sand.w ?? L.sand.size, L.sand.size) : null;
-    if (L.sand && zoom !== null) { sand = L.sand; n = zoomFrameN(zoom); }
-    // a scroll painting (as wide as the frame, taller than it) is kept as it is too
-    else if (L.sand && (L.sand.w ?? L.sand.size) === FW && L.sand.size > FH) sand = L.sand;
+    // so is a scroll painting: as wide as the frame of its zoom (its own `zoom`, else 1x), taller than it
+    const tallN = zoomFrameN(L.sand?.zoom ?? 1), tallF = frameGrains(tallN);
+    if (L.sand && (L.sand.w ?? L.sand.size) === tallF.w && L.sand.size > tallF.h) { sand = L.sand; n = tallN; }
+    else if (L.sand && zoom !== null) { sand = L.sand; n = zoomFrameN(zoom); }
     else {
         // a picture for an older frame (bigger grains now) is resampled to the current grains;
         // its blocks change, so hand-set nests no longer fit and are dropped
@@ -278,10 +279,13 @@ function analyze(l: EdLevel): Analysis {
 function commitGrains() {
     // the frame's width (a grain zoom changes it, before the level's sand is rewritten); a scroll
     // painting is taller than the frame, so the height comes from the grains
-    const w = frameGrains(L().n).w, h = grains.length / w;
+    const F = frameGrains(L().n), w = F.w, h = grains.length / w;
     // the game cuts the sand in the frame's rounded corners, so the saved picture leaves it out
     grains = clipToFrame(grains, w, h);
-    L().sand = encodeSand(h, grains, w);
+    const sand = encodeSand(h, grains, w), z = frameZoom(F.w, F.h) ?? 1;
+    // a scroll painting at a zoom keeps its zoom (its size can't tell it)
+    if (h > F.h && z !== 1) sand.zoom = z;
+    L().sand = sand;
     L().updated = Date.now();
 }
 const sandState = () => JSON.stringify({ sand: L().sand, n: L().n, nests: L().nests, moves: L().moves, verified: L().verified, chunk: L().chunk, order: L().order, seed: L().seed, cols: L().cols, frozen: L().frozen });
@@ -363,7 +367,22 @@ function movePicture(sx: number, sy: number) {
  * frame and anything past its edge (or in its rounded corners) is cut; with nothing cut the blocks
  * are the same and the nests stay. zoomPlan works it out without changing the level. */
 function zoomPlan(z: number) {
-    const { w, h } = dims(), n = zoomFrameN(z), F = frameGrains(n);
+    const { w, h } = dims(), n = zoomFrameN(z), F0 = frameGrains(n);
+    // a scroll painting stays as long as it is (taller than the new frame): it keeps every row, its
+    // bottom where it was, and is centred across (the new frame's width)
+    if (scrollView() !== null && h > F0.h) {
+        const F = { ...F0, h }, dx = Math.floor((F.w - w) / 2), next = new Array<string>(F.w * h).fill('.');
+        let lost = 0, count = 0;
+        for (let p = 0; p < w * h; p++) {
+            if (grains[p] === '.') continue;
+            count++;
+            const x = (p % w) + dx, y = (p / w) | 0;
+            if (x < 0 || x >= F.w) { lost++; continue; }
+            next[y * F.w + x] = grains[p];
+        }
+        return { n, F, dx, dy: 0, next, lost, count, same: F.w === w && n === L().n, tall: true };
+    }
+    const F = F0;
     let x0 = w, x1 = -1, y0 = h, y1 = -1, count = 0;
     for (let p = 0; p < w * h; p++) {
         if (grains[p] === '.') continue;
@@ -379,15 +398,15 @@ function zoomPlan(z: number) {
         if (x < 0 || y < 0 || x >= F.w || y >= F.h || out?.[q]) { lost++; continue; }
         next[q] = grains[p];
     }
-    return { n, F, dx, dy, next, lost, count, same: F.w === w && F.h === h };
+    return { n, F, dx, dy, next, lost, count, same: F.w === w && F.h === h, tall: false };
 }
 /** The zoom slider's label: the zoom, the frame it gives and what it would cut. */
 function zoomLabel(z: number) {
     const p = zoomPlan(z), v = (x: number) => String(+x.toFixed(2)).replace('.', ',');
-    $('s-zoom-v').innerHTML = `${v(frameZoom(p.F.w, p.F.h) ?? z)}× · khung ${p.F.w}×${p.F.h}` + (p.lost ? ` <span style="color:#f87171">· cắt ${p.lost.toLocaleString('vi-VN')} hạt</span>` : '');
+    $('s-zoom-v').innerHTML = `${v(p.tall ? 128 / (p.n * 8) : frameZoom(p.F.w, p.F.h) ?? z)}× · ${p.tall ? 'tranh cuộn' : 'khung'} ${p.F.w}×${p.F.h}` + (p.lost ? ` <span style="color:#f87171">· cắt ${p.lost.toLocaleString('vi-VN')} hạt</span>` : '');
 }
 function zoomLevel(z: number) {
-    const l = L(), { n, F, dx, dy, next, lost, count, same } = zoomPlan(z);
+    const l = L(), { n, F, dx, dy, next, lost, count, same, tall } = zoomPlan(z), zz = tall ? 128 / (n * 8) : frameZoom(F.w, F.h) ?? z;
     if (same) return;
     sandSnapshot();
     grains = next; l.n = n;
@@ -396,33 +415,36 @@ function zoomLevel(z: number) {
     selIce = null;
     if (lost) {
         pictureChanged();
-        toast(`Phóng hạt ${(frameZoom(F.w, F.h) ?? z).toFixed(2)}×: cắt ${lost} hạt tràn ra ngoài khung · cần sinh lại tổ`);
+        toast(`Phóng hạt ${zz.toFixed(2)}×: cắt ${lost} hạt tràn ra ngoài khung · cần sinh lại tổ`);
         return;
     }
     commitGrains();
     delete l.moves;
     nestsChanged();
-    toast(`Phóng hạt ${(frameZoom(F.w, F.h) ?? z).toFixed(2)}× · khung ${F.w}×${F.h} · giữ nguyên ${count.toLocaleString('vi-VN')} hạt`);
+    toast(`Phóng hạt ${zz.toFixed(2)}× · ${tall ? 'tranh cuộn' : 'khung'} ${F.w}×${F.h} · giữ nguyên ${count.toLocaleString('vi-VN')} hạt`);
 }
 
 /** Scroll painting: picture rows the frame shows at the start (the frame less the glass roller
  * at its top and the gap under the limit line), or null when the picture is no taller than the frame. */
 function scrollView() {
-    const { h } = dims(), F = frameGrains(FRAME_N);
-    return h > F.h ? F.h - SCROLL_GAP - SCROLL_STRIP : null;
+    return dims().h > frameGrains(L().n).h ? viewRows() : null;
+}
+/** Rows the frame of the level's grain zoom shows of a scroll painting at the start. */
+function viewRows(n = L().n) {
+    const F = frameGrains(n), r = scrollRows(frameZoom(F.w, F.h) ?? 1);
+    return F.h - r.gap - r.strip;
 }
 function heightLabel(h: number) {
-    const F = frameGrains(FRAME_N);
-    if ((frameZoom(dims().w, dims().h) ?? 1) !== 1) { $('s-height-v').textContent = 'chỉ dùng với hạt 1×'; return; }
-    $('s-height-v').textContent = h > F.h ? `${h} hạt · ẩn ${h - (F.h - SCROLL_GAP - SCROLL_STRIP)} hàng phía trên` : `${h} hạt · vừa khung (không cuộn)`;
+    const F = frameGrains(L().n);
+    $('s-height-v').textContent = h > F.h ? `${h} hạt · ẩn ${h - viewRows()} hàng phía trên` : `${h} hạt · vừa khung (không cuộn)`;
 }
 /** Make the picture `h` grains tall, keeping its bottom where it is: taller adds empty rows at
  * the top, shorter cuts rows off the top. A picture taller than the frame is a scroll painting. */
 function setHeight(h: number) {
-    const l = L(), { w, h: oldH } = dims(), F = frameGrains(FRAME_N);
-    if (h === oldH) return;
-    if (frameZoom(w, oldH) !== null && frameZoom(w, oldH) !== 1) { toast('Tranh cuộn chỉ dùng với hạt 1×: đưa thanh phóng to hạt về 1× trước'); renderSettings(); return; }
-    if (w !== F.w) return;
+    const l = L(), { w, h: oldH } = dims(), F = frameGrains(l.n);
+    // the frame of the level's grain zoom (its picture is that wide); at least its height
+    h = Math.max(F.h, h);
+    if (h === oldH || w !== F.w) return;
     const dy = h - oldH, next = new Array<string>(w * h).fill('.');
     let lost = 0;
     for (let p = 0; p < w * oldH; p++) {
@@ -445,7 +467,7 @@ function setHeight(h: number) {
     commitGrains();
     delete l.moves;
     nestsChanged();
-    toast(h > F.h ? `Tranh cuộn: cao ${h} hạt, lúc đầu thấy ${F.h - SCROLL_GAP - SCROLL_STRIP} hàng dưới cùng` : 'Tranh vừa khung: không cuộn');
+    toast(h > F.h ? `Tranh cuộn: cao ${h} hạt, lúc đầu thấy ${viewRows()} hàng dưới cùng` : 'Tranh vừa khung: không cuộn');
 }
 
 /** The colour a drag carries: a Bank colour or an Active Palette colour. */
@@ -481,7 +503,8 @@ function fitSand() {
 new ResizeObserver(() => { if (fitSand()) renderSand(); }).observe(sandWrap);
 function renderSand() {
     const { w, h } = dims();
-    if (!sandPx) fitSand();
+    // the picture's width changes with the grain zoom, so the scale is checked every time
+    fitSand();
     const cw = Math.round(w * sandPx), ch = Math.round(h * sandPx), dpr = window.devicePixelRatio || 1;
     sandArt.width = w; sandArt.height = h;
     drawSand(sandArt.getContext('2d')!, grains, w, h, 0, 0, w, h);
@@ -962,12 +985,12 @@ function renderSettings() {
     $<HTMLSelectElement>('s-order').value = l.nests ? 'play' : l.order;
     $<HTMLInputElement>('s-seed').value = String(l.seed);
     $<HTMLSelectElement>('s-cols').value = String(l.cols);
-    const zNow = frameZoom(dims().w, dims().h) ?? 1, tall = scrollView() !== null;
+    const F = frameGrains(l.n), zNow = frameZoom(F.w, F.h) ?? 1;
     $<HTMLInputElement>('s-zoom').value = String(zNow);
-    $<HTMLInputElement>('s-zoom').disabled = tall;
     zoomLabel(zNow);
+    // the height slider starts at the frame of the level's grain zoom
+    $<HTMLInputElement>('s-height').min = String(F.h);
     $<HTMLInputElement>('s-height').value = String(dims().h);
-    $<HTMLInputElement>('s-height').disabled = zNow !== 1;
     heightLabel(dims().h);
 }
 
@@ -1461,7 +1484,7 @@ function runGen() {
         drawSand(g, genResult, FW, FH, 0, 0, cv.width, cv.height);
         if (tallH) {
             // what the frame shows at the start: the rows above are shaded under a dashed orange line
-            const ty = ((tallH - (F.h - SCROLL_GAP - SCROLL_STRIP)) / tallH) * cv.height;
+            const ty = ((tallH - viewRows(FRAME_N)) / tallH) * cv.height;
             g.fillStyle = 'rgba(20,30,60,.28)'; g.fillRect(0, 0, cv.width, ty);
             g.strokeStyle = '#f59e0b'; g.lineWidth = 3 * dpr; g.setLineDash([10 * dpr, 6 * dpr]);
             g.beginPath(); g.moveTo(0, ty); g.lineTo(cv.width, ty); g.stroke(); g.setLineDash([]);

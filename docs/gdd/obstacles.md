@@ -75,8 +75,8 @@ pageClass: gdd-wide
 </ul>
 <p><b>Level design:</b></p>
 <ul>
-<li>The level sets the picture's height: in the Level Editor, <b>Tranh cuộn (cao)</b> in Settings, from 128 grains (fits the frame, no scroll) to 384 in steps of a cell (8 grains). A taller picture is a scroll painting: the frame first shows its bottom 107 rows (the frame's 128 less the roller's 11 and the 10 under the limit line). The Sand Editor shows the whole picture: the part hidden at the start is shaded above a dashed orange line, and the limit line is its bottom edge.</li>
-<li>Scroll paintings use grains at 1× (no grain zoom).</li>
+<li>The level sets the picture's height: in the Level Editor, <b>Tranh cuộn (cao)</b> in Settings, from the frame's height (128 grains at 1×; fits the frame, no scroll) to 384. A taller picture is a scroll painting: the frame first shows its bottom 107 rows (the frame's 128 less the roller's 11 and the 10 under the limit line). The Sand Editor shows the whole picture: the part hidden at the start is shaded above a dashed orange line, and the limit line is its bottom edge.</li>
+<li>Scroll paintings work at any grain zoom. With bigger grains, the roller, the gap under the limit line and the slide speed keep their size and speed on screen: about 11, 10 and 45 grains at 1×, fewer at a zoom (8, 7 and 33 at 1.35×). A zoomed scroll painting is as wide as that zoom's frame (101 grains at 1.35×) and carries its zoom in the level (<code>sand.zoom</code>), since its size alone can't tell it.</li>
 <li>A long image makes one directly: <b>Tranh cuộn (ảnh dài)</b> in the Level Editor's image generator. The picture fills the frame's width, and its height follows the image's shape, up to 384 grains.</li>
 <li>Frozen areas in the hidden part come into view as the picture slides; their ice shows once it is wholly out from under the roller, and still counts down while hidden.</li>
 </ul>

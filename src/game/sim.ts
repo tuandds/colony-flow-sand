@@ -71,6 +71,11 @@ export const SCROLL_GAP = 10;
 /** Scroll painting: a glass roller covers the frame's top SCROLL_STRIP grain rows (and its rounded
  * corners); the picture shows from under it, and the roller shows the colours hidden above. */
 export const SCROLL_STRIP = 11;
+/** The limit line's gap and the roller's rows at a grain zoom: as many grains as cover the same
+ * height on screen as at 1x. */
+export function scrollRows(zoom: number) {
+    return { gap: Math.round(SCROLL_GAP / zoom), strip: Math.round(SCROLL_STRIP / zoom) };
+}
 const SCROLL_RATE = 45;
 /** The picture waits this long (s) once nothing rests on the line, so freshly freed sand falls away first. */
 const SCROLL_WAIT = 0.2;
@@ -85,6 +90,8 @@ export interface Scroll {
     /** The whole picture: a key index and a packed colour per grain, w x h. */
     pic: Uint8Array; rgb: Uint32Array; w: number; h: number;
     x0: number; y0: number; line: number;
+    /** Grain rows under the glass roller at the frame's top; grain rows slid a second. */
+    strip: number; rate: number;
     /** Per grid column: its first row inside the frame, and the picture grains still above it. */
     open: Int16Array; hidden: Int32Array;
     /** Seconds nothing has rested on the line, rows of slide owed (SCROLL_RATE a second), and rows slid so far. */
@@ -170,7 +177,8 @@ export class Sim {
         // both sides (and is padded above), so loose sand on the picture's edges can still slide
         // off and fall until the frame stops it.
         const wide = L.sand ? toCurrentFrame(decodeSand(L.sand), L.sand.w ?? L.sand.size, L.sand.size) : null;
-        const zoom = wide ? frameZoom(wide.w, wide.h) ?? 1 : 1, nF = zoomFrameN(zoom);
+        // a scroll painting at a zoom carries its zoom; other pictures are told by their size
+        const zoom = wide ? (L.sand!.zoom ?? frameZoom(wide.w, wide.h) ?? 1) : 1, nF = zoomFrameN(zoom);
         const { h: PG, gs, pad } = frameGrains(nF), top = 2 * pad;
         const k = TUNED_GRAIN_PX / gs, kN = TUNED_GRAIN_PX / frameGrains(FRAME_N).gs;
         this.gravity = GRAVITY * k; this.maxFall = MAX_FALL * k;
@@ -186,7 +194,7 @@ export class Sim {
         const grains = wide ? wide.keys : null;
         const SH = wide ? wide.h : L.n * SUB, SW = wide ? wide.w : SH;
         // a picture taller than the frame is a scroll painting: its bottom rests on the limit line
-        const tall = !!wide && zoom === 1 && SH > PG, line = G - SCROLL_GAP;
+        const rows = scrollRows(zoom), tall = !!wide && SW === G && SH > PG, line = G - rows.gap;
         const x0 = Math.floor((G - SW) / 2), y0 = tall ? line - SH : top + Math.floor((PG - SH) / 2);
         this.picX0 = x0; this.picY0 = y0;
         // the frame's corners are rounded: sand there is cut off, and they stay empty; the funnel
@@ -197,7 +205,7 @@ export class Sim {
         const open = new Int16Array(G).fill(G);
         for (let x = 0; x < G; x++) for (let y = top; y < G; y++) if (!wall[y * G + x]) { open[x] = y; break; }
         // a scroll painting shows from under the roller at the frame's top
-        if (tall) for (let x = 0; x < G; x++) open[x] = Math.max(open[x], top + SCROLL_STRIP);
+        if (tall) for (let x = 0; x < G; x++) open[x] = Math.max(open[x], top + rows.strip);
         const pic = tall ? new Uint8Array(SW * SH) : null, picRgb = tall ? new Uint32Array(SW * SH) : null, hidden = new Int32Array(G);
         for (let gy = 0; gy < SH; gy++) for (let gx = 0; gx < SW; gx++) {
             const k = grains ? grains[gy * SW + gx] : L.grid[(gy / SUB) | 0][(gx / SUB) | 0];
@@ -211,7 +219,7 @@ export class Sim {
             }
             if (x >= 0 && x < G && y >= top && y < top + PG && !wall[y * G + x]) key[y * G + x] = ki;
         }
-        this.scroll = pic && picRgb ? { pic, rgb: picRgb, w: SW, h: SH, x0, y0, line, open, hidden, wait: 0, carry: 0, slid: 0 } : null;
+        this.scroll = pic && picRgb ? { pic, rgb: picRgb, w: SW, h: SH, x0, y0, line, open, hidden, strip: rows.strip, rate: SCROLL_RATE / zoom, wait: 0, carry: 0, slid: 0 } : null;
         for (let y = G; y < GH; y++) for (let x = 0; x < G; x++) {
             if (Math.abs(INNER.x + (x + 0.5) * gsx - MOUTH.x) > funnelHalf(oy + (y + 0.5) * gs)) wall[y * G + x] = 1;
         }
@@ -411,7 +419,7 @@ export class Sim {
         if (!S) return;
         if (!this.canSlide()) { S.wait = 0; S.carry = 0; return; }
         if ((S.wait += dt) < SCROLL_WAIT) return;
-        S.carry += dt * SCROLL_RATE;
+        S.carry += dt * S.rate;
         while (S.carry >= 1 && this.canSlide()) { S.carry--; this.slideRow(); }
     }
     /** The picture's fixed sand moves down one row; loose sand in the way goes up past it, and
