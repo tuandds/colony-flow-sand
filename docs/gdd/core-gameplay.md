@@ -107,7 +107,7 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <li><b>Glass roller:</b> across the frame's top (11 grain rows): it shows the hidden colours just above as soft pale patches, and its two ridged end caps turn as the picture slides.</li>
 <li><b>Slide:</b> once no fixed sand rests on the line (and no loose sand is piled up under the picture), the whole picture slides down after 0.2 s, at 45 grain rows a second, until its lowest grain touches the line again.</li>
 <li><b>Counting:</b> nests, the win and the automatic x2 count the hidden sand too; Frozen areas slide with the picture.</li>
-<li><b>In the levels:</b> level_18 (Golden Gate Bridge, 136 × 144) and level_19 (desert road, 136 × 176). Made in the Level Editor with <b>Tranh cuộn (cao)</b> or from a long image.</li>
+<li><b>In the levels:</b> level_19 (desert road, 136 × 176). Made in the Level Editor with <b>Tranh cuộn (cao)</b> or from a long image.</li>
 </ul>
 </td>
 </tr></tbody>
