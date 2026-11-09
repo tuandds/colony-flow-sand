@@ -31,7 +31,7 @@ What does not carry over: hidden inner shells (nothing is hidden here except und
 
 Before drawing, write down:
 
-- **Subject:** one clear thing or one small scene. It **must** not repeat a subject already in the game (a recolour or a new pose is not a new subject). Current subjects: waving cat in a boat, mushroom, donut, bee, tulips in a pot, whale, chick, clownfish, octopus, ladybug on a leaf, cherries, ice cream, rocket, sleeping cat with flowers, black cat peeking, sailboat, sea turtle, panda, cottage with garden, toucan, jack-o'-lantern pumpkin (see [Levels](./levels)).
+- **Subject:** one clear thing or one small scene. It **must** not repeat a subject already in the game (a recolour or a new pose is not a new subject). Current subjects: waving cat in a boat, mushroom, donut, bee, tulips in a pot, whale, chick, clownfish, octopus, ladybug on a leaf, cherries, ice cream, rocket, sleeping cat with flowers, black cat peeking, sailboat, sea turtle, panda, cottage with garden, toucan, jack-o'-lantern pumpkin, Statue of Liberty, Golden Gate Bridge, desert road with mesas, Hollywood sign, Mount Rushmore (see [Levels](./levels)).
 - **Silhouette and 2–3 recognition features:** what makes it readable at game size (the cherries' twin stems, the toucan's beak).
 - **Palette:** a harmony (see [3.2](#_3-2-picking-a-palette)) plus neutrals, 3–6 colours in all.
 - **Difficulty target** (see [7](#_7-difficulty)) and **release plan:** which colours the player can free early, which come late.

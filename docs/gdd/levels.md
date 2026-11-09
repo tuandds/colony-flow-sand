@@ -1,8 +1,8 @@
 # 6. Levels
 
-Sixteen pictures of 136 × 128-grain frames (grains of about 6 px); the game plays them from `src/game/level-edits.json` in the order below, named `level_1` to `level_16` in the game and in the Level Editor, whatever name a saved or imported copy carries (`GAME_ORDER` in `src/game/levels.ts`).
+Twenty-one pictures of 136 × 128-grain frames (grains of about 6 px; two are taller scroll paintings); the game plays them from `src/game/level-edits.json` in the order below, named `level_1` to `level_21` in the game and in the Level Editor, whatever name a saved or imported copy carries (`GAME_ORDER` in `src/game/levels.ts`).
 
-- **The game has 16 levels** (`GAME_ORDER` in `src/game/levels.ts`), in the order of colony-flow-levels (15).json: the cherries; four full-frame scenes with zoomed grains (levels 2–5); then full-frame scenes (levels 6–15). The small one-subject pictures (`builtin-1`, `builtin-16` to `builtin-19`: ice cream, chick, clownfish, octopus, ladybug) are no longer in the game; a browser's Level Bank keeps its own copies. Levels with ids `builtin-10` to `builtin-19` exist only in `level-edits.json`.
+- **The game has 21 levels** (`GAME_ORDER` in `src/game/levels.ts`), in the order of colony-flow-levels (16).json: the cherries; four full-frame scenes with zoomed grains (levels 2–5); full-frame scenes (levels 6–15); the pumpkin (16); then five landmarks (17–21), two of them [scroll paintings](./obstacles#scroll-painting): the Golden Gate Bridge (level 18, 136 × 144 grains) and the desert road (level 19, 136 × 176). `builtin-1` and `builtin-16` to `builtin-19` are back with new pictures. A browser's Level Bank keeps its own copies. Levels with ids `builtin-10` to `builtin-20` exist only in `level-edits.json`, and so does `builtin-1`'s new picture.
 
 The game builds every level's nests (the hand-set ones were dropped when the grains grew, since the pictures' blocks changed; make new ones with **Tự sinh tổ kiến**). Difficulty rises through picture size, number of colours and nest size (`chunk`, in blocks before the ×2 nest scale). Not yet checked with the test bot.
 
@@ -24,6 +24,11 @@ The game builds every level's nests (the hand-set ones were dropped when the gra
 | 14 | Toucan | 16,998 | 269 | yellowgreen, lightorange, cyan, navy, lightyellow | 5–8 | rows, seed 6 | — |
 | 15 | Black cat peeking | 16,998 | 268 | yellow, cyan, black, white, olivegreen, yellowgreen | 5–8 | onion | — |
 | 16 | Jack-o'-lantern pumpkin | 10,000 | 157 | navy, orangered, green | 4–6 | rows | ×1.31 |
+| 17 | Statue of Liberty | 14,382 | 228 | skyblue, springgreen, red, yellow, white | 3–5 | rows (3 columns) | ×1.10 |
+| 18 | Golden Gate Bridge (scroll painting, 136 × 144) | 17,404 | 275 | skyblue, red, darkgreen, yellow, white | 4–6 | rows | — |
+| 19 | Desert road with mesas and a cactus (scroll painting, 136 × 176) | 23,934 | 376 | purple, yellow, red, darkgreen | 3–5 | rows | — |
+| 20 | Hollywood sign | 17,403 | 276 | darkblue, olivegreen, darkgreen, white, yellow, brown | 4–6 | rows | — |
+| 21 | Mount Rushmore | 17,404 | 274 | lightorange, white, darkblue, darkgreen, yellow | 4–6 | rows | — |
 
 ## Design rules
 

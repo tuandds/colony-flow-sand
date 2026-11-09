@@ -49,7 +49,7 @@ const BANK_KEY = 'cf_editor_bank';
 const BANK_VER_KEY = 'cf_editor_bank_v', BANK_VER = 3;
 const MAX_BACKUPS = 15, MAX_HISTORY = 10;
 /** Set once the built-in levels have been added to a saved Level Bank (see loadLevels). */
-const BUILTIN_KEY = 'cf_editor_builtin_v', BUILTIN_VER = 6, BUILTIN_CHAPTER = 'builtin';
+const BUILTIN_KEY = 'cf_editor_builtin_v', BUILTIN_VER = 7, BUILTIN_CHAPTER = 'builtin';
 const DIFFS: { key: string; label: string; short: string; chunk: [number, number] }[] = [
     { key: '3,5', label: 'Rất dễ', short: 'Rất dễ', chunk: [3, 5] }, { key: '4,6', label: 'Dễ', short: 'Dễ', chunk: [4, 6] },
     { key: '4,7', label: 'Vừa', short: 'Vừa', chunk: [4, 7] }, { key: '5,8', label: 'Khó', short: 'Khó', chunk: [5, 8] },
