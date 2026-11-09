@@ -37,9 +37,9 @@ const COIN_AT = { x: 780, y: 94 };
 const REVIVE_PRICE = 900, BOOSTER_PRICE = 300, BOOSTER_PACK = 3;
 /** Each booster's name and line on the purchase popup. */
 const BOOSTER_INFO = [
-    ['Activate', 'Wake a waiting nest\nso its ants work too!'],
-    ['Shuffle', 'Swap the nests around to find\nthe colours you need!'],
-    ['Fan', 'Blow every block on the\nconveyor into its nest!'],
+    ['Activate', 'Wakes a waiting nest.'],
+    ['Shuffle', 'Swaps the nests around.'],
+    ['Fan', 'Blows the conveyor into the nests.'],
 ];
 type Overlay = 'start' | 'settings' | 'buy' | 'end' | null;
 
@@ -1483,35 +1483,44 @@ export class Game extends Phaser.Scene {
     }
 
     /** A booster with no uses left (the green plus) opens its purchase popup; the game holds
-     * still. Free (an ad in the Unity game) gives 1; BOOSTER_PRICE coins give BOOSTER_PACK. Either
-     * closes the popup and play goes on; ✕ closes it without buying. */
+     * still. On the lose panels' board, with the GDD wireframe's content
+     * (docs/gdd/img/wf-purchase-booster.svg): the icon on a yellow square, one short line, and two
+     * buttons: Ad (free in the prototype) +1 and BOOSTER_PRICE coins +BOOSTER_PACK. The coin panel
+     * shows top right. */
     private showBuyBooster(i: number) {
         this.overlay = 'buy';
         this.paused = true;
         this.setPicking(false);
         const [name, line] = BOOSTER_INFO[i];
-        const board = this.losePanel(name, () => this.closeOverlay());
+        // the lose panels' board: its title on the blue header, ✕ on its corner; the icon on a
+        // yellow square in its light blue box, the line under it, the buttons at the bottom
+        const card = this.losePanel(name, () => this.closeOverlay());
+        const g = this.add.graphics();
+        g.fillStyle(0xfde68a).fillRoundedRect(-140, -255, 280, 280, 64);
+        g.lineStyle(6, 0x1f4fa8).strokeRoundedRect(-140, -255, 280, 280, 64);
+        const icon = this.add.image(0, -115, BOOSTER_IMAGES[i]);
+        icon.setScale(200 / Math.max(icon.width, icon.height));
+        card.add([g, icon, this.text(0, 150, line, 46, '#1f4fa8', null)]);
         const panel = this.coinPanel();
         this.overlayBox!.add(panel);
-        const base = this.add.image(0, -150, 'bst_btn').setScale(0.62);
-        const icon = this.add.image(0, -158, BOOSTER_IMAGES[i]);
-        icon.setScale(170 / Math.max(icon.width, icon.height));
-        board.add([base, icon, this.text(0, 110, line, 42, '#1f4fa8', null)]);
+
         const give = (n: number) => { this.closeOverlay(); this.setUses(i, this.boosters[i].uses + n); this.boosters[i].bump = 1; this.sfx('add'); };
-        const ad = this.add.container(-170, 300);
+        // two buttons, each two lines: what it costs, then what it gives
+        const ad = this.add.container(-180, 320);
         ad.add([
-            this.add.image(0, 0, 'lose_btn_rv').setScale(0.66),
-            this.add.image(-70, -12, 'lose_icon_rv').setDisplaySize(84, 85),
-            this.text(42, -14, '+1', 58, '#ffffff', '#a8480a', 10),
+            this.add.image(0, 0, 'lose_btn_rv').setDisplaySize(340, 204),
+            this.add.image(-52, -42, 'lose_icon_rv').setDisplaySize(68, 69),
+            this.text(34, -44, 'Ad', 54, '#ffffff', '#a8480a', 9),
+            this.text(0, 26, '+1', 60, '#ffffff', '#a8480a', 10),
         ]);
-        const coins = this.add.container(170, 300);
+        const coins = this.add.container(180, 320);
         coins.add([
-            this.add.image(0, 0, 'lose_btn_purchase').setScale(0.8),
-            this.add.image(-90, -12, 'lose_icon_coin').setDisplaySize(56, 61),
-            this.text(10, -14, String(BOOSTER_PRICE), 50, '#ffffff', '#1f7a12', 9),
-            this.text(98, -14, '+' + BOOSTER_PACK, 50, '#fff36b', '#1f7a12', 9),
+            this.add.image(0, 0, 'lose_btn_purchase').setDisplaySize(340, 209),
+            this.add.image(-70, -42, 'lose_icon_coin').setDisplaySize(56, 61),
+            this.text(26, -44, String(BOOSTER_PRICE), 54, '#ffffff', '#1f7a12', 9),
+            this.text(0, 26, '+' + BOOSTER_PACK, 60, '#ffffff', '#1f7a12', 10),
         ]);
-        board.add([this.tapTarget(ad, 323, 194, () => give(1), 'buy_free'), this.tapTarget(coins, 319, 196, () => this.spend(BOOSTER_PRICE, panel, coins, () => give(BOOSTER_PACK)), 'buy_coins')]);
+        card.add([this.tapTarget(ad, 340, 204, () => give(1), 'buy_free'), this.tapTarget(coins, 340, 209, () => this.spend(BOOSTER_PRICE, panel, coins, () => give(BOOSTER_PACK)), 'buy_coins')]);
     }
 
     /** Pay `n` coins from an overlay's coin panel, then run `then`: the count runs down, a coin

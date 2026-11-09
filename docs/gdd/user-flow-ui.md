@@ -165,7 +165,7 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 <thead><tr><th style="width:26%">Wireframe</th><th style="width:16%">Compare</th><th>Detail</th></tr></thead>
 <tbody><tr>
 <td><img src="./img/wf-purchase-booster.svg" alt="Purchase Booster wireframe" /></td>
-<td>In the prototype: the lose panel's art, the booster's icon and line, <b>+1</b> (free, no ad yet) and <b>300 +3</b>, with the coin panel top right. Without enough coins the button shakes and "Not enough coins!" shows.</td>
+<td>In the prototype: the lose panels' board with the booster's name on its header, and the wireframe's content: the icon on a yellow square, one short line, <b>Ad +1</b> (free, no ad yet) and <b>300 +3</b>, with the coin panel top right. Without enough coins the button shakes and "Not enough coins!" shows.</td>
 <td>
 <p>Tapping a booster with no uses left (the green plus) opens its popup. The game holds still meanwhile.</p>
 <ul>
