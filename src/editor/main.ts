@@ -36,7 +36,13 @@ interface EdLevel {
     palette?: string[];
     /** Last Organizer Auto Play result (not saved). */
     autoplay?: Result;
+    /** The whole picture when part of it lies outside the frame (moved, zoomed or cut shorter):
+     * w x h grains, run-length encoded like `sand`, with the frame's top-left at (x, y) in it. The
+     * frame shows (and the game plays) only `sand`; the rest stays hidden here, so moving back
+     * shows it again. The game ignores it. */
+    full?: Full;
 }
+interface Full { w: number; h: number; x: number; y: number; data: string }
 interface Chapter { id: string; name: string; description: string; levels: string[] }
 type Tool = 'paint' | 'erase' | 'fill' | 'replace' | 'pick' | 'frozen';
 
@@ -182,6 +188,7 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
         status: L.status || 'WIP', comment: L.comment || '', updated: L.updated || Date.now(),
         palette: Array.isArray(L.palette) ? L.palette.map((k) => keyOf.get(k) ?? k) : undefined,
         frozen: frozen?.length ? frozen : undefined,
+        full: L.full && !rescaled && !cut ? L.full : undefined,
     };
 }
 function blankLevel(): EdLevel {
@@ -288,7 +295,7 @@ function commitGrains() {
     L().sand = sand;
     L().updated = Date.now();
 }
-const sandState = () => JSON.stringify({ sand: L().sand, n: L().n, nests: L().nests, moves: L().moves, verified: L().verified, chunk: L().chunk, order: L().order, seed: L().seed, cols: L().cols, frozen: L().frozen });
+const sandState = () => JSON.stringify({ sand: L().sand, full: L().full, n: L().n, nests: L().nests, moves: L().moves, verified: L().verified, chunk: L().chunk, order: L().order, seed: L().seed, cols: L().cols, frozen: L().frozen });
 function sandSnapshot() {
     sandUndo.push(sandState());
     if (sandUndo.length > 60) sandUndo.shift();
@@ -296,7 +303,7 @@ function sandSnapshot() {
 }
 function restoreSand(json: string) {
     const s = JSON.parse(json), l = L();
-    l.sand = s.sand; l.n = s.n; l.nests = s.nests; l.moves = s.moves; l.verified = s.verified; l.chunk = s.chunk; l.order = s.order; l.seed = s.seed; l.cols = s.cols ?? COLS; l.frozen = s.frozen;
+    l.sand = s.sand; l.full = s.full; l.n = s.n; l.nests = s.nests; l.moves = s.moves; l.verified = s.verified; l.chunk = s.chunk; l.order = s.order; l.seed = s.seed; l.cols = s.cols ?? COLS; l.frozen = s.frozen;
     if (selIce !== null && selIce >= (l.frozen?.length ?? 0)) selIce = null;
     grains = decodeSand(l.sand);
     renderEditor();
@@ -334,32 +341,67 @@ function recolour(from: string, to: string) {
  * left behind on the other side stays empty. */
 const PIC_STEP = 0.2;
 let picMove = { id: '', x: 0, y: 0 };
-function movePicture(sx: number, sy: number) {
+/** The level's whole picture: its hidden full picture (when it has one) with the frame's grains
+ * written over it, and where the frame sits in it. The frame's rounded corners show no sand, so
+ * there the full picture keeps what it had. */
+function wholePicture() {
     const l = L(), { w, h } = dims(), out = frameOutside(w, h);
-    if (picMove.id !== l.id) picMove = { id: l.id ?? '', x: 0, y: 0 };
-    const nx = picMove.x + sx * PIC_STEP, ny = picMove.y + sy * PIC_STEP;
-    const dx = Math.round(nx * SUB) - Math.round(picMove.x * SUB), dy = Math.round(ny * SUB) - Math.round(picMove.y * SUB);
-    const next = new Array<string>(w * h).fill('.');
-    let lost = 0;
+    if (!l.full) return { keys: grains.slice(), w, h, x: 0, y: 0 };
+    const f = l.full, keys = decodeSand({ size: f.h, w: f.w, data: f.data });
     for (let p = 0; p < w * h; p++) {
-        if (grains[p] === '.') continue;
-        const x = (p % w) + dx, y = ((p / w) | 0) + dy, q = y * w + x;
-        if (x < 0 || y < 0 || x >= w || y >= h || out?.[q]) { lost++; continue; }
-        next[q] = grains[p];
+        if (out?.[p]) continue;
+        keys[(((p / w) | 0) + f.y) * f.w + (p % w) + f.x] = grains[p];
     }
-    sandSnapshot();
-    grains = next;
-    picMove.x = nx; picMove.y = ny;
-    if (lost) {
-        // fewer grains: the blocks change, so the nests must be made again
-        pictureChanged();
-        toast(`Đã cắt ${lost} hạt tràn ra ngoài khung · cần sinh lại tổ`);
-        return;
+    return { keys, w: f.w, h: f.h, x: f.x, y: f.y };
+}
+/** The frame (fw x fh grains, its rounded corners when it is a frame size) shown at (fx, fy) of a
+ * whole picture: its grains, how many of the picture's grains it hides, and the full picture to
+ * keep (trimmed to its sand and the frame; none when nothing is hidden). */
+function frameView(whole: { keys: string[]; w: number; h: number }, fx: number, fy: number, fw: number, fh: number) {
+    const out = frameOutside(fw, fh), view = new Array<string>(fw * fh).fill('.');
+    let x0 = fx, y0 = fy, x1 = fx + fw - 1, y1 = fy + fh - 1, hidden = 0;
+    for (let p = 0; p < whole.keys.length; p++) {
+        if (whole.keys[p] === '.') continue;
+        const x = p % whole.w, y = (p / whole.w) | 0, vx = x - fx, vy = y - fy;
+        if (vx >= 0 && vy >= 0 && vx < fw && vy < fh && !out?.[vy * fw + vx]) view[vy * fw + vx] = whole.keys[p];
+        else hidden++;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
     }
-    // the same grains, so the nests still fit; the recorded win was for the old place
+    let full: Full | undefined;
+    if (hidden) {
+        const W = x1 - x0 + 1, H = y1 - y0 + 1, keys = new Array<string>(W * H).fill('.');
+        for (let p = 0; p < whole.keys.length; p++) {
+            if (whole.keys[p] === '.') continue;
+            keys[(((p / whole.w) | 0) - y0) * W + (p % whole.w) - x0] = whole.keys[p];
+        }
+        full = { w: W, h: H, x: fx - x0, y: fy - y0, data: encodeSand(H, keys, W).data };
+    }
+    return { view, hidden, full };
+}
+/** Put the frame's view in the level: same grains (only moved) keep the nests; otherwise (sand
+ * went out of view or came back into it) the picture changed and its nests must be made again. */
+function showView(v: ReturnType<typeof frameView>, what: string) {
+    const l = L(), before = [...countKeys(grains)].sort().join(), after = [...countKeys(v.view)].sort().join();
+    grains = v.view;
+    if (v.full) l.full = v.full; else delete l.full;
+    const note = v.hidden ? ` · ${v.hidden.toLocaleString('vi-VN')} hạt ẩn ngoài khung (vẫn giữ, đưa về là hiện lại)` : '';
+    if (before !== after) { pictureChanged(); toast(`${what}${note} · cần sinh lại tổ`); return; }
     commitGrains();
     delete l.moves;
     nestsChanged();
+    if (note) toast(what + note);
+}
+function movePicture(sx: number, sy: number) {
+    const l = L(), { w, h } = dims();
+    if (picMove.id !== l.id) picMove = { id: l.id ?? '', x: 0, y: 0 };
+    const nx = picMove.x + sx * PIC_STEP, ny = picMove.y + sy * PIC_STEP;
+    const dx = Math.round(nx * SUB) - Math.round(picMove.x * SUB), dy = Math.round(ny * SUB) - Math.round(picMove.y * SUB);
+    // the picture moves (dx, dy), so the frame looks dx, dy the other way on the whole picture;
+    // sand that leaves the frame is only hidden
+    const whole = wholePicture(), v = frameView(whole, whole.x - dx, whole.y - dy, w, h);
+    sandSnapshot();
+    picMove.x = nx; picMove.y = ny;
+    showView(v, 'Đã dời tranh');
 }
 
 /** Grain zoom (frameZoom, 1 to MAX_ZOOM): the level's grains get z times as big, so the same grains
@@ -367,61 +409,42 @@ function movePicture(sx: number, sy: number) {
  * frame and anything past its edge (or in its rounded corners) is cut; with nothing cut the blocks
  * are the same and the nests stay. zoomPlan works it out without changing the level. */
 function zoomPlan(z: number) {
-    const { w, h } = dims(), n = zoomFrameN(z), F0 = frameGrains(n);
-    // a scroll painting stays as long as it is (taller than the new frame): it keeps every row, its
-    // bottom where it was, and is centred across (the new frame's width)
-    if (scrollView() !== null && h > F0.h) {
-        const F = { ...F0, h }, dx = Math.floor((F.w - w) / 2), next = new Array<string>(F.w * h).fill('.');
-        let lost = 0, count = 0;
-        for (let p = 0; p < w * h; p++) {
-            if (grains[p] === '.') continue;
-            count++;
-            const x = (p % w) + dx, y = (p / w) | 0;
-            if (x < 0 || x >= F.w) { lost++; continue; }
-            next[y * F.w + x] = grains[p];
+    const { w, h } = dims(), n = zoomFrameN(z), F0 = frameGrains(n), whole = wholePicture();
+    // a scroll painting stays as long as it is (taller than the new frame): it keeps every row and
+    // its bottom, and the new frame's width is centred on the old one
+    const tall = scrollView() !== null && h > F0.h;
+    const F = tall ? { ...F0, h } : F0;
+    let fx: number, fy: number, count = 0;
+    if (tall) { fx = whole.x + Math.floor((w - F.w) / 2); fy = whole.y; for (const k of whole.keys) if (k !== '.') count++; }
+    else {
+        // the new frame is centred on the picture's sand (hidden sand too)
+        let x0 = whole.w, x1 = -1, y0 = whole.h, y1 = -1;
+        for (let p = 0; p < whole.keys.length; p++) {
+            if (whole.keys[p] === '.') continue;
+            const x = p % whole.w, y = (p / whole.w) | 0; count++;
+            if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
         }
-        return { n, F, dx, dy: 0, next, lost, count, same: F.w === w && n === L().n, tall: true };
+        fx = x1 < 0 ? whole.x : x0 - Math.floor((F.w - (x1 - x0 + 1)) / 2);
+        fy = y1 < 0 ? whole.y : y0 - Math.floor((F.h - (y1 - y0 + 1)) / 2);
     }
-    const F = F0;
-    let x0 = w, x1 = -1, y0 = h, y1 = -1, count = 0;
-    for (let p = 0; p < w * h; p++) {
-        if (grains[p] === '.') continue;
-        const x = p % w, y = (p / w) | 0; count++;
-        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
-    }
-    const dx = x1 < 0 ? 0 : Math.floor((F.w - (x1 - x0 + 1)) / 2) - x0, dy = y1 < 0 ? 0 : Math.floor((F.h - (y1 - y0 + 1)) / 2) - y0;
-    const out = frameOutside(F.w, F.h), next = new Array<string>(F.w * F.h).fill('.');
-    let lost = 0;
-    for (let p = 0; p < w * h; p++) {
-        if (grains[p] === '.') continue;
-        const x = (p % w) + dx, y = ((p / w) | 0) + dy, q = y * F.w + x;
-        if (x < 0 || y < 0 || x >= F.w || y >= F.h || out?.[q]) { lost++; continue; }
-        next[q] = grains[p];
-    }
-    return { n, F, dx, dy, next, lost, count, same: F.w === w && F.h === h, tall: false };
+    const v = frameView(whole, fx, fy, F.w, F.h);
+    // the picture moves by (dx, dy) in the frame (frozen areas move with it)
+    return { n, F, dx: whole.x - fx, dy: whole.y - fy, v, lost: v.hidden, count, same: F.w === w && F.h === h && n === L().n, tall };
 }
 /** The zoom slider's label: the zoom, the frame it gives and what it would cut. */
 function zoomLabel(z: number) {
     const p = zoomPlan(z), v = (x: number) => String(+x.toFixed(2)).replace('.', ',');
-    $('s-zoom-v').innerHTML = `${v(p.tall ? 128 / (p.n * 8) : frameZoom(p.F.w, p.F.h) ?? z)}× · ${p.tall ? 'tranh cuộn' : 'khung'} ${p.F.w}×${p.F.h}` + (p.lost ? ` <span style="color:#f87171">· cắt ${p.lost.toLocaleString('vi-VN')} hạt</span>` : '');
+    $('s-zoom-v').innerHTML = `${v(p.tall ? 128 / (p.n * 8) : frameZoom(p.F.w, p.F.h) ?? z)}× · ${p.tall ? 'tranh cuộn' : 'khung'} ${p.F.w}×${p.F.h}` + (p.lost ? ` <span style="color:#fbbf24">· ẩn ${p.lost.toLocaleString('vi-VN')} hạt ngoài khung</span>` : '');
 }
 function zoomLevel(z: number) {
-    const l = L(), { n, F, dx, dy, next, lost, count, same, tall } = zoomPlan(z), zz = tall ? 128 / (n * 8) : frameZoom(F.w, F.h) ?? z;
+    const l = L(), { n, F, dx, dy, v, same, tall } = zoomPlan(z), zz = tall ? 128 / (n * 8) : frameZoom(F.w, F.h) ?? z;
     if (same) return;
     sandSnapshot();
-    grains = next; l.n = n;
+    l.n = n;
     l.frozen = l.frozen?.map((f) => ({ ...f, x: f.x + dx, y: f.y + dy })).filter((f) => f.x >= 0 && f.y >= 0 && f.x + f.w <= F.w && f.y + f.h <= F.h);
     if (!l.frozen?.length) delete l.frozen;
     selIce = null;
-    if (lost) {
-        pictureChanged();
-        toast(`Phóng hạt ${zz.toFixed(2)}×: cắt ${lost} hạt tràn ra ngoài khung · cần sinh lại tổ`);
-        return;
-    }
-    commitGrains();
-    delete l.moves;
-    nestsChanged();
-    toast(`Phóng hạt ${zz.toFixed(2)}× · ${tall ? 'tranh cuộn' : 'khung'} ${F.w}×${F.h} · giữ nguyên ${count.toLocaleString('vi-VN')} hạt`);
+    showView(v, `Phóng hạt ${zz.toFixed(2)}× · ${tall ? 'tranh cuộn' : 'khung'} ${F.w}×${F.h}`);
 }
 
 /** Scroll painting: picture rows the frame shows at the start (the frame less the glass roller
@@ -445,29 +468,13 @@ function setHeight(h: number) {
     // the frame of the level's grain zoom (its picture is that wide); at least its height
     h = Math.max(F.h, h);
     if (h === oldH || w !== F.w) return;
-    const dy = h - oldH, next = new Array<string>(w * h).fill('.');
-    let lost = 0;
-    for (let p = 0; p < w * oldH; p++) {
-        if (grains[p] === '.') continue;
-        const x = p % w, y = ((p / w) | 0) + dy;
-        if (y < 0) { lost++; continue; }
-        next[y * w + x] = grains[p];
-    }
+    // the bottom stays: the picture's top moves up (new rows) or down (rows hidden, not cut)
+    const dy = h - oldH, whole = wholePicture(), v = frameView(whole, whole.x, whole.y - dy, w, h);
     sandSnapshot();
-    grains = next;
-    l.sand = encodeSand(h, next, w);
     l.frozen = l.frozen?.map((f) => ({ ...f, y: f.y + dy })).filter((f) => f.y >= 0);
     if (!l.frozen?.length) delete l.frozen;
     selIce = null;
-    if (lost) {
-        pictureChanged();
-        toast(`Cắt ${lost.toLocaleString('vi-VN')} hạt ở phía trên tranh · cần sinh lại tổ`);
-        return;
-    }
-    commitGrains();
-    delete l.moves;
-    nestsChanged();
-    toast(h > F.h ? `Tranh cuộn: cao ${h} hạt, lúc đầu thấy ${viewRows()} hàng dưới cùng` : 'Tranh vừa khung: không cuộn');
+    showView(v, h > F.h ? `Tranh cuộn: cao ${h} hạt, lúc đầu thấy ${viewRows()} hàng dưới cùng` : 'Tranh vừa khung: không cuộn');
 }
 
 /** The colour a drag carries: a Bank colour or an Active Palette colour. */
@@ -962,6 +969,10 @@ function renderSandInfo() {
     if (!a.total) notes.push(['err', 'Tranh chưa có cát: tạo từ ảnh hoặc vẽ.']);
     if (nColours > 12) notes.push(['warn', `${nColours} màu: nhiều màu làm băng chuyền dễ đầy. Nên ≤ 12.`]);
     if (a.total > 420) notes.push(['warn', `${a.total} khối: tranh rất lớn, chơi lâu và khó tìm tổ giải được.`]);
+    if (l.full) {
+        const whole = wholePicture(), hid = frameView(whole, whole.x, whole.y, dims().w, dims().h).hidden;
+        if (hid) notes.push(['ok', `${hid.toLocaleString('vi-VN')} hạt đang ẩn ngoài khung: dời tranh hoặc đổi phóng hạt để hiện lại. Game chỉ chơi phần trong khung.`]);
+    }
     if (a.total) notes.push(l.verified ? ['ok', '✓ Tổ hiện tại đã thắng 2 lần (bot).'] : ['warn', l.verified === false ? 'Đã sửa sau lần kiểm tra: chạy lại “Tự sinh tổ kiến”.' : 'Chưa kiểm tra: chạy “Tự sinh tổ kiến” để có tổ giải được.']);
     v.className = 'edit-validation ' + (notes.some(([t]) => t === 'err') ? 'err' : notes.some(([t]) => t === 'warn') ? 'warn' : 'ok');
     $('sand-notes').innerHTML = notes.map(([t, m]) => `<div class="${t}">${m}</div>`).join('');
@@ -1518,6 +1529,8 @@ function applyGen() {
     sandSnapshot();
     const l = L();
     l.n = FRAME_N; grains = genResult.slice();
+    // a new picture: nothing hidden outside the frame
+    delete l.full;
     // a scroll painting from a long image: frozen areas past its new height go
     const h = grains.length / frameGrains(FRAME_N).w;
     l.frozen = l.frozen?.filter((f) => f.y + f.h <= h);
