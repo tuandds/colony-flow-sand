@@ -363,6 +363,8 @@
       <option value="5,8">Khó · 10–16</option><option value="6,9">Rất khó · 12–18</option></select></div>
     <div class="setting-row"><label for="s-zoom">Phóng to hạt</label><input type="range" id="s-zoom" min="1" max="2" step="0.05" /><b class="setting-val" id="s-zoom-v" style="min-width:150px"></b></div>
     <div class="hint">Phóng to hạt làm tranh to ra mà không thêm hạt: mỗi hạt to hơn, khung chứa ít hạt hơn. Tranh được đặt giữa khung; cát tràn ra ngoài bị cắt. Tạo tranh từ ảnh đưa màn về 1×.</div>
+    <div class="setting-row"><label for="s-height">Tranh cuộn (cao)</label><input type="range" id="s-height" min="128" max="384" step="8" /><b class="setting-val" id="s-height-v" style="min-width:150px"></b></div>
+    <div class="hint">Scroll painting: tranh cao hơn khung. Lúc đầu chỉ thấy phần dưới (trên vạch cam nét đứt); phần trên ẩn và tụt xuống dần khi cát ở dưới được quét hết. Thêm chiều cao giữ nguyên đáy tranh, thêm khoảng trống ở trên. Chỉ dùng với hạt 1×.</div>
     <div class="setting-row"><label for="s-status">Trạng thái</label><select id="s-status"><option>WIP</option><option>REVIEW</option><option>LIVE</option></select></div>
     <div class="wip-head"><label for="comment">WIP Comment</label><span class="wip-pill">WIP</span><span class="spacer"></span><span class="hint" style="margin:0" id="comment-count">0/500</span></div>
     <textarea id="comment" maxlength="500" placeholder="Ghi chú cho màn đang làm: góp ý, việc cần làm, cần chỉnh gì trước khi LIVE…"></textarea>
@@ -494,6 +496,7 @@
         <div class="setting-row"><label for="g-smooth">Làm mịn vệt</label><input type="range" id="g-smooth" min="0" max="4" step="1" /><span class="setting-val" id="g-smooth-v"></span></div>
         <div class="setting-row"><label for="g-fit">Đặt ảnh vào khung</label><select id="g-fit"><option value="contain">Vừa khung (giữ cả ảnh)</option><option value="cover">Lấp đầy khung (cắt bớt)</option></select></div>
         <div class="setting-row"><label>Vị trí trong khung</label><span class="move-pad"><button class="btn" id="g-left" title="Sang trái 1 ô">←</button><button class="btn" id="g-up" title="Lên 1 ô">↑</button><button class="btn" id="g-down" title="Xuống 1 ô">↓</button><button class="btn" id="g-right" title="Sang phải 1 ô">→</button><button class="btn" id="g-center" title="Về giữa">⊙</button></span><span class="move-v" id="g-move-v">giữa</span></div>
+        <div class="setting-row"><label for="g-scroll">Tranh cuộn (ảnh dài)</label><input type="checkbox" id="g-scroll" /><span class="setting-val" id="g-scroll-v" style="min-width:0"></span></div>
         <div class="setting-row"><label for="g-outline">Thêm viền tối</label><input type="checkbox" id="g-outline" /></div>
         <div class="setting-row"><label for="g-active">Chỉ dùng Active Palette</label><input type="checkbox" id="g-active" /></div>
         <div class="hint">Mỗi hạt cát lấy màu gần nhất (theo mắt người, CIELAB) trong bảng màu có sẵn. Quá số màu thì màu ít hạt nhất được gộp vào màu gần nó. Đốm cát rời quá nhỏ (tự rơi khi chơi) được bỏ. Dời tranh bằng các nút mũi tên (1 ô mỗi lần) hoặc kéo trên hình xem trước; cát không bao giờ ra khỏi khung.</div>

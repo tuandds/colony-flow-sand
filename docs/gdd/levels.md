@@ -1,8 +1,8 @@
-# 4. Levels
+# 6. Levels
 
-Fifteen pictures of 136 × 128-grain frames (grains of about 6 px); the game plays them from `src/game/level-edits.json` in the order below, named `level_1` to `level_15` in the game and in the Level Editor, whatever name a saved or imported copy carries (`GAME_ORDER` in `src/game/levels.ts`).
+Sixteen pictures of 136 × 128-grain frames (grains of about 6 px); the game plays them from `src/game/level-edits.json` in the order below, named `level_1` to `level_16` in the game and in the Level Editor, whatever name a saved or imported copy carries (`GAME_ORDER` in `src/game/levels.ts`).
 
-- **The game has 15 levels** (`GAME_ORDER` in `src/game/levels.ts`), in the order of colony-flow-levels (15).json: the cherries; four full-frame scenes with zoomed grains (levels 2–5); then full-frame scenes (levels 6–15). The small one-subject pictures (`builtin-1`, `builtin-16` to `builtin-19`: ice cream, chick, clownfish, octopus, ladybug) are no longer in the game; a browser's Level Bank keeps its own copies. Levels with ids `builtin-10` to `builtin-19` exist only in `level-edits.json`.
+- **The game has 16 levels** (`GAME_ORDER` in `src/game/levels.ts`), in the order of colony-flow-levels (15).json: the cherries; four full-frame scenes with zoomed grains (levels 2–5); then full-frame scenes (levels 6–15). The small one-subject pictures (`builtin-1`, `builtin-16` to `builtin-19`: ice cream, chick, clownfish, octopus, ladybug) are no longer in the game; a browser's Level Bank keeps its own copies. Levels with ids `builtin-10` to `builtin-19` exist only in `level-edits.json`.
 
 The game builds every level's nests (the hand-set ones were dropped when the grains grew, since the pictures' blocks changed; make new ones with **Tự sinh tổ kiến**). Difficulty rises through picture size, number of colours and nest size (`chunk`, in blocks before the ×2 nest scale). Not yet checked with the test bot.
 
@@ -23,6 +23,7 @@ The game builds every level's nests (the hand-set ones were dropped when the gra
 | 13 | Cottage with garden | 16,998 | 268 | white, pink, olivegreen, black | 4–7 | rows | — |
 | 14 | Toucan | 16,998 | 269 | yellowgreen, lightorange, cyan, navy, lightyellow | 5–8 | rows, seed 6 | — |
 | 15 | Black cat peeking | 16,998 | 268 | yellow, cyan, black, white, olivegreen, yellowgreen | 5–8 | onion | — |
+| 16 | Jack-o'-lantern pumpkin | 10,000 | 157 | navy, orangered, green | 4–6 | rows | ×1.31 |
 
 ## Design rules
 

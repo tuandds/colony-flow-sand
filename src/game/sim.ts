@@ -65,6 +65,31 @@ const GRAVITY = 0.09, MAX_FALL = 3.5, FRICTION = 0.82;
 const SMALL_ISLAND = 40, THIN_ISLAND = 4;
 /** The swipe frees sand within BRUSH_R px of the finger (it was 1.1 cells of 35 px). */
 const BRUSH_R = 38.5, BRUSH_STEP = 14;
+/** Scroll painting: the limit line lies SCROLL_GAP grains above the board's bottom, and the
+ * picture slides down onto it at SCROLL_RATE grain rows a second. */
+export const SCROLL_GAP = 10;
+/** Scroll painting: a glass roller covers the frame's top SCROLL_STRIP grain rows (and its rounded
+ * corners); the picture shows from under it, and the roller shows the colours hidden above. */
+export const SCROLL_STRIP = 11;
+const SCROLL_RATE = 45;
+/** The picture waits this long (s) once nothing rests on the line, so freshly freed sand falls away first. */
+const SCROLL_WAIT = 0.2;
+
+/**
+ * A scroll painting: a picture taller than the frame. Its bottom rests on the limit line (`line`,
+ * a grid row: fixed sand stays above it) and the rest is hidden above the frame. Picture grain
+ * (px, py) is at grid (px + x0, py + y0); a column shows from its first open row (`open`, under
+ * the frame's rounded top corners) down, and the picture's grains above it wait in `pic`.
+ */
+export interface Scroll {
+    /** The whole picture: a key index and a packed colour per grain, w x h. */
+    pic: Uint8Array; rgb: Uint32Array; w: number; h: number;
+    x0: number; y0: number; line: number;
+    /** Per grid column: its first row inside the frame, and the picture grains still above it. */
+    open: Int16Array; hidden: Int32Array;
+    /** Seconds nothing has rested on the line, rows of slide owed (SCROLL_RATE a second), and rows slid so far. */
+    wait: number; carry: number; slid: number;
+}
 
 export class Sim {
     levelIndex: number;
@@ -89,6 +114,10 @@ export class Sim {
     /** The level's frozen areas, in grid cells (x0..x1, y0..y1 inclusive), with the count left;
      * `broke` is set (to the game time) when the count reaches 0. */
     frozen: { def: Frozen; x0: number; y0: number; x1: number; y1: number; count: number; cells: number[]; broke: number | null }[] = [];
+    /** A scroll painting's state (see Scroll); null for a picture that fits the frame. */
+    scroll: Scroll | null = null;
+    /** Where the picture's grain (0, 0) is in the grid (it moves down as a scroll painting slides). */
+    private picX0 = 0; private picY0 = 0;
     colors: Record<string, string> = {};
     total = 0; drained = 0;
     /** Grains still on the board (the picture frame); 0 once all its sand has fallen. */
@@ -156,41 +185,53 @@ export class Sim {
         // frame is cut off).
         const grains = wide ? wide.keys : null;
         const SH = wide ? wide.h : L.n * SUB, SW = wide ? wide.w : SH;
-        const x0 = Math.floor((G - SW) / 2), y0 = top + Math.floor((PG - SH) / 2);
-        for (let gy = 0; gy < SH; gy++) for (let gx = 0; gx < SW; gx++) {
-            const k = grains ? grains[gy * SW + gx] : L.grid[(gy / SUB) | 0][(gx / SUB) | 0];
-            const x = gx + x0, y = gy + y0;
-            if (k && k !== '.' && x >= 0 && x < G && y >= top && y < top + PG) key[y * G + x] = Math.max(0, keys.indexOf(k));
-        }
+        // a picture taller than the frame is a scroll painting: its bottom rests on the limit line
+        const tall = !!wide && zoom === 1 && SH > PG, line = G - SCROLL_GAP;
+        const x0 = Math.floor((G - SW) / 2), y0 = tall ? line - SH : top + Math.floor((PG - SH) / 2);
+        this.picX0 = x0; this.picY0 = y0;
         // the frame's corners are rounded: sand there is cut off, and they stay empty; the funnel
         // under the board curves in to the hole
         const wall = (this.wall = new Uint8Array(G * GH));
-        for (let y = top; y < G; y++) for (let x = 0; x < G; x++) {
-            if (!grainInFrame(x, y - top, nF)) { wall[y * G + x] = 1; key[y * G + x] = 0; }
+        for (let y = top; y < G; y++) for (let x = 0; x < G; x++) if (!grainInFrame(x, y - top, nF)) wall[y * G + x] = 1;
+        // each column's first row inside the frame (under its rounded top corners)
+        const open = new Int16Array(G).fill(G);
+        for (let x = 0; x < G; x++) for (let y = top; y < G; y++) if (!wall[y * G + x]) { open[x] = y; break; }
+        // a scroll painting shows from under the roller at the frame's top
+        if (tall) for (let x = 0; x < G; x++) open[x] = Math.max(open[x], top + SCROLL_STRIP);
+        const pic = tall ? new Uint8Array(SW * SH) : null, picRgb = tall ? new Uint32Array(SW * SH) : null, hidden = new Int32Array(G);
+        for (let gy = 0; gy < SH; gy++) for (let gx = 0; gx < SW; gx++) {
+            const k = grains ? grains[gy * SW + gx] : L.grid[(gy / SUB) | 0][(gx / SUB) | 0];
+            if (!k || k === '.') continue;
+            const x = gx + x0, y = gy + y0, ki = Math.max(0, keys.indexOf(k));
+            if (pic && picRgb) {
+                // a scroll painting's colours are fixed to the picture, so they slide with it
+                pic[gy * SW + gx] = ki; picRgb[gy * SW + gx] = packColor(L.colors[k], (hash(gx, gy, 7) - 0.5) * 0.16);
+                if (x < 0 || x >= G) continue;
+                if (y < open[x]) { hidden[x]++; continue; }
+            }
+            if (x >= 0 && x < G && y >= top && y < top + PG && !wall[y * G + x]) key[y * G + x] = ki;
         }
+        this.scroll = pic && picRgb ? { pic, rgb: picRgb, w: SW, h: SH, x0, y0, line, open, hidden, wait: 0, carry: 0, slid: 0 } : null;
         for (let y = G; y < GH; y++) for (let x = 0; x < G; x++) {
             if (Math.abs(INNER.x + (x + 0.5) * gsx - MOUTH.x) > funnelHalf(oy + (y + 0.5) * gs)) wall[y * G + x] = 1;
         }
         // frozen areas: their cells are marked as ice; empty ones also act as walls until it breaks
-        const ice = (this.ice = new Uint8Array(G * GH));
+        this.ice = new Uint8Array(G * GH);
         this.frozen = (L.frozen ?? []).map((f0) => {
             const f = wide ? wide.frozen(f0) : f0;
-            const cells: number[] = [], fx0 = f.x + x0, fy0 = f.y + y0, cx = fx0 + f.w / 2, cy = fy0 + f.h / 2;
-            for (let y = fy0; y < fy0 + f.h; y++) for (let x = fx0; x < fx0 + f.w; x++) {
-                if (x < 0 || y < 0 || x >= G || y >= G) continue;
-                if (f.shape === 'circle' && ((x + 0.5 - cx) / (f.w / 2)) ** 2 + ((y + 0.5 - cy) / (f.h / 2)) ** 2 > 1) continue;
-                const p = y * G + x;
-                if (wall[p]) continue;
-                ice[p] = 1; cells.push(p);
-            }
-            return { def: f, x0: fx0, y0: fy0, x1: fx0 + f.w - 1, y1: fy0 + f.h - 1, count: Math.max(1, f.count), cells, broke: null };
+            return { def: f, x0: 0, y0: 0, x1: 0, y1: 0, count: Math.max(1, f.count), cells: [], broke: null };
         });
+        this.key = key;
+        this.placeIce();
         for (let p = 0; p < key.length; p++) {
-            if (key[p]) rgb[p] = packColor(L.colors[keys[key[p]]!], (hash(p % G, (p / G) | 0, 7) - 0.5) * 0.16);
+            if (!key[p]) continue;
+            const S = this.scroll, x = p % G, y = (p / G) | 0;
+            rgb[p] = S ? S.rgb[(y - S.y0) * S.w + x - S.x0] : packColor(L.colors[keys[key[p]]!], (hash(x, y, 7) - 0.5) * 0.16);
         }
         let total = 0;
         this.toGo = new Array(keys.length).fill(0);
-        for (const v of key) if (v) { total++; this.toGo[v]++; }
+        // a scroll painting counts its hidden part too
+        for (const v of this.scroll ? this.scroll.pic : key) if (v) { total++; this.toGo[v]++; }
 
         this.key = key; this.rgb = rgb;
         this.loose = new Uint8Array(G * GH);
@@ -203,7 +244,16 @@ export class Sim {
         this.hopper = {}; this.pipe = []; this.dropping = [];
         this.slots = new Array(RULES.slots).fill(null); this.beltOff = 0; this.slotGap = BELT_LEN / RULES.slots; this.physT = 0; this.dropCool = 0;
         this.ncols = Math.max(MIN_COLS, Math.min(MAX_COLS, L.cols ?? COLS));
-        this.cols = this.makeNests(i, L, key, keys);
+        // a scroll painting's nests are worked out on the whole picture (each column of it in its
+        // grid column, one row a picture row)
+        if (this.scroll) {
+            const S = this.scroll, all = new Uint8Array(G * S.h);
+            for (let py = 0; py < S.h; py++) for (let px = 0; px < S.w; px++) {
+                const x = px + S.x0;
+                if (x >= 0 && x < G) all[py * G + x] = S.pic[py * S.w + px];
+            }
+            this.cols = this.makeNests(i, L, all, keys, S.h);
+        } else this.cols = this.makeNests(i, L, key, keys);
         this.ants = []; this.fx = []; this.flyers = [];
         this.simT = 0; this.simFlip = 0; this.sweepT = 0; this.stuckT = 0;
         this.state = 'play'; this.endT = 0; this.time = 0;
@@ -216,7 +266,7 @@ export class Sim {
     //  'onion' - the player digs from the outside in, so peel by distance to empty space.
     // Each level picks the order and a seed that a test player could actually solve
     // (nests never change column, so a bad order can leave a needed colour stuck).
-    private makeNests(i: number, L: Level, key: Uint8Array, keys: (string | null)[]): Nest[][] {
+    private makeNests(i: number, L: Level, key: Uint8Array, keys: (string | null)[], rows = this.G): Nest[][] {
         const G = this.G;
         const orderMode = levelOverride.order || L.order || 'rows', seed = levelOverride.seed ?? L.seed ?? 0;
         const rng = mulberry32(1234 + (L.salt ?? i) * 977 + seed * 7919);
@@ -224,7 +274,7 @@ export class Sim {
         const order: number[] = [];
         if (orderMode === 'onion') {
             // the board only: its bottom edge is not open to the funnel for this estimate
-            const N = G * G, dist = new Int32Array(N).fill(-1), bfs: number[] = [];
+            const N = G * rows, dist = new Int32Array(N).fill(-1), bfs: number[] = [];
             for (let p = 0; p < N; p++) if (!key[p]) { dist[p] = 0; bfs.push(p); }
             for (let h = 0; h < bfs.length; h++) {
                 const p = bfs[h], x = p % G;
@@ -308,6 +358,101 @@ export class Sim {
     }
 
     // ---------- frozen areas ----------
+    /** Mark the cells under each unbroken frozen area as ice, where the picture now lies (a
+     * scroll painting moves them down as it slides); cells still hidden above the frame wait. */
+    private placeIce() {
+        const { G, wall, ice } = this, S = this.scroll;
+        ice.fill(0, 0, G * G);
+        for (const z of this.frozen) {
+            const f = z.def, fx0 = f.x + this.picX0, fy0 = f.y + this.picY0, cx = fx0 + f.w / 2, cy = fy0 + f.h / 2;
+            z.x0 = fx0; z.y0 = fy0; z.x1 = fx0 + f.w - 1; z.y1 = fy0 + f.h - 1; z.cells = [];
+            if (z.broke !== null) continue;
+            for (let y = fy0; y < fy0 + f.h; y++) for (let x = fx0; x < fx0 + f.w; x++) {
+                if (x < 0 || y < 0 || x >= G || y >= G) continue;
+                if (S && y < S.open[x]) continue;
+                if (f.shape === 'circle' && ((x + 0.5 - cx) / (f.w / 2)) ** 2 + ((y + 0.5 - cy) / (f.h / 2)) ** 2 > 1) continue;
+                const p = y * G + x;
+                if (wall[p]) continue;
+                ice[p] = 1; z.cells.push(p);
+            }
+        }
+    }
+    /** The colour of grid cell (x, y): its grain, or on a scroll painting the picture's grain still
+     * hidden there (0 when there is none). */
+    colorAt(x: number, y: number) {
+        const p = y * this.G + x, S = this.scroll;
+        if (y >= 0 && this.key[p]) return this.rgb[p];
+        if (!S) return 0;
+        const px = x - S.x0, py = y - S.y0;
+        return px >= 0 && py >= 0 && px < S.w && py < S.h && S.pic[py * S.w + px] ? S.rgb[py * S.w + px] : 0;
+    }
+
+    // ---------- scroll painting ----------
+    /** The picture may slide down when none of its fixed sand rests on the limit line, nor on loose
+     * sand piled up under it (it waits for the pile to drain), and some of it is left (on the
+     * board or still hidden). */
+    private canSlide() {
+        const S = this.scroll, { G, key, loose } = this;
+        if (!S || this.fixed <= 0) return false;
+        const row = (S.line - 1) * G;
+        for (let x = 0; x < G; x++) if (key[row + x] && !loose[row + x]) return false;
+        for (let x = 0; x < G; x++) {
+            for (let y = S.line - 2; y >= S.open[x]; y--) {
+                const p = y * G + x;
+                if (!key[p] || loose[p]) continue;
+                if (key[p + G]) return false;
+                break;
+            }
+        }
+        return true;
+    }
+    private stepScroll(dt: number) {
+        const S = this.scroll;
+        if (!S) return;
+        if (!this.canSlide()) { S.wait = 0; S.carry = 0; return; }
+        if ((S.wait += dt) < SCROLL_WAIT) return;
+        S.carry += dt * SCROLL_RATE;
+        while (S.carry >= 1 && this.canSlide()) { S.carry--; this.slideRow(); }
+    }
+    /** The picture's fixed sand moves down one row; loose sand in the way goes up past it, and
+     * each column takes the next hidden grain into its first open row. */
+    private slideRow() {
+        const S = this.scroll!, { G, GH, key, rgb, loose, vx, vy, seq, stepOf, wall, ice } = this;
+        const swap = (a: number, b: number) => {
+            let t: number;
+            t = key[a]; key[a] = key[b]; key[b] = t; t = rgb[a]; rgb[a] = rgb[b]; rgb[b] = t;
+            t = loose[a]; loose[a] = loose[b]; loose[b] = t; t = vx[a]; vx[a] = vx[b]; vx[b] = t;
+            t = vy[a]; vy[a] = vy[b]; vy[b] = t; t = seq[a]; seq[a] = seq[b]; seq[b] = t;
+            t = stepOf[a]; stepOf[a] = stepOf[b]; stepOf[b] = t;
+        };
+        S.y0++; S.slid++; this.picY0++;
+        for (let x = 0; x < G; x++) {
+            const o = S.open[x];
+            if (o >= S.line) continue;
+            for (let y = S.line - 2; y >= o; y--) {
+                const p = y * G + x;
+                if (!key[p] || loose[p]) continue;
+                // a grain that would go into the frame's rim falls off instead
+                if (wall[p + G]) { loose[p] = 1; this.fixed--; continue; }
+                // loose sand just under it is pushed on down (it is falling anyway); only when
+                // there is no room under it does it go up past the grain
+                const q = p + G, r = q + G;
+                if (key[q] && r < G * GH && !key[r] && !wall[r] && !ice[r]) swap(q, r);
+                swap(p, q);
+            }
+            const px = x - S.x0, py = o - S.y0;
+            if (px < 0 || py < 0 || px >= S.w || py >= S.h || !S.pic[py * S.w + px]) continue;
+            let p = o * G + x;
+            // loose sand in the entry cell is lifted out of the way
+            if (key[p]) { let r = p - G; while (r >= 0 && key[r]) r -= G; if (r >= 0) swap(p, r); }
+            p = o * G + x;
+            key[p] = S.pic[py * S.w + px]; rgb[p] = S.rgb[py * S.w + px]; loose[p] = 0; vx[p] = 0; vy[p] = 0;
+            S.hidden[x]--;
+        }
+        if (this.frozen.length) this.placeIce();
+        this.picDirty = true;
+    }
+
     /** A nest was removed: every frozen area counts down, and breaks at 0. */
     private nestRemoved() {
         for (const f of this.frozen) {
@@ -457,6 +602,9 @@ export class Sim {
             }
             let x0 = G, x1 = 0, y0 = G, y1 = 0;
             for (const p of comp) { const x = p % G, y = (p / G) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+            // on a scroll painting, sand at a column's top still joins the picture hidden above it
+            const S = this.scroll;
+            if (S && comp.some((p) => { const x = p % G; return ((p / G) | 0) === S.open[x] && S.hidden[x] > 0; })) continue;
             if (comp.length <= this.smallIsland || Math.min(x1 - x0, y1 - y0) < this.thinIsland) {
                 for (const p of comp) loose[p] = 1;
                 this.fixed -= comp.length;
@@ -927,6 +1075,7 @@ export class Sim {
     update(dt: number) {
         this.time += dt;
         this.stepSand(dt);
+        this.stepScroll(dt);
         this.stepBelt(dt);
         this.stepNests(dt);
         this.stepAnts(dt);

@@ -62,11 +62,13 @@ export interface ConvertOpts {
     fit: 'contain' | 'cover';
     /** Colours to choose from (the Active Palette); every bank colour when empty. */
     keys?: string[];
+    /** A scroll painting: the picture is this many grains tall (taller than the frame), as wide as it. */
+    h?: number;
 }
 
 /** Turn an image into sand: nearest palette colour per grain, few colours, no loose specks. */
 export function imageToSand(img: HTMLImageElement, o: ConvertOpts): string[] {
-    const { w: FW, h: FH } = frameGrains(o.n), m = o.outline ? RIM : 0, iw = FW - 2 * m, ih = FH - 2 * m;
+    const F = frameGrains(o.n), FW = F.w, FH = o.h ?? F.h, m = o.outline ? RIM : 0, iw = FW - 2 * m, ih = FH - 2 * m;
     const cv = document.createElement('canvas');
     cv.width = iw; cv.height = ih;
     const cx = cv.getContext('2d', { willReadFrequently: true })!;

@@ -69,3 +69,12 @@
     box-shadow: none;
     border-radius: 0;
 }
+
+/* Tutorial steps: their wireframes side by side in one cell, each with its step under it. */
+.vp-doc table.gdd-table td img.gdd-wf {
+    display: inline-block;
+    width: calc(33.3% - 6px);
+    min-width: 96px;
+    margin: 0 3px 6px;
+    vertical-align: top;
+}

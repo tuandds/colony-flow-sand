@@ -85,7 +85,7 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <td><img src="./img/frozen.png" alt="A Frozen area on level_6, counting 20" /></td>
 <td>
 <h3 id="obstacle-frozen">Obstacle: Frozen <Badge type="tip" text="Live" /></h3>
-<p>A patch of the picture locked under a sheet of ice, with a number on it.</p>
+<p>A patch of the picture locked under a sheet of ice, with a number on it. Its full design (unlock level, crack animation, level rules) is in <a href="./obstacles#frozen">Obstacles</a>; this is how the prototype does it.</p>
 <ul>
 <li><b>Shape:</b> a square/rectangle or a circle/ellipse, placed in picture grains (<code>frozen</code> in the level: <code>shape</code> <code>rect</code> or <code>circle</code>, <code>x</code>, <code>y</code>, <code>w</code>, <code>h</code>, <code>count</code>). A level may have several.</li>
 <li><b>Locked:</b> the sand under the ice cannot be swept and never comes loose by itself (small islands next to it still do). Falling sand cannot enter it, so loose sand piles up on top of it.</li>
@@ -94,6 +94,20 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <li><b>Look:</b> clear blue ice: the picture under it shows through, softened and tinted blue, so its pattern and colours can still be made out. It is cracked into pale cells, glows white along the inside of its edge and softly round its outside; a dark number with a white outline in the middle.</li>
 <li><b>Level Editor:</b> the ❄️ tool (<code>F</code>) draws, moves and resizes areas on the picture; the Frozen section sets each one's shape, count and size, or deletes it (see the <a href="../guide/level-editor">Level Editor guide</a>). Areas show on the Sand Editor as a dashed outline with ❄ and the count.</li>
 <li><b>In the levels:</b> none at the moment (the picture shows how it looked on level_6, where it was first tried).</li>
+</ul>
+</td>
+</tr>
+<tr>
+<td><img src="./img/scroll-painting.png" alt="A scroll painting sliding down under the glass roller" /></td>
+<td>
+<h3 id="obstacle-scroll-painting">Obstacle: Scroll painting <Badge type="tip" text="Live" /></h3>
+<p>A picture taller than the frame (full design in <a href="./obstacles#scroll-painting">Obstacles</a>).</p>
+<ul>
+<li><b>Start:</b> the picture's bottom rests on a dashed limit line 10 grains above the board's bottom; the frame shows its bottom 107 rows and the rest waits above.</li>
+<li><b>Glass roller:</b> across the frame's top (11 grain rows): it shows the hidden colours just above as soft pale patches, and its two ridged end caps turn as the picture slides.</li>
+<li><b>Slide:</b> once no fixed sand rests on the line (and no loose sand is piled up under the picture), the whole picture slides down after 0.2 s, at 45 grain rows a second, until its lowest grain touches the line again.</li>
+<li><b>Counting:</b> nests, the win and the automatic x2 count the hidden sand too; Frozen areas slide with the picture.</li>
+<li><b>In the levels:</b> none yet. Made in the Level Editor with <b>Tranh cuộn (cao)</b> or from a long image.</li>
 </ul>
 </td>
 </tr></tbody>
@@ -160,7 +174,7 @@ Every change to the game, build by build, is in the [Changelog](./changelog). Si
 <ul>
 <li><b>Settings button</b> (top left): the pause panel: close (resume), music, sound and vibration switches (kept in the browser), Restart, Home, and a cheat to jump to any level. Vibration buzzes when a nest fills, on a win and on a loss.</li>
 <li><b>Level title:</b> "Level N".</li>
-<li><b>Boosters:</b> a row of three 126 px buttons under the title, each with 1 use per level on a red badge (a green plus when none are left). They unlock one by one: Activate at level 3, Shuffle at level 6, Fan at level 9; before that the button is grey with a padlock and its level, and tapping it shows "Unlocks at Level N".</li>
+<li><b>Boosters:</b> a row of three 126 px buttons under the title, each with 1 use per level on a red badge (a green plus when none are left). They unlock one by one: Activate at level 6, Shuffle at level 12, Fan at level 18 (past the 15 levels the game has now, so Fan stays locked); before that the button is grey with a padlock and its level, and tapping it shows "Unlocks at Level N".</li>
 <li><b>x2:</b> double speed. Once all the picture's sand is swept (none of it is left fixed, though some may still be falling), x2 turns on by itself and the button hides until the next level.</li>
 </ul>
 <p><b>Boosters:</b></p>

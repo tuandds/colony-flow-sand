@@ -41,15 +41,17 @@ export default defineConfig({
                         { text: '1. Core gameplay', link: '/gdd/core-gameplay' },
                         { text: '2. User Flow & UI', link: '/gdd/user-flow-ui' },
                         { text: '3. Booster', link: '/gdd/booster' },
-                        { text: '4. Levels', link: '/gdd/levels' },
-                        { text: '5. Level design rules', link: '/gdd/level-design' }
+                        { text: '4. Obstacles', link: '/gdd/obstacles' },
+                        { text: '5. FTUE & Tutorial', link: '/gdd/ftue-tutorial' },
+                        { text: '6. Levels', link: '/gdd/levels' },
+                        { text: '7. Level design rules', link: '/gdd/level-design' }
                     ]
                 },
                 {
                     text: 'II. Production',
                     items: [
-                        { text: '6. Roadmap & open questions', link: '/gdd/roadmap' },
-                        { text: '7. Changelog', link: '/gdd/changelog' }
+                        { text: '8. Roadmap & open questions', link: '/gdd/roadmap' },
+                        { text: '9. Changelog', link: '/gdd/changelog' }
                     ]
                 }
             ],

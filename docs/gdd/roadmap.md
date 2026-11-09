@@ -1,4 +1,4 @@
-# 6. Roadmap & open questions
+# 8. Roadmap & open questions
 
 ## 6.1 What exists today <Badge type="tip" text="Live" />
 

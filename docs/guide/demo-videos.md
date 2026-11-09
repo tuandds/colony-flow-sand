@@ -15,10 +15,14 @@ Add `?demo=<reel>` to the game's address, for example [demo/?demo=drops30](https
 | `zigzag30` | 30 s | 3, 6, 9, 1 | Mostly zigzags down to the bottom, with up, down and diagonal strokes |
 | `diagonals30` | 30 s | 4, 10, 2, 7 | Mostly diagonals down from the left and from the right, with sweeps and rises |
 | `rises30` | 30 s | 5, 8, 3, 6 | Mostly up from the bottom, with sweeps, drops and zigzags |
-| `mix60` | 60 s | 1, 3, 5, 7, 9, 2, 4, 6 | Every kind of stroke in turn |
+| `mix60` | 60 s | 1, 13, 15, 7, 3, 12, 14, 6 | Every kind of stroke in turn, shapes included |
 | `tour60` | 60 s | All ten, from 10 down to 1 | Every kind of stroke, in a different turn from `mix60` |
 
-The kinds of stroke are: down from the middle to the bottom, diagonally down to the bottom from the left or from the right, up from the bottom, along the bottom left to right or right to left, and a zigzag down to the bottom. Every stroke reaches the bottom of the sand under it, so the sand it frees runs out at once. Each one is placed over the sand the front nests want, and the hand waits while the conveyor is busy. A shot stops swiping with about a third of its picture left.
+The kinds of stroke are: down from the middle to the bottom, diagonally down to the bottom from the left or from the right, up from the bottom, along the bottom left to right or right to left, a zigzag down to the bottom, and shapes drawn in one stroke: a heart, a circle, a triangle, a spiral, a plus and a five-pointed star (`heart`, `circle`, `triangle`, `spiral`, `plus`, `star`). A shape is about 140 to 230 px across (big enough to read through the brush's width), stands with its lowest point on the sand's bottom edge, and ends with a line down to the bottom, so the sand it frees runs out. Every stroke reaches the bottom of the sand under it, so the sand it frees runs out at once. Each one is placed over the sand the front nests want, and the hand waits while the conveyor is busy. A shot stops swiping with about a third of its picture left.
+
+**Framed close:** add `&close` (for example `?demo=mix60&close&capture`) to zoom the camera in on the board (1.16×): the view starts a little above the picture frame and ends at the bottom of the screen, so the level title, x2 and boosters (hidden) are out of the shot; cuts and the end card fill the screen as usual.
+
+**Other gameplay variants:** add `&variant=2` (or `3`) to record a reel under that variant's rules (for example `?demo=mix60&close&variant=2&capture`). The hand waits for the belt to clear before its next stroke: past 8 blocks in variant 1; in variant 2, whose loose belt empties into the boxes fast, only past 80 of its 100; in variant 3, past 14 of the yard's 36.
 
 A reel does not save progress or change the levels a player has unlocked. Each run differs a little (the strokes are placed at random), so record a few takes, or record frame by frame (below).
 
@@ -32,11 +36,13 @@ Music and sound play as in the game. For a silent clip, turn them off in the pau
 
 ### Frame by frame
 
-Add `&capture` (for example `?demo=drops30&capture`) to record without dropped frames: the reel starts at once (no **Tap to play**), the game loop stops, and each call of `window.__capture.step()` in the page moves the game on exactly 1/30 s, however long drawing takes; `window.__capture.frames` is the reel's frame count. A recorder (for example headless Chrome driven over the DevTools protocol) grabs a 1080 × 1920 screenshot after each step and joins them into a 30 fps video. Such clips have no sound.
+Add `&capture` (for example `?demo=drops30&capture`) to record without dropped frames: the reel starts at once (no **Tap to play**), the game loop stops, and each call of `window.__capture.step()` in the page moves the game on exactly 1/30 s, however long drawing takes; `window.__capture.frames` is the reel's frame count. A recorder (for example headless Chrome driven over the DevTools protocol) grabs a 1080 × 1920 screenshot after each step and joins them into a 30 fps video.
+
+**Sound:** a frame-by-frame run plays no sound, but it logs the sound effects. `window.__capture.sfx` lists each one as `[name, volume, seconds]`, timed on the game clock and thinned out the way the game thins out repeats (one per sound per 60 ms). Cuts fast-forward their level silently, so they add nothing to the log. After the last frame, the recorder reads the list and lays each sound from `public/assets/sfx/` at its time and volume on a silent track, one frame earlier, since the sound is made in the step before the frame that shows it. Sounds that fall under the end card (its last 3 seconds) are left out. The track is then muxed in as AAC. There is no music unless it is added at this stage.
 
 ## Making a reel
 
-The reels are in `DEMO_SCENES` in `src/scenes/demo.ts`. Each has a start level (0-based: level 1 is `0`), a length in seconds (end card included), the kinds of stroke the hand takes in turn (`strokes`: `down`, `diagL`, `diagR`, `up`, `sweepR`, `sweepL`, `zigzag`; a kind listed twice comes twice as often; all of them by default) and a list of steps run in order. If the steps run out before the end card, the hand keeps swiping; if they run long, the end card cuts them off.
+The reels are in `DEMO_SCENES` in `src/scenes/demo.ts`. Each has a start level (0-based: level 1 is `0`), a length in seconds (end card included), the kinds of stroke the hand takes in turn (`strokes`: `down`, `diagL`, `diagR`, `up`, `sweepR`, `sweepL`, `zigzag`, `heart`, `circle`, `triangle`, `spiral`, `plus`, `star`; a kind listed twice comes twice as often; all of them by default) and a list of steps run in order. If the steps run out before the end card, the hand keeps swiping; if they run long, the end card cuts them off.
 
 | Step | What it does |
 |---|---|

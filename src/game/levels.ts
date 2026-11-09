@@ -59,7 +59,8 @@ export interface LevelDef {
 export interface Frozen { shape: 'rect' | 'circle'; x: number; y: number; w: number; h: number; count: number }
 
 /** A sand picture at grain resolution: `size` grains tall and `w` wide (default `size`; the
- * level editor uses the whole frame, see frameGrains), `data` run-length encoded row by row
+ * level editor uses the whole frame, see frameGrains; a picture as wide as the frame and taller
+ * than it is a scroll painting, see Sim.scroll), `data` run-length encoded row by row
  * ('.' = empty, each key followed by its run length when longer than 1). */
 export interface Sand { size: number; w?: number; data: string }
 
@@ -426,9 +427,9 @@ export function builtinDefs(): LevelDef[] {
 }
 
 /** The order the game plays the built-in levels in, by index (`builtin-<i>`): the Level Bank's order,
- * 15 levels. Levels 10 to 19 have no drawing in LEVELS: they live only in src/game/level-edits.json;
+ * 16 levels. Levels 10 to 20 have no drawing in LEVELS: they live only in src/game/level-edits.json;
  * builtin-1, -16, -17, -18 and -19 are no longer in the game. */
-const GAME_ORDER = [0, 12, 10, 11, 13, 14, 3, 4, 6, 15, 5, 7, 8, 9, 2];
+const GAME_ORDER = [0, 12, 10, 11, 13, 14, 3, 4, 6, 15, 5, 7, 8, 9, 2, 20];
 /** The game's level ids, in the order it plays them. */
 export const gameLevelIds = () => GAME_ORDER.map(builtinId);
 

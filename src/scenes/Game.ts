@@ -7,7 +7,7 @@ import {
 } from '../game/layout';
 import { CUSTOM_KEY, PREVIEW_KEY, gameLevels, levelCount, loadCustomLevels, useLevels } from '../game/levels';
 import { type Recording, botStep, pickStroke, playBot, replayStep } from '../game/bot';
-import { FAN_FLIGHT, FAN_SHOT_GAP, Flyer, Sfx, Sim, levelOverride } from '../game/sim';
+import { FAN_FLIGHT, FAN_SHOT_GAP, Flyer, SCROLL_STRIP, Sfx, Sim, levelOverride } from '../game/sim';
 import { GROUND_DEPTH, Item3D, ThreeLayer } from '../game/three-layer';
 import { DEMO_SCENES, Demo } from './demo';
 import { brighten, greyed, lightness, mulberry32 } from '../game/util';
@@ -21,7 +21,7 @@ const VIBES: Partial<Record<Sfx, number | number[]>> = { nest: 25, win: [60, 40,
 /** Uses of each booster (Activate, Shuffle, Fan) at the start of every level. */
 const BOOSTER_USES = [1, 1, 1];
 /** The level (1-based) from which each booster can be used; before it the booster shows locked. */
-const BOOSTER_UNLOCK = [3, 6, 9];
+const BOOSTER_UNLOCK = [6, 12, 18];
 /** Nests waiting behind the front row keep their colour, a little brighter (FAR.light of the way to
  * white, as vivid), and their number fades into it: a white just tinted by the box (its colour
  * mixed FAR.num of the way to white, like white seen a little see-through), stroked with its colour FAR.stroke of the way to black (a near-white box: a
@@ -52,6 +52,10 @@ const GAUGE_COLOURS = [
     { at: 80, c: ['#ffb27a', '#ff7a2e', '#e2570f'] },
     { at: 90, c: ['#ff9a9a', '#ff4d4d', '#d92626'] },
 ];
+/** A reel framed close (?demo=<reel>&close): the camera's zoom, and the world y at the top of its
+ * view (a little room above the picture frame; the view then ends at the bottom of the screen,
+ * 1920 / zoom further down). */
+const CLOSE = { zoom: 1.16, top: 264 };
 /** Variants 2 and 3 draw their blocks glossy (jelly sweets); variant 1's are matte. */
 const SHINY = RULES.looseBelt || RULES.yard;
 /** Direction arrows round a loose belt (variant 2). */
@@ -101,6 +105,11 @@ export class Game extends Phaser.Scene {
     private swiping = false;
     private music?: Phaser.Sound.BaseSound;
     private lastSfx: Record<string, number> = {};
+    /** Recording (capture): the sounds the reel makes, as [name, volume, seconds from its start],
+     * for the recorder to lay on the video; none while a cut fast-forwards a level. */
+    private sfxLog: [string, number, number][] = [];
+    private sfxT0 = 0;
+    private sfxMute = false;
     private prefs: Prefs = (() => {
         try { return { music: true, sound: true, vibe: true, ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') }; } catch { return { music: true, sound: true, vibe: true }; }
     })();
@@ -130,6 +139,8 @@ export class Game extends Phaser.Scene {
     private speedBtn!: Phaser.GameObjects.Image;
     /** The x2 button's image, icon and label, hidden together. */
     private speedParts: Phaser.GameObjects.Components.Visible[] = [];
+    /** A reel framed close (?demo=<reel>&close; see CLOSE). */
+    private close = false;
     private boosters: {
         img: Phaser.GameObjects.Image; base: Phaser.GameObjects.Image; frame: Phaser.GameObjects.Image;
         badge: Phaser.GameObjects.Container; plus: Phaser.GameObjects.Image; count: Phaser.GameObjects.Text; bump: number; uses: number;
@@ -159,6 +170,14 @@ export class Game extends Phaser.Scene {
     private labels: Phaser.GameObjects.Text[] = [];
     /** The ice drawn over each frozen area (same order as sim.frozen), with its count. */
     private ice: { box: Phaser.GameObjects.Container; text: Phaser.GameObjects.Text; count: number; broken: boolean }[] = [];
+    /** Scroll painting: the limit line with its chevrons, the frosted strip at the frame's top that
+     * hints at the colours above it, and the slide it was last drawn for. */
+    private scrollGfx?: Phaser.GameObjects.Graphics;
+    private scrollHint?: Phaser.GameObjects.Image;
+    private scrollGlass?: Phaser.GameObjects.Image;
+    /** The ridges on the roller's two end caps, drawn as they turn (see drawCaps). */
+    private scrollCaps?: Phaser.GameObjects.Graphics;
+    private scrollSlid = -1;
     private overlay: Overlay = null;
     private overlayBox?: Phaser.GameObjects.Container;
 
@@ -231,16 +250,23 @@ export class Game extends Phaser.Scene {
                 // play on in half-second turns, as the test bot does, until the level ends
                 const pending = () => this.sim.slots.filter(Boolean).length + this.sim.pipe.length
                     + Object.values(this.sim.looseByColour()).reduce((a, b) => a + b, 0) / 64;
+                this.sfxMute = true;
                 for (let t = 0; t < sec && this.sim.state === 'play' && !(belt && pending() >= belt); t += 0.5) {
                     const pts = pickStroke(this.sim, mode);
                     if (pts) { this.sim.endSwipe(); for (const [x, y] of pts) this.sim.swipeTo(x, y); this.sim.endSwipe(); }
                     for (let k = 0; k < 30; k++) this.sim.update(1 / 60);
                 }
+                this.sfxMute = false;
             },
             target: (name) => this.demoTarget(name),
             label: (x, y, str, size, color, stroke, thick) => this.text(x, y, str, size, color, stroke, thick),
             busy: () => !!this.fanFx || !!this.shuffleFx || this.picking,
         }, demo);
+        // a reel framed close (&close): the camera zooms in on the board, its view starting a
+        // little above the picture frame, so the HUD (level, x2) is out of the shot; the boosters,
+        // which would peek in at the top, are hidden
+        this.close = !!demo && q.has('close');
+        if (this.close) this.cameras.main.setZoom(CLOSE.zoom).centerOn(W / 2, CLOSE.top + H / CLOSE.zoom / 2);
         if (demo && q.has('capture')) this.startCapture(demo.length);
         this.exposeTestHook();
     }
@@ -266,6 +292,7 @@ export class Game extends Phaser.Scene {
         this.sandTex.setFilter(Phaser.Textures.FilterMode.NEAREST);
         this.sandImage.setTexture('sand').setPosition(this.sim.ox, this.sim.oy).setDisplaySize(G * this.sim.gsx, GH * this.sim.gs);
         this.drawIce();
+        this.drawScroll();
         this.closeOverlay();
         this.setPicking(false);
         this.endFan();
@@ -297,6 +324,7 @@ export class Game extends Phaser.Scene {
             }
         }
         this.stepIce();
+        this.stepScrollHint();
         // the demo runs once play has started, panels and all (it taps their buttons)
         if (this.demo && this.started) this.demo.update(dt, this.paused, (this.capture ? this.time.now : performance.now()) / 1000);
         if (this.sim.fixed <= 0 && this.sim.state === 'play') this.setAutoFast(true);
@@ -305,6 +333,8 @@ export class Game extends Phaser.Scene {
             b.bump = Math.max(0, b.bump - dt * 5);
             const s = 1 + b.bump * 0.12 + (this.picking && i === 0 ? 0.06 + 0.04 * Math.sin(this.time.now / 120) : 0);
             for (const o of [b.base, b.img, b.frame, b.lockBase, b.lock, b.lockText]) o.setScale((o.getData('sx') ?? o.getData('s')) * s, (o.getData('sy') ?? o.getData('s')) * s);
+            // a reel framed close leaves the boosters out (they would peek in at the top)
+            if (this.close) for (const o of [b.base, b.img, b.frame, b.lockBase, b.lock, b.lockText, b.badge, b.plus, b.count]) o.setAlpha(0);
         });
         this.render();
     }
@@ -462,8 +492,8 @@ export class Game extends Phaser.Scene {
         src.width = cw; src.height = ch;
         const img = src.getContext('2d')!.createImageData(cw, ch), px = new Uint32Array(img.data.buffer);
         for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
-            const p = (y0 + y) * s.G + x0 + x;
-            px[y * cw + x] = s.key[p] ? s.rgb[p] : 0xffffd2b5;
+            // on a scroll painting, part of it may still be hidden above the frame
+            px[y * cw + x] = s.colorAt(x0 + x, y0 + y) || 0xffffd2b5;
         }
         src.getContext('2d')!.putImageData(img, 0, 0);
 
@@ -523,9 +553,16 @@ export class Game extends Phaser.Scene {
     /** The ice follows the frozen areas: the number pops as it counts down; at 0 the ice
      * shatters, its pieces flying out and falling, and fades. */
     private stepIce() {
+        const s = this.sim;
         this.sim.frozen.forEach((f, i) => {
             const v = this.ice[i];
             if (!v || v.broken) return;
+            // on a scroll painting the ice slides down with the picture; it shows once it is
+            // wholly out from under the roller
+            if (s.scroll) {
+                v.box.y = s.oy + (f.y0 + (f.y1 - f.y0 + 1) / 2) * s.gs;
+                v.box.setVisible(s.oy + f.y0 * s.gs >= PIC.y + SCROLL_STRIP * s.gs - 2);
+            }
             if (f.count !== v.count) {
                 v.count = f.count;
                 v.text.setText(String(Math.max(0, f.count)));
@@ -533,6 +570,8 @@ export class Game extends Phaser.Scene {
             }
             if (f.broke === null) return;
             v.broken = true;
+            // ice still hidden above the frame just goes
+            if (!v.box.visible) return;
             const { x, y } = v.box, b = v.box.getBounds();
             this.tweens.add({ targets: v.box, alpha: 0, scale: 1.12, duration: 320, ease: 'Quad.Out', onComplete: () => v.box.setVisible(false) });
             for (let k = 0; k < 18; k++) {
@@ -542,6 +581,122 @@ export class Game extends Phaser.Scene {
                 this.tweens.add({ targets: shard, x: sx + vx * 0.7, y: sy + vy * 0.7 + 380, angle: (Math.random() - 0.5) * 540, alpha: 0, duration: 700 + Math.random() * 300, ease: 'Quad.In', onComplete: () => shard.destroy() });
             }
         });
+    }
+
+    /** Scroll painting: the limit line across the frame (a dashed line with double chevrons under
+     * it, pointing down), and a glass roller across the frame's top (see stepScrollHint). Nothing
+     * for a picture that fits the frame. */
+    private drawScroll() {
+        const s = this.sim, S = s.scroll;
+        this.scrollGfx ??= this.add.graphics().setDepth(D.sand + 0.05);
+        this.scrollHint ??= this.add.image(0, 0, '__WHITE').setOrigin(0).setDepth(D.sand + 0.2);
+        this.scrollGlass ??= this.add.image(0, 0, '__WHITE').setOrigin(0.5).setDepth(D.sand + 0.21);
+        this.scrollCaps ??= this.add.graphics().setDepth(D.sand + 0.22);
+        this.scrollGfx.clear();
+        this.scrollCaps.clear().setVisible(!!S);
+        this.scrollSlid = -1;
+        this.scrollHint.setVisible(!!S);
+        this.scrollGlass.setVisible(!!S);
+        if (!S) return;
+        const g = this.scrollGfx, y = s.oy + S.line * s.gs, x0 = INNER.x + 18, x1 = INNER.x + INNER.w - 18;
+        g.lineStyle(4, 0x5b6fb5, 0.9);
+        for (let x = x0; x < x1; x += 26) g.lineBetween(x, y, Math.min(x1, x + 16), y);
+        g.lineStyle(5, 0x8193d0, 0.75);
+        for (let i = 0; i < 4; i++) {
+            const cx = INNER.x + (INNER.w * (i + 0.5)) / 4;
+            for (const dy of [16, 30]) { g.lineBetween(cx - 13, y + dy, cx, y + dy + 10); g.lineBetween(cx, y + dy + 10, cx + 13, y + dy); }
+        }
+        const h = SCROLL_STRIP * s.gs;
+        this.scrollGlass.setTexture(this.glassTexture(INNER.w, h)).setPosition(INNER.x + INNER.w / 2, PIC.y + h / 2);
+        this.stepScrollHint();
+    }
+    /** The roller's glass (drawn once): a pale blue tint, slanting sheen bands, a highlight along
+     * its top, white rims top and bottom, and a cap at each end standing out past the frame (its
+     * ridges are drawn as it turns, see drawCaps). */
+    private glassTexture(w: number, h: number) {
+        const key = 'scroll_glass', CAP = 26, OUT = 14, PAD = 8;
+        if (this.textures.exists(key)) this.textures.remove(key);
+        const W = w + 2 * OUT, H = h + 2 * PAD, tex = this.textures.createCanvas(key, W, H)!, ctx = tex.getContext();
+        const x0 = OUT, y0 = PAD;
+        // the glass
+        const tint = ctx.createLinearGradient(0, y0, 0, y0 + h);
+        tint.addColorStop(0, 'rgba(255, 255, 255, 0.55)'); tint.addColorStop(0.35, 'rgba(220, 236, 255, 0.18)');
+        tint.addColorStop(0.8, 'rgba(190, 215, 255, 0.12)'); tint.addColorStop(1, 'rgba(150, 185, 245, 0.35)');
+        ctx.fillStyle = tint; ctx.fillRect(x0, y0, w, h);
+        // slanting sheen bands, in pairs
+        ctx.save();
+        ctx.beginPath(); ctx.rect(x0, y0, w, h); ctx.clip();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+        for (const [f, bw] of [[0.36, 26], [0.43, 12], [0.74, 34], [0.83, 14]] as const) {
+            const cx = x0 + w * f, k = h * 0.6;
+            ctx.beginPath(); ctx.moveTo(cx + k, y0); ctx.lineTo(cx + k + bw, y0); ctx.lineTo(cx - k + bw, y0 + h); ctx.lineTo(cx - k, y0 + h); ctx.closePath(); ctx.fill();
+        }
+        ctx.restore();
+        // white rims: a thin one along the top, a thicker one along the bottom with a soft shade above
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.fillRect(x0, y0, w, 3);
+        ctx.fillStyle = 'rgba(110, 140, 200, 0.35)'; ctx.fillRect(x0, y0 + h - 7, w, 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.98)'; ctx.fillRect(x0, y0 + h - 5, w, 5);
+        // the end caps: rounded, white to pale blue, with ridges across them
+        for (const cx of [CAP / 2, W - CAP / 2]) {
+            const g = ctx.createLinearGradient(cx - CAP / 2, 0, cx + CAP / 2, 0);
+            g.addColorStop(0, '#dfe9fb'); g.addColorStop(0.45, '#ffffff'); g.addColorStop(1, '#c9d8f3');
+            ctx.fillStyle = g; ctx.strokeStyle = '#9fb3dc'; ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.roundRect(cx - CAP / 2, 1, CAP, H - 2, 7); ctx.fill(); ctx.stroke();
+        }
+        tex.refresh();
+        return key;
+    }
+    /** The colours in the roller: the picture's next hidden rows above each part of the frame,
+     * averaged into a few broad patches and washed pale, so the player sees what is coming but
+     * not its detail; redrawn as the picture slides, the frame's light blue once nothing is hidden. */
+    /** The end caps' ridges: the caps are the ends of a turning roller, so ridges round them come
+     * over the top, run down the front (widest and darkest face on) and go round underneath. The
+     * roller turns as the picture slides down: its front moves down as far as the picture has. */
+    private drawCaps() {
+        const s = this.sim, S = s.scroll, g = this.scrollCaps;
+        if (!S || !g) return;
+        const CAP = 26, OUT = 14, PAD = 8, N = 16, h = SCROLL_STRIP * s.gs, H = h + 2 * PAD, R = (H - 6) / 2, cy = PIC.y + h / 2;
+        const phase = (S.slid * s.gs) / R;
+        g.clear();
+        for (const cx of [INNER.x - OUT + CAP / 2, INNER.x + INNER.w + OUT - CAP / 2]) {
+            for (let i = 0; i < N; i++) {
+                const a = phase + (i * 2 * Math.PI) / N, face = Math.cos(a);
+                if (face < 0.12) continue;
+                const y = cy + R * Math.sin(a);
+                g.lineStyle(0.8 + 1.4 * face, 0x8ca0cd, 0.2 + 0.6 * face);
+                g.lineBetween(cx - CAP / 2 + 4, y, cx + CAP / 2 - 4, y);
+            }
+        }
+    }
+    private stepScrollHint() {
+        const s = this.sim, S = s.scroll, img = this.scrollHint;
+        if (!S || !img || S.slid === this.scrollSlid) return;
+        this.scrollSlid = S.slid;
+        this.drawCaps();
+        const ROWS = 24, BAND = 8, COL = 4, G = s.G, C = Math.ceil(G / COL), R = ROWS / BAND, BASE = [207, 227, 255], WASH = 0.3;
+        const key = 'scroll_hint';
+        if (!this.textures.exists(key) || this.textures.get(key).getSourceImage().width !== C) {
+            if (this.textures.exists(key)) this.textures.remove(key);
+            this.textures.createCanvas(key, C, R)!.setFilter(Phaser.Textures.FilterMode.LINEAR);
+        }
+        const tex = this.textures.get(key) as Phaser.Textures.CanvasTexture, ctx = tex.getContext();
+        const data = ctx.createImageData(C, R), d = data.data;
+        for (let cx = 0; cx < C; cx++) for (let b = 0; b < R; b++) {
+            // band b: R - 1 is the band just above the roller's bottom (the next rows to come in)
+            let r = 0, g = 0, bl = 0, n = 0;
+            for (let x = cx * COL; x < Math.min(G, cx * COL + COL); x++) for (let j = 0; j < BAND; j++) {
+                const c = s.colorAt(x, S.open[x] - 1 - (R - 1 - b) * BAND - j);
+                if (!c) continue;
+                r += c & 255; g += (c >> 8) & 255; bl += (c >> 16) & 255; n++;
+            }
+            const full = COL * BAND, k = n / full, q = (b * C + cx) * 4;
+            const mix = (v: number, i: number) => Math.round(((n ? v / n : BASE[i]) * k + BASE[i] * (1 - k)) * (1 - WASH) + 255 * WASH);
+            d[q] = mix(r, 0); d[q + 1] = mix(g, 1); d[q + 2] = mix(bl, 2); d[q + 3] = 255;
+        }
+        ctx.putImageData(data, 0, 0);
+        tex.refresh();
+        img.setTexture(key).setPosition(INNER.x, PIC.y).setDisplaySize(INNER.w, SCROLL_STRIP * s.gs);
     }
 
     /** The picture frame and its funnel (one piece of art, its spout ending in a gate just above
@@ -1287,9 +1442,12 @@ export class Game extends Phaser.Scene {
     }
 
     private sfx(name: Sfx, vol = 0.7) {
-        const now = performance.now();
+        if (this.sfxMute) return;
+        // recording runs on the game clock, so a sound is placed on the frame it is made in
+        const now = this.capture ? this.time.now : performance.now();
         if (this.lastSfx[name] && now - this.lastSfx[name] < 60) return;
         this.lastSfx[name] = now;
+        if (this.capture) { if (this.prefs.sound) this.sfxLog.push([name, vol, (now - this.sfxT0) / 1000]); return; }
         if (this.prefs.vibe && VIBES[name]) navigator.vibrate?.(VIBES[name]!);
         if (this.sound.locked || !this.prefs.sound) return;
         this.sound.play(name, { volume: vol });
@@ -1305,8 +1463,13 @@ export class Game extends Phaser.Scene {
         this.started = true;
         this.closeOverlay();
         let t = this.time.now;
+        this.sfxT0 = t;
+        this.sfxLog = [];
+        const log = this.sfxLog;
         (window as unknown as Record<string, unknown>).__capture = {
             fps: CAPTURE_FPS,
+            /** The sounds so far: [name, volume, seconds]. */
+            sfx: log,
             frames: Math.round(length * CAPTURE_FPS),
             step(n = 1) { for (let i = 0; i < n; i++) { t += ms; game.step(t, ms); } },
         };

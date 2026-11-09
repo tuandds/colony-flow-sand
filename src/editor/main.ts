@@ -10,7 +10,7 @@ import { COLS, FRAME_N, LAYOUT_VERSION, MAX_COLS, MIN_COLS, NEST_SCALE, SUB, fra
 import EDITS from '../game/level-edits.json';
 import { VARIANTS, type Variant } from '../game/variant';
 import { BANK_COLOURS, CUSTOM_KEY, type Frozen, type LevelDef, PREVIEW_KEY, type Sand, builtinDefs, gameLevelIds, standardColours, decodeSand, encodeSand, gameLevelName, loadCustomLevels, toCurrentFrame, useLevels } from '../game/levels';
-import { type Nest, Sim } from '../game/sim';
+import { type Nest, SCROLL_GAP, SCROLL_STRIP, Sim } from '../game/sim';
 import { BANK, type BankColour, type ConvertOpts, HEX, NAME, clipToFrame, countKeys, drawSand, fitToFrame, frameOutside, hexLab, imageToSand, moveRange, nearestKey, rowsToGrains, setBank } from './sand';
 import type { SolveJob, SolveResult } from './solver.worker';
 
@@ -49,7 +49,7 @@ const BANK_KEY = 'cf_editor_bank';
 const BANK_VER_KEY = 'cf_editor_bank_v', BANK_VER = 3;
 const MAX_BACKUPS = 15, MAX_HISTORY = 10;
 /** Set once the built-in levels have been added to a saved Level Bank (see loadLevels). */
-const BUILTIN_KEY = 'cf_editor_builtin_v', BUILTIN_VER = 5, BUILTIN_CHAPTER = 'builtin';
+const BUILTIN_KEY = 'cf_editor_builtin_v', BUILTIN_VER = 6, BUILTIN_CHAPTER = 'builtin';
 const DIFFS: { key: string; label: string; short: string; chunk: [number, number] }[] = [
     { key: '3,5', label: 'Rất dễ', short: 'Rất dễ', chunk: [3, 5] }, { key: '4,6', label: 'Dễ', short: 'Dễ', chunk: [4, 6] },
     { key: '4,7', label: 'Vừa', short: 'Vừa', chunk: [4, 7] }, { key: '5,8', label: 'Khó', short: 'Khó', chunk: [5, 8] },
@@ -155,6 +155,8 @@ function normalize(L: LevelDef & Partial<EdLevel>): EdLevel {
     // a frame of zoomed grains (frameZoom) is kept as it is
     const zoom = L.sand ? frameZoom(L.sand.w ?? L.sand.size, L.sand.size) : null;
     if (L.sand && zoom !== null) { sand = L.sand; n = zoomFrameN(zoom); }
+    // a scroll painting (as wide as the frame, taller than it) is kept as it is too
+    else if (L.sand && (L.sand.w ?? L.sand.size) === FW && L.sand.size > FH) sand = L.sand;
     else {
         // a picture for an older frame (bigger grains now) is resampled to the current grains;
         // its blocks change, so hand-set nests no longer fit and are dropped
@@ -254,7 +256,8 @@ function analyze(l: EdLevel): Analysis {
         useLevels([def]);
         try {
             const sim = new Sim(0, () => {});
-            for (const k of sim.key) if (k) { const c = sim.keys[k]!; grainsOf.set(c, (grainsOf.get(c) || 0) + 1); grainCount++; }
+            // a scroll painting's grains hidden above the frame count too
+            for (const k of sim.scroll?.pic ?? sim.key) if (k) { const c = sim.keys[k]!; grainsOf.set(c, (grainsOf.get(c) || 0) + 1); grainCount++; }
             for (const [k, g] of grainsOf) blocks.set(k, Math.ceil(g / 64));
             nests = sim.cols;
             // the game ignores hand-made nests that don't hold exactly the picture's blocks
@@ -273,7 +276,9 @@ function analyze(l: EdLevel): Analysis {
 
 // ---------- editing the picture ----------
 function commitGrains() {
-    const { w, h } = frameGrains(L().n);
+    // the frame's width (a grain zoom changes it, before the level's sand is rewritten); a scroll
+    // painting is taller than the frame, so the height comes from the grains
+    const w = frameGrains(L().n).w, h = grains.length / w;
     // the game cuts the sand in the frame's rounded corners, so the saved picture leaves it out
     grains = clipToFrame(grains, w, h);
     L().sand = encodeSand(h, grains, w);
@@ -400,6 +405,49 @@ function zoomLevel(z: number) {
     toast(`Phóng hạt ${(frameZoom(F.w, F.h) ?? z).toFixed(2)}× · khung ${F.w}×${F.h} · giữ nguyên ${count.toLocaleString('vi-VN')} hạt`);
 }
 
+/** Scroll painting: picture rows the frame shows at the start (the frame less the glass roller
+ * at its top and the gap under the limit line), or null when the picture is no taller than the frame. */
+function scrollView() {
+    const { h } = dims(), F = frameGrains(FRAME_N);
+    return h > F.h ? F.h - SCROLL_GAP - SCROLL_STRIP : null;
+}
+function heightLabel(h: number) {
+    const F = frameGrains(FRAME_N);
+    if ((frameZoom(dims().w, dims().h) ?? 1) !== 1) { $('s-height-v').textContent = 'chỉ dùng với hạt 1×'; return; }
+    $('s-height-v').textContent = h > F.h ? `${h} hạt · ẩn ${h - (F.h - SCROLL_GAP - SCROLL_STRIP)} hàng phía trên` : `${h} hạt · vừa khung (không cuộn)`;
+}
+/** Make the picture `h` grains tall, keeping its bottom where it is: taller adds empty rows at
+ * the top, shorter cuts rows off the top. A picture taller than the frame is a scroll painting. */
+function setHeight(h: number) {
+    const l = L(), { w, h: oldH } = dims(), F = frameGrains(FRAME_N);
+    if (h === oldH) return;
+    if (frameZoom(w, oldH) !== null && frameZoom(w, oldH) !== 1) { toast('Tranh cuộn chỉ dùng với hạt 1×: đưa thanh phóng to hạt về 1× trước'); renderSettings(); return; }
+    if (w !== F.w) return;
+    const dy = h - oldH, next = new Array<string>(w * h).fill('.');
+    let lost = 0;
+    for (let p = 0; p < w * oldH; p++) {
+        if (grains[p] === '.') continue;
+        const x = p % w, y = ((p / w) | 0) + dy;
+        if (y < 0) { lost++; continue; }
+        next[y * w + x] = grains[p];
+    }
+    sandSnapshot();
+    grains = next;
+    l.sand = encodeSand(h, next, w);
+    l.frozen = l.frozen?.map((f) => ({ ...f, y: f.y + dy })).filter((f) => f.y >= 0);
+    if (!l.frozen?.length) delete l.frozen;
+    selIce = null;
+    if (lost) {
+        pictureChanged();
+        toast(`Cắt ${lost.toLocaleString('vi-VN')} hạt ở phía trên tranh · cần sinh lại tổ`);
+        return;
+    }
+    commitGrains();
+    delete l.moves;
+    nestsChanged();
+    toast(h > F.h ? `Tranh cuộn: cao ${h} hạt, lúc đầu thấy ${F.h - SCROLL_GAP - SCROLL_STRIP} hàng dưới cùng` : 'Tranh vừa khung: không cuộn');
+}
+
 /** The colour a drag carries: a Bank colour or an Active Palette colour. */
 const draggedColour = (e: DragEvent) => e.dataTransfer?.getData('text/x-cf-colour') || e.dataTransfer?.getData('text/x-cf-active') || '';
 const carriesColour = (e: DragEvent) => !!e.dataTransfer && (e.dataTransfer.types.includes('text/x-cf-colour') || e.dataTransfer.types.includes('text/x-cf-active'));
@@ -473,6 +521,20 @@ function drawSandCanvas() {
         g.fillText('❄ ' + f.count, (f.x + f.w / 2) * s, (f.y + f.h / 2) * s);
         g.restore();
     });
+    // a scroll painting: the part above the frame at the start is shaded, under a dashed orange
+    // line at the frame's top; the picture's bottom rests on the limit line (its bottom edge)
+    const { h } = dims(), view = scrollView();
+    if (view) {
+        const ty = (h - view) * s;
+        g.fillStyle = 'rgba(20,30,60,.28)'; g.fillRect(0, 0, cw, ty);
+        g.strokeStyle = '#f59e0b'; g.lineWidth = 3; g.setLineDash([10, 6]);
+        g.beginPath(); g.moveTo(0, ty); g.lineTo(cw, ty); g.stroke();
+        g.strokeStyle = '#5b6fb5'; g.beginPath(); g.moveTo(0, ch - 2); g.lineTo(cw, ch - 2); g.stroke();
+        g.setLineDash([]);
+        g.font = `bold ${Math.round(12 * (window.devicePixelRatio || 1))}px sans-serif`; g.textBaseline = 'bottom'; g.textAlign = 'left';
+        g.fillStyle = '#fbbf24'; g.fillText('▲ ẩn trên khung lúc đầu', 6, ty - 4);
+        g.fillStyle = '#ffffff'; g.fillText('▼ vạch giới hạn', 6, ch - 6);
+    }
     if (hover && (tool === 'paint' || tool === 'erase')) {
         g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 1.5;
         g.beginPath(); g.arc((hover[0] + 0.5) * s, (hover[1] + 0.5) * s, (brush + 0.5) * s, 0, Math.PI * 2); g.stroke();
@@ -900,9 +962,13 @@ function renderSettings() {
     $<HTMLSelectElement>('s-order').value = l.nests ? 'play' : l.order;
     $<HTMLInputElement>('s-seed').value = String(l.seed);
     $<HTMLSelectElement>('s-cols').value = String(l.cols);
-    const zNow = frameZoom(dims().w, dims().h) ?? 1;
+    const zNow = frameZoom(dims().w, dims().h) ?? 1, tall = scrollView() !== null;
     $<HTMLInputElement>('s-zoom').value = String(zNow);
+    $<HTMLInputElement>('s-zoom').disabled = tall;
     zoomLabel(zNow);
+    $<HTMLInputElement>('s-height').value = String(dims().h);
+    $<HTMLInputElement>('s-height').disabled = zNow !== 1;
+    heightLabel(dims().h);
 }
 
 // ---------- nest editor ----------
@@ -1338,6 +1404,16 @@ function showBackups() {
 // ---------- generate from an image ----------
 const gen: ConvertOpts = { n: 14, colors: 6, bg: 12, outline: false, smooth: 1, fit: 'contain' };
 let genActiveOnly = false;
+/** Make a scroll painting from a long image: as wide as the frame, as tall as the image's shape gives. */
+let genScroll = false;
+/** The scroll painting's height for the loaded image: the frame's width times the image's height
+ * over its width, in whole cells (8 grains), at most 384 grains; null when the image is not long
+ * enough to be taller than the frame. */
+function genScrollHeight() {
+    if (!genImage) return null;
+    const F = frameGrains(FRAME_N), h = Math.min(384, Math.round((F.w * genImage.naturalHeight) / genImage.naturalWidth / SUB) * SUB);
+    return h > F.h ? h : null;
+}
 let genImage: HTMLImageElement | null = null, genName = '', genResult: string[] | null = null, genTimer = 0;
 /** Where the picture sits in the frame: grains right / down from centred (kept so its sand stays in the frame). */
 const genOff = { x: 0, y: 0 };
@@ -1350,6 +1426,7 @@ function openGen() {
     }
     $<HTMLInputElement>('g-outline').checked = gen.outline;
     $<HTMLSelectElement>('g-fit').value = gen.fit;
+    $<HTMLInputElement>('g-scroll').checked = genScroll;
     runGen();
 }
 function runGen() {
@@ -1357,25 +1434,43 @@ function runGen() {
     genTimer = window.setTimeout(() => {
         // the preview is the whole frame at the game's scale, the picture (gen.n cells tall) centred in
         // it, then moved by genOff
-        const cv = $<HTMLCanvasElement>('gen-preview'), { w: FW, h: FH } = frameGrains(FRAME_N), dpr = window.devicePixelRatio || 1;
+        // a scroll painting from a long image: the whole picture, as tall as the image's shape gives
+        const tallH = genScroll ? genScrollHeight() : null, F = frameGrains(FRAME_N);
+        const cv = $<HTMLCanvasElement>('gen-preview'), FW = F.w, FH = tallH ?? F.h, dpr = window.devicePixelRatio || 1;
+        $('g-scroll-v').textContent = !genImage ? '' : tallH ? `${FW}×${tallH} hạt` : genScroll ? 'ảnh chưa đủ dài' : '';
+        for (const id of ['g-size', 'g-fit', 'g-left', 'g-up', 'g-down', 'g-right', 'g-center']) $<HTMLInputElement>(id).disabled = !!tallH;
         cv.style.aspectRatio = `${FW} / ${FH}`;
+        cv.style.width = tallH ? `min(${((72 * FW) / tallH).toFixed(1)}vh, 560px)` : '';
         const w = cv.clientWidth || 480;
         cv.width = Math.round(w * dpr); cv.height = Math.round((w * FH / FW) * dpr);
         const g = cv.getContext('2d')!;
         g.fillStyle = '#b5d2ff'; g.fillRect(0, 0, cv.width, cv.height);
         if (!genImage) { $('gen-summary').innerHTML = '<span class="hint">Chọn một ảnh để xem trước.</span>'; $<HTMLButtonElement>('gen-apply').disabled = true; return; }
-        const pic = frameGrains(gen.n);
-        const raw = imageToSand(genImage, { ...gen, keys: genActiveOnly ? activeKeys() : undefined }), r = moveRange(raw, pic.w, pic.h);
-        genOff.x = Math.max(r.minX, Math.min(r.maxX, genOff.x)); genOff.y = Math.max(r.minY, Math.min(r.maxY, genOff.y));
-        genResult = clipToFrame(fitToFrame(raw, pic.w, pic.h, genOff.x, genOff.y).keys, FW, FH);
-        const cell = (v: number) => `${v > 0 ? '+' : ''}${+(v / 8).toFixed(1)}`;
-        $('g-move-v').textContent = genOff.x || genOff.y ? `${cell(genOff.x)}, ${cell(genOff.y)} ô` : 'giữa';
+        const pic = tallH ? { w: FW, h: tallH } : frameGrains(gen.n);
+        if (tallH) {
+            // the image fills the whole width of the frame and its whole length
+            genResult = imageToSand(genImage, { ...gen, n: FRAME_N, fit: 'cover', h: tallH, keys: genActiveOnly ? activeKeys() : undefined });
+            $('g-move-v').textContent = 'cả khung';
+        } else {
+            const raw = imageToSand(genImage, { ...gen, keys: genActiveOnly ? activeKeys() : undefined }), r = moveRange(raw, pic.w, pic.h);
+            genOff.x = Math.max(r.minX, Math.min(r.maxX, genOff.x)); genOff.y = Math.max(r.minY, Math.min(r.maxY, genOff.y));
+            genResult = clipToFrame(fitToFrame(raw, pic.w, pic.h, genOff.x, genOff.y).keys, FW, FH);
+            const cell = (v: number) => `${v > 0 ? '+' : ''}${+(v / 8).toFixed(1)}`;
+            $('g-move-v').textContent = genOff.x || genOff.y ? `${cell(genOff.x)}, ${cell(genOff.y)} ô` : 'giữa';
+        }
         drawSand(g, genResult, FW, FH, 0, 0, cv.width, cv.height);
+        if (tallH) {
+            // what the frame shows at the start: the rows above are shaded under a dashed orange line
+            const ty = ((tallH - (F.h - SCROLL_GAP - SCROLL_STRIP)) / tallH) * cv.height;
+            g.fillStyle = 'rgba(20,30,60,.28)'; g.fillRect(0, 0, cv.width, ty);
+            g.strokeStyle = '#f59e0b'; g.lineWidth = 3 * dpr; g.setLineDash([10 * dpr, 6 * dpr]);
+            g.beginPath(); g.moveTo(0, ty); g.lineTo(cv.width, ty); g.stroke(); g.setLineDash([]);
+        }
         const c = [...countKeys(genResult)].sort((a, b) => b[1] - a[1]);
         const total = c.reduce((s, [, n]) => s + Math.ceil(n / 64), 0), grainsNew = c.reduce((s, [, n]) => s + n, 0);
         // the level's picture now, counted as the Sand Editor counts it, to compare with
         const now = analyze(L()), vi = (n: number) => n.toLocaleString('vi-VN');
-        $('gen-summary').innerHTML = `<span class="chip"><b>Tranh mới</b> ≈ ${total} khối · ${vi(grainsNew)} hạt · khung ${pic.w}×${pic.h}</span>` +
+        $('gen-summary').innerHTML = `<span class="chip"><b>Tranh mới</b> ≈ ${total} khối · ${vi(grainsNew)} hạt · ${tallH ? `tranh cuộn ${pic.w}×${pic.h}` : `khung ${pic.w}×${pic.h}`}</span>` +
             c.map(([k, n]) => `<span class="chip" title="${NAME.get(k)}"><i style="background:${HEX.get(k)}"></i>${Math.ceil(n / 64)}</span>`).join('') +
             `<span class="chip" title="Tranh đang có trong màn (trước khi bấm Dùng tranh này)"><b>Tranh hiện tại</b> ${now.total} khối · ${vi(now.grains)} hạt</span>`;
         $<HTMLButtonElement>('gen-apply').disabled = false;
@@ -1400,6 +1495,11 @@ function applyGen() {
     sandSnapshot();
     const l = L();
     l.n = FRAME_N; grains = genResult.slice();
+    // a scroll painting from a long image: frozen areas past its new height go
+    const h = grains.length / frameGrains(FRAME_N).w;
+    l.frozen = l.frozen?.filter((f) => f.y + f.h <= h);
+    if (!l.frozen?.length) delete l.frozen;
+    selIce = null;
     if (l.name === 'Màn mới' && genName) l.name = genName;
     $('gen-modal').classList.remove('on');
     pictureChanged();
@@ -1415,6 +1515,7 @@ for (const [id, key] of [['g-size', 'n'], ['g-colors', 'colors'], ['g-bg', 'bg']
     $<HTMLInputElement>(id).oninput = (e) => { gen[key] = +(e.target as HTMLInputElement).value; $(id + '-v').textContent = String(gen[key]); runGen(); };
 }
 $<HTMLInputElement>('g-outline').onchange = (e) => { gen.outline = (e.target as HTMLInputElement).checked; runGen(); };
+$<HTMLInputElement>('g-scroll').onchange = (e) => { genScroll = (e.target as HTMLInputElement).checked; runGen(); };
 $<HTMLInputElement>('g-active').onchange = (e) => { genActiveOnly = (e.target as HTMLInputElement).checked; runGen(); };
 $<HTMLSelectElement>('g-fit').onchange = (e) => { gen.fit = (e.target as HTMLSelectElement).value as ConvertOpts['fit']; runGen(); };
 // move the picture in the frame: a cell (8 grains) a press, ⊙ back to the middle, or drag the preview
@@ -1866,6 +1967,8 @@ $('mode-editor').onclick = () => setMode('editor');
 $('mode-organizer').onclick = () => setMode('organizer');
 $<HTMLInputElement>('s-name').oninput = (e) => { L().name = (e.target as HTMLInputElement).value || 'Màn mới'; renderDirty(); renderBank(); };
 // dragging shows what a zoom would do; letting go applies it (one undo step)
+$<HTMLInputElement>('s-height').oninput = (e) => heightLabel(parseInt((e.target as HTMLInputElement).value, 10));
+$<HTMLInputElement>('s-height').onchange = (e) => setHeight(parseInt((e.target as HTMLInputElement).value, 10));
 $<HTMLInputElement>('s-zoom').oninput = (e) => zoomLabel(parseFloat((e.target as HTMLInputElement).value));
 $<HTMLInputElement>('s-zoom').onchange = (e) => zoomLevel(parseFloat((e.target as HTMLInputElement).value));
 $<HTMLSelectElement>('s-diff').onchange = (e) => { sandSnapshot(); L().chunk = DIFFS.find((d) => d.key === (e.target as HTMLSelectElement).value)!.chunk; delete L().nests; delete L().moves; nestsChanged(); };

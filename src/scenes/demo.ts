@@ -9,6 +9,7 @@
 import * as Phaser from 'phaser';
 import { pickStroke } from '../game/bot';
 import type { Sim } from '../game/sim';
+import { RULES } from '../game/variant';
 
 /** What the demo needs from the game scene. */
 export interface DemoHost {
@@ -56,9 +57,12 @@ export type Step =
     | { hide: true };
 
 /** The hand's kinds of stroke (see Demo.varied): down from the middle, diagonally down from the
- * left or the right, up from the bottom, along the bottom to the right or the left, a zigzag down. */
-export type StrokeKind = 'down' | 'diagL' | 'diagR' | 'up' | 'sweepR' | 'sweepL' | 'zigzag';
-const ALL_STROKES: StrokeKind[] = ['down', 'diagL', 'up', 'sweepR', 'diagR', 'sweepL', 'zigzag'];
+ * left or the right, up from the bottom, along the bottom to the right or the left, a zigzag down;
+ * and shapes drawn in one stroke, standing on the sand's bottom edge: a heart, a circle, a
+ * triangle, a spiral, a plus and a star. */
+export type StrokeKind = 'down' | 'diagL' | 'diagR' | 'up' | 'sweepR' | 'sweepL' | 'zigzag'
+    | 'heart' | 'circle' | 'triangle' | 'spiral' | 'plus' | 'star';
+const ALL_STROKES: StrokeKind[] = ['down', 'heart', 'diagL', 'circle', 'up', 'triangle', 'sweepR', 'spiral', 'diagR', 'plus', 'sweepL', 'star', 'zigzag'];
 
 /** A reel: the level it opens on, its length in seconds (from the tap that starts it, end card
  * included), the kinds of stroke the hand takes in turn (a kind listed twice comes twice as
@@ -113,7 +117,7 @@ export const DEMO_SCENES: Record<string, DemoScene> = {
             { speed: true }, { wait: 0.3 }, { swipe: 'varied' }, { wait: 0.3 }, { swipe: 'varied' }, { auto: 3 },
             { cut: 12, ff: 12 }, { auto: 5.5 }, { cut: 14, ff: 10 }, { auto: 5.5 }, { cut: 6, ff: 20 }, { auto: 5.5 },
             { cut: 2, ff: 10 }, { auto: 5.5 }, { cut: 11, ff: 3 }, { auto: 5.5 }, { cut: 13, ff: 15 }, { auto: 5.5 },
-            { cut: 5, ff: 20 }, { auto: 12 },
+            { cut: 5, ff: 8 }, { auto: 12 },
         ],
     },
     // levels 4, 3, 2, 7, 6, 15, 14, 13, 12, then level 1, about five seconds each
@@ -168,6 +172,13 @@ export class Demo {
 
     /** The end card: the last frame (without the hand) blurs and dims, the logo pops in, then a
      * Play Now button that keeps growing and shrinking. */
+    /** A layer drawn in screen px over everything, whatever the camera's zoom (a reel framed
+     * close zooms in): it sits still on screen, and 1 px in it is 1 px of the shot. */
+    private screenLayer(depth: number) {
+        const cam = this.host.scene.cameras.main, z = cam.zoom, cx = cam.width / 2, cy = cam.height / 2;
+        return this.host.scene.add.container(cx - cx / z, cy - cy / z).setScale(1 / z).setScrollFactor(0).setDepth(depth);
+    }
+
     private endCard() {
         const sc = this.host.scene, W = 1080, H = 1920;
         this.card = true;
@@ -176,15 +187,17 @@ export class Demo {
         (sc.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer).snapshot((img) => {
             if (sc.textures.exists('demo_end')) sc.textures.remove('demo_end');
             sc.textures.addImage('demo_end', img as HTMLImageElement);
-            const shot = sc.add.image(0, 0, 'demo_end').setOrigin(0).setDisplaySize(W, H).setScrollFactor(0).setDepth(50);
+            const layer = this.screenLayer(50);
+            const shot = sc.add.image(0, 0, 'demo_end').setOrigin(0).setDisplaySize(W, H);
             const blur = shot.enableFilters().filters!.internal.addBlur(1, 2, 2, 0);
-            const dim = sc.add.rectangle(0, 0, W, H, 0x000000, 0).setOrigin(0).setScrollFactor(0).setDepth(51);
+            const dim = sc.add.rectangle(0, 0, W, H, 0x000000, 0).setOrigin(0);
             sc.tweens.add({ targets: blur, strength: 2.5, duration: 400 });
             sc.tweens.add({ targets: dim, fillAlpha: 0.55, duration: 400 });
-            const logo = sc.add.image(W / 2, 760, 'logo').setScrollFactor(0).setDepth(52).setScale(0);
+            const logo = sc.add.image(W / 2, 760, 'logo').setScale(0);
             sc.tweens.add({ targets: logo, scale: 0.94, duration: 500, delay: 150, ease: 'Back.easeOut' });
-            const btn = sc.add.container(W / 2, 1320).setScrollFactor(0).setDepth(52).setScale(0);
+            const btn = sc.add.container(W / 2, 1320).setScale(0);
             btn.add([sc.add.image(0, 0, 'btn_continue'), this.host.label(0, -8, 'PLAY NOW', 76, '#ffffff', '#1f7a12', 10)]);
+            layer.add([shot, dim, logo, btn]);
             sc.tweens.add({
                 targets: btn, scale: 1.35, duration: 350, delay: 450, ease: 'Back.easeOut',
                 onComplete: () => sc.tweens.add({ targets: btn, scale: 1.12, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }),
@@ -238,26 +251,31 @@ export class Demo {
      * from the right. */
     private cut(s: { cut: number; ff?: number; ffMode?: 'play' | 'jam'; ffBelt?: number }): Act {
         const sc = this.host.scene, cam = sc.cameras.main, W = 1080, H = 1920, DUR = 0.5;
-        let snap: Phaser.GameObjects.Image | null = null, waiting = true, t = 0;
+        // the camera may be zoomed in (a reel framed close): it slides one view's width, from
+        // where it rests
+        const x0 = cam.scrollX, vw = W / cam.zoom;
+        let snap: Phaser.GameObjects.Image | null = null, layer: Phaser.GameObjects.Container | null = null, waiting = true, t = 0;
         (sc.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer).snapshot((img) => {
             if (sc.textures.exists('demo_cut')) sc.textures.remove('demo_cut');
             sc.textures.addImage('demo_cut', img as HTMLImageElement);
-            snap = sc.add.image(0, 0, 'demo_cut').setOrigin(0).setDisplaySize(W, H).setScrollFactor(0).setDepth(45);
+            layer = this.screenLayer(45);
+            snap = sc.add.image(0, 0, 'demo_cut').setOrigin(0).setDisplaySize(W, H);
+            layer.add(snap);
             this.host.goLevel(s.cut);
             if (s.ff) this.host.fastForward(s.ff, s.ffMode ?? 'play', s.ffBelt);
             this.hand.setPosition(1180, 1300);
-            cam.scrollX = -W;
+            cam.scrollX = x0 - vw;
             waiting = false;
         });
         return (dt) => {
             if (waiting) return false;
             t = Math.min(1, t + dt / DUR);
             const e = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
-            cam.scrollX = -W * (1 - e);
+            cam.scrollX = x0 - vw * (1 - e);
             snap!.x = -W * e;
             if (t < 1) return false;
-            snap!.destroy();
-            cam.scrollX = 0;
+            layer!.destroy();
+            cam.scrollX = x0;
             return true;
         };
     }
@@ -274,8 +292,10 @@ export class Demo {
     private varied(s: Sim, now = false): [number, number][] | null {
         // blocks on the belt, waiting in the pipe, and still to come from loose sand
         const loose = Object.values(s.looseByColour()).reduce((a, b) => a + b, 0);
-        const used = s.slots.filter(Boolean).length + s.pipe.length + loose / 64;
-        if (!now && used > 8) return null;
+        const used = s.slots.filter(Boolean).length + s.pipe.length + loose / RULES.blockGrains;
+        // wait while the belt holds over 8 blocks; variant 2's loose belt empties into the nests
+        // fast, so it waits only once 80 of its 100 are taken; variant 3's yard, past 14 of its 36
+        if (!now && used > (RULES.looseBelt ? s.slots.length * 0.8 : RULES.yard ? 14 : 8)) return null;
         const G = s.G, want = new Set(s.cols.map((c) => c[0]).filter(Boolean).map((n) => n.color));
         // the picture's fixed sand, as a box on screen, and its lowest grain in each column
         let x0 = G, x1 = -1, y0 = G, y1 = -1;
@@ -301,6 +321,20 @@ export class Demo {
             for (let k = 0; k <= n; k++) { const x = a + ((b - a) * k) / n; pts.push([x, bottom(x) - s.gs * 4]); }
             return pts;
         };
+        // a shape in one stroke: unit points (x right, y down, about -1 to 1) drawn `size` px across,
+        // standing with its lowest point on the sand's bottom edge, then down to the bottom there,
+        // so the sand it frees runs out
+        const shape1 = (unit: [number, number][], grow = 1) => {
+            // big enough to read through the brush's width (it frees 38.5 px round the finger)
+            const size = Math.max(140, Math.min(230, Math.min(w, h) * 0.34)) * grow;
+            const ys = unit.map(([, y]) => y), lowY = Math.max(...ys), half = (lowY - Math.min(...ys)) / 2;
+            const cx = L + w * (0.22 + 0.56 * r()), base = bottom(cx) - s.gs * 3, cy = Math.max(T + size * half, base - size * lowY);
+            const pts = unit.map(([ux, uy]) => [cx + ux * size, cy + uy * size] as [number, number]);
+            const [lx] = pts[pts.length - 1];
+            pts.push([lx, bottom(lx)]);
+            return pts;
+        };
+        const ring = (n: number, f: (a: number) => [number, number]) => Array.from({ length: n + 1 }, (_, i) => f((i / n) * Math.PI * 2));
         const shapes: Record<StrokeKind, () => [number, number][]> = {
             // down from the middle
             down: () => { const x = L + w * (0.25 + 0.5 * r()), y = T + h * (0.1 + 0.35 * r()), x2 = x + 30 * (r() - 0.5); return [[x, y], [x2, bottom(x2)]]; },
@@ -321,6 +355,27 @@ export class Demo {
                 for (let i = 0, n = 5; i <= n; i++) { const px = x + (i % 2 ? k : -k) / 2; pts.push([px, i === n ? bottom(px) : y + ((b - y) * i) / n]); }
                 return pts;
             },
+            // a heart from its bottom tip, round its two lobes and back to the tip
+            heart: () => shape1(ring(36, (a) => {
+                const t = a + Math.PI, x = 16 * Math.sin(t) ** 3, y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+                return [x / 17, y / 17];
+            })),
+            // a circle from its bottom, once round
+            circle: () => shape1(ring(32, (a) => [Math.sin(a) * 0.5, Math.cos(a) * 0.5])),
+            // a triangle standing on its base: base left, top, base right, back to base left
+            triangle: () => shape1([[-0.55, 0.45], [0, -0.5], [0.55, 0.45], [-0.55, 0.45]], 1.1),
+            // a spiral from the middle out, two and a half turns, ending at its bottom
+            spiral: () => shape1(Array.from({ length: 61 }, (_, i) => {
+                const u = i / 60, a = Math.PI + u * Math.PI * 5, rr = 0.08 + 0.47 * u;
+                return [Math.sin(a) * rr, Math.cos(a) * rr];
+            }), 1.1),
+            // a plus: across from the left, back to the middle, up, back down through the middle
+            plus: () => shape1([[-0.5, 0], [0.5, 0], [0, 0], [0, -0.5], [0, 0.5]]),
+            // a five-pointed star, its lines drawn from point to point
+            star: () => shape1(Array.from({ length: 6 }, (_, i) => {
+                const a = Math.PI + ((i * 2) % 5) * ((Math.PI * 2) / 5);
+                return [Math.sin(a) * 0.55, Math.cos(a) * 0.55];
+            }), 1.15),
         };
         const kinds = this.demo.strokes ?? ALL_STROKES, shape = shapes[kinds[this.kind++ % kinds.length]];
         // how good a stroke is: wanted sand along it counts, unwanted sand counts against it

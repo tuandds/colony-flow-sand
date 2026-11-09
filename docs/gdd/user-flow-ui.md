@@ -7,6 +7,8 @@ pageClass: gdd-wide
 | Date | Detail | Publisher |
 |---|---|---|
 | 2026-11-03 | Document created: the web prototype's screens, plus the screens the Unity game needs that the prototype does not have yet | Tuan Dinh Duc |
+| 2026-11-05 | No Home (lobby) screen: the game opens straight into the current level, a win always goes on to the next level, and the More Coins popup (reached from Home) is gone | Tuan Dinh Duc |
+| 2026-11-09 | Tutorial and New Feature point to the new FTUE & Tutorial chapter; the unlock popup shows as the level opens, with Claim | Tuan Dinh Duc |
 
 This page is the reference for building the game's screens in Unity. Each screen is marked:
 
@@ -21,10 +23,10 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 
 ## Simple WireFlow
 
-<img class="gdd-flow" src="./img/wireflow.svg" alt="Wire flow: Loading, Home, Action Phase, Settings, Purchase Booster, Win, New Feature, Out of Space, Level Failed, Tutorial" />
+<img class="gdd-flow" src="./img/wireflow.svg" alt="Wire flow: Loading, Action Phase, Settings, Purchase Booster, Win, New Feature, Out of Space, Level Failed, Tutorial" />
 
-- **Launch:** Loading → the current level's Action Phase while the player has not won level 10 yet; after that, Home. The very first play starts with the Tutorial.
-- **Between screens:** every change of screen (Home ↔ level, level → level) plays the [Loading transition](#_8-loading-transition).
+- **No Home (lobby) screen:** the game is always in a level. Launch: Loading → the current level's Action Phase; the very first play starts with the Tutorial. A win goes on to the next level; a loss replays the level.
+- **Between screens:** every change of level (Loading → level, level → level) plays the [Loading transition](#_7-loading-transition).
 
 ## 1. Action Phase <Badge type="tip" text="Live" />
 
@@ -37,15 +39,15 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 <p><b>Action Phase:</b> a level has 5 parts (sizes and rules in <a href="./core-gameplay">Core gameplay</a>):</p>
 <ul>
 <li><b>Top UI</b> (about 14 % of the screen): Settings (pauses the game), the level title "Level N", the x2 speed button.</li>
-<li><b>Boosters:</b> a row of three under the title: Activate, Shuffle, Fan (unlock at levels 3, 6, 9). A booster with no uses left shows a green plus and opens <a href="#_6-purchase-booster">Purchase Booster</a>.</li>
+<li><b>Boosters:</b> a row of three under the title: Activate, Shuffle, Fan (unlock at levels 6, 12, 18). A booster with no uses left shows a green plus and opens <a href="#_5-purchase-booster">Purchase Booster</a>.</li>
 <li><b>Sand board & funnel</b> (about 57 %): the sand picture; the player swipes it to free the sand. The funnel ends in a gate just above the conveyor.</li>
 <li><b>Conveyor</b> (about 12 %): 36 slots; blocks come out of the gate onto it.</li>
 <li><b>Nests</b> (about 17 %): 4 columns of ant nests; two rows and a half show.</li>
 </ul>
 <p><b>Win & Lose:</b></p>
 <ul>
-<li>Win when the last nest is full: the <a href="#_4-win">Win</a> screen shows 0.9 s later.</li>
-<li>Lose when the conveyor is full and no block on it fits a nest (after a 0.35 s grace): <a href="#_5-lose">Out of Space</a>. <b>Unity:</b> show the popup 0.75 s after the loss, so the player sees the full belt first.</li>
+<li>Win when the last nest is full: the <a href="#_3-win">Win</a> screen shows 0.9 s later.</li>
+<li>Lose when the conveyor is full and no block on it fits a nest (after a 0.35 s grace): <a href="#_4-lose">Out of Space</a>. <b>Unity:</b> show the popup 0.75 s after the loss, so the player sees the full belt first.</li>
 <li>Once the Win or Lose screen is up, the Settings button, the board and the boosters do not take input.</li>
 </ul>
 <p><b>Kill game</b> <Badge type="warning" text="To build" />:</p>
@@ -71,65 +73,16 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 <ul>
 <li>Switches for Music, Sound and Vibration (kept on the device).</li>
 <li><b>Restart:</b> the level starts over.</li>
-<li><b>Home:</b> back to Home.</li>
 <li><b>✕</b> (Resume/Close): back to the Action Phase.</li>
 <li>While the popup is open (dimmed background), the Action Phase under it takes no input and the game is paused.</li>
-<li>The prototype's "Cheat: go to level" row is for testing only; leave it out of the Unity game (or keep it behind a debug flag).</li>
-</ul>
-</td>
-</tr>
-<tr>
-<td>(the same popup without Restart, Home and the cheat row)</td>
-<td><Badge type="warning" text="To build" /></td>
-<td>
-<p><b>Settings (Home):</b></p>
-<ul><li>Switches for Music, Sound and Vibration, and ✕ to close.</li></ul>
-</td>
-</tr>
-</tbody>
-</table>
-
-## 3. Home <Badge type="warning" text="To build" />
-
-<table class="gdd-table">
-<thead><tr><th style="width:26%">Wireframe</th><th style="width:16%">Compare</th><th>Detail</th></tr></thead>
-<tbody>
-<tr>
-<td><img src="./img/wf-home.svg" alt="Home wireframe" /></td>
-<td>Not in the prototype (its Home button goes to the web landing page).</td>
-<td>
-<p><b>UI Home screen:</b></p>
-<ul>
-<li><b>Progress bar:</b> the next 4 levels, the current one highlighted, each coloured by its difficulty (see <a href="#_10-medium-hard-ui">Medium & Hard UI</a>).</li>
-<li><b>Background:</b> sand grains drifting in a loop, diagonally from bottom left to top right.</li>
-<li><b>(Optional) Avatar button:</b> opens the Avatar popup (change avatar and name).</li>
-<li><b>Play button:</b> "Play, Level N", always the newest level. Its colour follows the level's difficulty (green normal, orange medium, purple hard).</li>
-<li><b>Coins:</b> a coin icon and the amount (format <code>1,250</code>). Tap it for the <a href="#more-coins">More Coins</a> popup.</li>
-<li><b>Settings button:</b> opens Settings (Home).</li>
-</ul>
-<p><b>Home flow:</b></p>
-<ul>
-<li>Up to level 10, a win goes straight on to the next level. From level 10 on, a win goes back to Home.</li>
-<li>On launch: if level 10 is not won yet, go straight into the current level; otherwise open Home.</li>
-<li>The player can go back to Home at any time from Settings or after a loss.</li>
-</ul>
-</td>
-</tr>
-<tr id="more-coins">
-<td><img src="./img/wf-more-coins.svg" alt="More Coins popup wireframe" /></td>
-<td>Not in the prototype.</td>
-<td>
-<p><b>More Coins popup:</b></p>
-<ul>
-<li>+100 coins for each rewarded ad watched (capped per day, cap to tune).</li>
-<li>✕ closes it.</li>
+<li>The prototype's "Cheat: go to level" row is for testing only; leave it out of the Unity game (or keep it behind a debug flag). Its red Home button (to the web landing page) is not in the Unity game either: there is no Home screen.</li>
 </ul>
 </td>
 </tr>
 </tbody>
 </table>
 
-## 4. Win
+## 3. Win
 
 <table class="gdd-table">
 <thead><tr><th style="width:26%">Wireframe</th><th style="width:16%">Compare</th><th>Detail</th></tr></thead>
@@ -143,8 +96,8 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 <li>Confetti rains down (fireworks on both sides first, optional) on a blue background with turning rays.</li>
 <li>"Level N" over the <code>AMAZING</code> title.</li>
 <li>The coin pile and the reward, <b>+40 coins</b>, in the centre.</li>
-<li><b>New Feature progress</b> <Badge type="warning" text="To build" />: a bar to the next unlock, "Lv 6: Shuffle" with "x/y" (levels played since the last unlock / levels needed for the next one); it shows "Unlocked" once full. The features are the boosters: Activate (level 3), Shuffle (6), Fan (9). After the last one the bar is removed.</li>
-<li><b>Continue:</b> +40 coins (coins fly from the button to the coin counter), then the next level (or Home from level 10).</li>
+<li><b>New Feature progress</b> <Badge type="warning" text="To build" />: a bar to the next unlock, "Lv 12: Shuffle" with "x/y" (levels played since the last unlock / levels needed for the next one); it shows "Unlocked" once full. The features are the boosters and the obstacles: Frozen (level 5), Activate (6), Scroll painting (10), Shuffle (12), Fan (18) (see <a href="./obstacles#_2-new-features">Obstacles</a>). After the last one the bar is removed.</li>
+<li><b>Continue:</b> +40 coins (coins fly from the button to the coin counter), then the next level.</li>
 <li><b>Claim x2</b> (rewarded ad): +80 coins (coins fly from the button), then go on the same way. Shown only after level 10; before that, Continue alone sits in the middle. <Badge type="warning" text="To build" /></li>
 <li><b>Kill game</b> on this screen: the next launch opens the next level.</li>
 </ul>
@@ -154,17 +107,17 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 <td><img src="./img/wf-new-feature.svg" alt="New Feature wireframe" /></td>
 <td><Badge type="warning" text="To build" /></td>
 <td>
-<p><b>New Feature:</b> when the next level unlocks a booster, this screen shows after Continue:</p>
+<p><b>New Feature:</b> when a level unlocks a booster, its unlock popup shows as that level opens, over it (a new obstacle gets its own <a href="./obstacles#_2-new-features">Obstacle Unlocked</a> popup in the same place):</p>
 <ul>
-<li>"NEW BOOSTER!", the booster's icon, name and one line on what it does, and a short animation of it at work.</li>
-<li><b>Try it:</b> opens the level, where its <a href="#_9-tutorial">booster tutorial</a> runs. The booster comes with 1 free use.</li>
+<li>The booster's name, its icon with an "Unlocked" tag and sparkles, and one line on what it does.</li>
+<li><b>Claim:</b> gives 1 free use (the icon flies into its button), then the booster tutorial runs (see <a href="./ftue-tutorial#_2-booster-tutorial">FTUE & Tutorial</a>).</li>
 </ul>
 </td>
 </tr>
 </tbody>
 </table>
 
-## 5. Lose
+## 4. Lose
 
 <table class="gdd-table">
 <thead><tr><th style="width:26%">Wireframe</th><th style="width:16%">Compare</th><th>Detail</th></tr></thead>
@@ -197,7 +150,7 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 <ul>
 <li>"Level N", the lives (hearts), the time to the next heart, and "Level failed!".</li>
 <li><b>Try Again:</b> the level starts over (costs a life).</li>
-<li><b>✕:</b> also restarts the level in the prototype; in Unity it goes to Home.</li>
+<li><b>✕:</b> closes the popup and the level starts over, as in the prototype (there is no Home screen to go back to).</li>
 <li><b>Lives</b> <Badge type="warning" text="To build" />: 5 at most; failing a level takes one; one comes back every 30:00. With no lives left, Try Again is replaced by a refill offer (ad or coins).</li>
 </ul>
 </td>
@@ -205,7 +158,7 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 </tbody>
 </table>
 
-## 6. Purchase Booster <Badge type="warning" text="To build" />
+## 5. Purchase Booster <Badge type="warning" text="To build" />
 
 <table class="gdd-table">
 <thead><tr><th style="width:26%">Wireframe</th><th style="width:16%">Compare</th><th>Detail</th></tr></thead>
@@ -224,7 +177,7 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 </tr></tbody>
 </table>
 
-## 7. Loading screen <Badge type="warning" text="To build" />
+## 6. Loading screen <Badge type="warning" text="To build" />
 
 <table class="gdd-table">
 <thead><tr><th style="width:26%">REF / idea</th><th style="width:16%">Compare</th><th>Detail</th></tr></thead>
@@ -242,7 +195,7 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 </tr></tbody>
 </table>
 
-## 8. Loading transition <Badge type="warning" text="To build" />
+## 7. Loading transition <Badge type="warning" text="To build" />
 
 <table class="gdd-table">
 <thead><tr><th style="width:26%">REF / idea</th><th style="width:16%">Compare</th><th>Detail</th></tr></thead>
@@ -250,7 +203,7 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 <td><img src="./img/wf-transition.svg" alt="Loading transition wireframe" /></td>
 <td>Not in the prototype (screens change at once; the demo reels slide one level in from the right).</td>
 <td>
-<p><b>Loading transition:</b> every change of screen (Home → level, level → level, level → Home) shows it.</p>
+<p><b>Loading transition:</b> every change of level (Loading → level, level → level) shows it.</p>
 <ul>
 <li>Coloured sand pours in from the top of the screen and covers it.</li>
 <li>It drains away downward, as through the funnel, showing the new screen.</li>
@@ -258,32 +211,27 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 </td>
 </tr></tbody>
 </table>
-## 9. Tutorial <Badge type="warning" text="To build" />
+
+## 8. Tutorial <Badge type="warning" text="To build" />
 
 <table class="gdd-table">
 <thead><tr><th style="width:26%">Wireframe</th><th style="width:16%">Compare</th><th>Detail</th></tr></thead>
 <tbody><tr>
-<td><img src="./img/wf-tutorial.svg" alt="Tutorial wireframe" /></td>
+<td><img src="./img/wf-ftue-1.svg" alt="Level 1 tutorial, step 1" /></td>
 <td>The prototype has the hand and its swipe paths (the demo reels' hand guide), but no tutorial.</td>
 <td>
-<p><b>Forced tutorial, level 1:</b></p>
+<p>Every tutorial, step by step with wireframes, is in <a href="./ftue-tutorial">FTUE & Tutorial</a>:</p>
 <ul>
-<li>The screen dims except the sand board; a hand swipes down the picture, with the line "Swipe down to free the sand!".</li>
-<li>The player must swipe; the dim lifts once sand reaches the conveyor.</li>
-<li>Then "Ants take blocks of their colour" points at the front nests.</li>
-</ul>
-<p><b>Booster tutorials</b> (on the level a booster unlocks, after <a href="#_4-win">New Feature</a>):</p>
-<ul>
-<li><b>Activate:</b> the hand taps the booster, then a waiting nest.</li>
-<li><b>Shuffle:</b> the hand taps the booster.</li>
-<li><b>Fan:</b> shown when the belt holds several blocks; the hand taps the booster.</li>
+<li><b>FTUE, level 1:</b> swipe the sand, the blocks on the conveyor, ants fill the nests; a hint after 5 s idle. A popup the first time the conveyor reaches 80 %.</li>
+<li><b>Booster tutorials:</b> Activate (level 6), Shuffle (12), Fan (18). Each has an unlock popup with Claim, then a hard tut with a free use.</li>
+<li><b>Obstacle tutorials:</b> Frozen (level 5), Scroll painting (10). Each has the Obstacle Unlocked popup, then a short hint.</li>
 </ul>
 <p>A forced tutorial that was not finished runs again on the next launch.</p>
 </td>
 </tr></tbody>
 </table>
 
-## 10. Medium & Hard UI <Badge type="warning" text="To build" />
+## 9. Medium & Hard UI <Badge type="warning" text="To build" />
 
 <table class="gdd-table">
 <thead><tr><th style="width:26%">Wireframe / UI clone</th><th style="width:16%">Fakescreen</th><th>Detail</th></tr></thead>
@@ -296,7 +244,6 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 <li><b>Normal</b> (very easy, easy): the usual UI.</li>
 <li><b>Medium</b> (medium): the Action Phase's top UI (level title, Settings, boosters) turns yellow/orange.</li>
 <li><b>Hard</b> (hard, very hard): the top UI turns purple.</li>
-<li>The Home Play button and the level's dot on the progress bar use the same colours.</li>
 </ul>
 </td>
 </tr></tbody>
