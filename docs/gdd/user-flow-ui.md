@@ -9,6 +9,7 @@ pageClass: gdd-wide
 | 2026-11-03 | Document created: the web prototype's screens, plus the screens the Unity game needs that the prototype does not have yet | Tuan Dinh Duc |
 | 2026-11-05 | No Home (lobby) screen: the game opens straight into the current level, a win always goes on to the next level, and the More Coins popup (reached from Home) is gone | Tuan Dinh Duc |
 | 2026-11-09 | Tutorial and New Feature point to the new FTUE & Tutorial chapter; the unlock popup shows as the level opens, with Claim | Tuan Dinh Duc |
+| 2026-11-09 | Coins in the prototype: the coin panel, Win's coins flying into it, Out of Space paid with coins, and the Purchase Booster popup (Live) | Tuan Dinh Duc |
 
 This page is the reference for building the game's screens in Unity. Each screen is marked:
 
@@ -89,7 +90,7 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 <tbody>
 <tr>
 <td><img src="./img/win.png" alt="Win screen" /></td>
-<td><Badge type="tip" text="Live" /> Prototype win screen (its buttons only go on to the next level; no coins yet).</td>
+<td><Badge type="tip" text="Live" /> Prototype win screen: the coin panel top right; Continue (+40) and Claim x2 (+80, no ad yet) fly the coins into it, then go on to the next level.</td>
 <td>
 <p><b>AMAZING:</b></p>
 <ul>
@@ -124,7 +125,7 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 <tbody>
 <tr>
 <td><img src="./img/out-of-space.png" alt="Out of Space" /></td>
-<td><Badge type="tip" text="Live" /> Prototype popup (Free and 900 both revive; no ads or coins yet).</td>
+<td><Badge type="tip" text="Live" /> Prototype popup: the coin panel top right; Free revives (no ad yet), 900 pays coins and revives; without enough coins it shakes and says "Not enough coins!".</td>
 <td>
 <p><b>Play On (Out of Space!):</b> when the conveyor is full and nothing on it fits a nest.</p>
 <ul>
@@ -158,13 +159,13 @@ How the game itself plays (sand board, conveyor, nests, boosters) is in [Core ga
 </tbody>
 </table>
 
-## 5. Purchase Booster <Badge type="warning" text="To build" />
+## 5. Purchase Booster <Badge type="tip" text="Live" />
 
 <table class="gdd-table">
 <thead><tr><th style="width:26%">Wireframe</th><th style="width:16%">Compare</th><th>Detail</th></tr></thead>
 <tbody><tr>
 <td><img src="./img/wf-purchase-booster.svg" alt="Purchase Booster wireframe" /></td>
-<td>Not in the prototype (a booster with no uses left only bounces).</td>
+<td>In the prototype: the lose panel's art, the booster's icon and line, <b>+1</b> (free, no ad yet) and <b>300 +3</b>, with the coin panel top right. Without enough coins the button shakes and "Not enough coins!" shows.</td>
 <td>
 <p>Tapping a booster with no uses left (the green plus) opens its popup. The game holds still meanwhile.</p>
 <ul>

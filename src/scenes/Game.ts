@@ -31,7 +31,17 @@ const FAR = { light: 0.12, num: 0.72, stroke: 0.45 };
 // Depths, back to front.
 const D = { bg: 0, chute: 1, funnel: 2, board: 3, sand: 4, belt: 5, shadows: 6, three: 7, labels: 8, fx: 9, tray: 10, hud: 11, overlay: 20 };
 
-type Overlay = 'start' | 'settings' | 'end' | null;
+/** The coin panel's coin, top right; its pill runs to x 1044. */
+const COIN_AT = { x: 780, y: 94 };
+/** Prices in coins: Play On (the Out of Space revive), and a pack of boosters. */
+const REVIVE_PRICE = 900, BOOSTER_PRICE = 300, BOOSTER_PACK = 3;
+/** Each booster's name and line on the purchase popup. */
+const BOOSTER_INFO = [
+    ['Activate', 'Wake a waiting nest\nso its ants work too!'],
+    ['Shuffle', 'Swap the nests around to find\nthe colours you need!'],
+    ['Fan', 'Blow every block on the\nconveyor into its nest!'],
+];
+type Overlay = 'start' | 'settings' | 'buy' | 'end' | null;
 
 /** Fan booster animation: the ball cannon drops into the middle, sucks the belt's blocks into its
  * mouth one by one, then shoots them out one by one into their nests. The game holds still until
@@ -136,6 +146,11 @@ export class Game extends Phaser.Scene {
     private nestBoxes: Phaser.GameObjects.Image[] = [];
     private nestFrames: Phaser.GameObjects.Image[] = [];
     private levelText!: Phaser.GameObjects.Text;
+    /** The player's coins (the prototype starts at 1000 each session) and the HUD's count. */
+    private coins = 1000;
+    /** Coins are being paid (spend); the overlay's buttons wait. */
+    private spending = false;
+    private coinLabel!: Phaser.GameObjects.Text;
     private speedBtn!: Phaser.GameObjects.Image;
     /** The x2 button's image, icon and label, hidden together. */
     private speedParts: Phaser.GameObjects.Components.Visible[] = [];
@@ -303,7 +318,7 @@ export class Game extends Phaser.Scene {
 
     update(_time: number, delta: number) {
         const dt = Math.min(0.05, delta / 1000);
-        const live = this.started && !this.paused && !(this.overlay === 'settings');
+        const live = this.started && !this.paused && !(this.overlay === 'settings' || this.overlay === 'buy');
         if (live && this.fanFx) this.stepFan(dt);
         if (live && this.fanFx?.blown && !this.fanFx.leaving) this.sim.stepFlyersOnly(this.speedUp ? dt * 2 : dt);
         if (live && this.shuffleFx) this.stepShuffle(dt);
@@ -954,7 +969,7 @@ export class Game extends Phaser.Scene {
             this.tweens.add({ targets: this.lockHint, alpha: 0, delay: 1200, duration: 300 });
             return;
         }
-        if (b.uses <= 0) return;
+        if (b.uses <= 0) { this.showBuyBooster(i); return; }
         if (i === 0) {
             if (this.sim.cols.some((col, ci) => col.some((_n, ri) => this.canWake(ci, ri)))) this.setPicking(true);
             return;
@@ -1104,6 +1119,24 @@ export class Game extends Phaser.Scene {
         }
     }
 
+    /** The coin panel, top right (in the HUD and on the Win screen), as a container at its coin's
+     * centre (COIN_AT): a white pill with a light blue rim and the count, the Win screen's coin
+     * over its left end and a green plus under the coin. Its children: pill, coin, count, plus. */
+    private coinPanel() {
+        const pw = 270, ph = 74, c = this.add.container(COIN_AT.x, COIN_AT.y);
+        const pill = this.add.graphics();
+        pill.fillStyle(0x9fc3ea).fillRoundedRect(-6, -ph / 2, pw, ph, ph / 2);
+        pill.fillStyle(0xf4f8fd).fillRoundedRect(-1, -ph / 2 + 5, pw - 10, ph - 10, ph / 2 - 5);
+        pill.fillStyle(0xdfe9f6).fillRoundedRect(-1, 4, pw - 10, ph / 2 - 9, { tl: 0, tr: 0, bl: ph / 2 - 5, br: ph / 2 - 5 });
+        c.add([
+            pill,
+            this.add.image(0, 0, 'icon_coin').setDisplaySize(92, 104),
+            this.text(pw / 2 + 24, -2, String(this.coins), 50, '#1f4fa8', null),
+            this.add.image(34, 38, 'badge_plus').setDisplaySize(44, 44),
+        ]);
+        return c;
+    }
+
     /** x2 speed on or off; the button shows which. Every game starts at normal speed. While
      * autoFast is on, x2 stays on. */
     private setSpeed(on: boolean) {
@@ -1117,6 +1150,9 @@ export class Game extends Phaser.Scene {
         this.add.image(p.x, p.y, 'btn_settings').setOrigin(0).setDisplaySize(p.w, (p.w * 224) / 212).setDepth(D.hud)
             .setInteractive({ useHandCursor: true }).on('pointerdown', () => { if (!this.overlay) { this.sfx('click'); this.showSettings(); } });
         this.levelText = this.text(540, 94, 'Level 1', 72, '#ffffff', '#1b1a4a', 12).setDepth(D.hud);
+        // coins, top right: a white pill with a light blue rim and the count, the Win screen's coin
+        // over its left end and a green plus under the coin (the prototype has no coins yet)
+        this.coinLabel = this.coinPanel().setDepth(D.hud).getAt(2) as Phaser.GameObjects.Text;
         // x2 speed: a white pill with a fast-forward arrow (grey when off, green when on) and "x2"
         // on its left; the art is 291 x 150, its body the top 128
         this.speedBtn = this.add.image(sp.x, sp.y, 'btn_speed_off').setOrigin(0).setDisplaySize(sp.w, (sp.w * 150) / 291).setDepth(D.hud)
@@ -1177,7 +1213,14 @@ export class Game extends Phaser.Scene {
 
         // claim x2 with an ad: the clapperboard and "Claim x2" on the orange face, the coins on
         // its yellow tab; continue: the green button
-        const next = () => this.startLevel((this.levelIndex + 1) % levelCount());
+        const panel = this.coinPanel();
+        box.add(panel);
+        let paid = false;
+        const pay = (n: number) => () => {
+            if (paid) return;
+            paid = true;
+            this.collectCoins(box, panel, 480, 1170, n, () => this.startLevel((this.levelIndex + 1) % levelCount()));
+        };
         const claim = this.add.container(540, 1400);
         claim.add([
             this.add.image(0, 0, 'btn_reward'),
@@ -1186,11 +1229,44 @@ export class Game extends Phaser.Scene {
             this.add.image(-38, 76, 'icon_coin').setDisplaySize(48, 54),
             this.text(26, 74, '80', 52, '#ffffff', '#a8660a', 8),
         ]);
-        pop(this.tapTarget(claim, 517, 304, next, 'claim'), 1, 900);
+        pop(this.tapTarget(claim, 517, 304, pay(80), 'claim'), 1, 900);
         const cont = this.add.container(540, 1660);
         cont.add([this.add.image(0, 0, 'btn_continue'), this.text(0, -8, 'Continue', 68, '#ffffff', '#1f7a12', 10)]);
-        pop(this.tapTarget(cont, 472, 210, next, 'continue'), 0.9, 1050);
+        pop(this.tapTarget(cont, 472, 210, pay(40), 'continue'), 0.9, 1050);
         this.overlayBox = box;
+    }
+
+    /** The coins won fly from (x, y) up into the Win screen's coin panel, one after another; each
+     * one that lands bumps the panel's coin and adds its share to the count. Once all are in, the
+     * count holds a moment and `done` runs. */
+    private collectCoins(box: Phaser.GameObjects.Container, panel: Phaser.GameObjects.Container, x: number, y: number, n: number, done: () => void) {
+        const count = panel.getAt(2) as Phaser.GameObjects.Text, coin = panel.getAt(1) as Phaser.GameObjects.Image;
+        const from = this.coins, k = 10, to = (this.coins += n);
+        this.coinLabel.setText(String(to));
+        let landed = 0;
+        for (let i = 0; i < k; i++) {
+            const c = this.add.image(x + Phaser.Math.Between(-50, 50), y + Phaser.Math.Between(-40, 40), 'icon_coin').setDisplaySize(70, 79);
+            box.add(c);
+            const s = c.scale;
+            c.setScale(0);
+            this.tweens.chain({
+                targets: c,
+                tweens: [
+                    { scale: s, duration: 160, delay: i * 70, ease: 'Back.Out' },
+                    { x: COIN_AT.x, y: COIN_AT.y, scale: s * 0.8, duration: 520, ease: 'Cubic.In' },
+                ],
+                onComplete: () => {
+                    c.destroy();
+                    landed++;
+                    count.setText(String(Math.round(from + (n * landed) / k)));
+                    this.sfx('pick', 0.6);
+                    this.tweens.killTweensOf(coin);
+                    coin.setDisplaySize(92, 104);
+                    this.tweens.add({ targets: coin, scale: coin.scale * 1.2, duration: 70, yoyo: true });
+                    if (landed === k) this.time.delayedCall(500, done);
+                },
+            });
+        }
     }
 
     /** Make a button container tappable over its art's w x h (clicks go to `onTap`). */
@@ -1259,6 +1335,7 @@ export class Game extends Phaser.Scene {
         this.overlayBox?.destroy();
         this.overlayBox = undefined;
         this.overlay = null;
+        this.spending = false;
         this.paused = false;
     }
 
@@ -1375,9 +1452,9 @@ export class Game extends Phaser.Scene {
         return board;
     }
 
-    /** Lost (the conveyor is full): revive with an ad or with coins (the cannon clears the belt and
-     * play goes on; the prototype has no ads or coins yet, so both just revive), or give up with
-     * the close button. */
+    /** Lost (the conveyor is full): revive with an ad or with REVIVE_PRICE coins (the cannon
+     * clears the belt and play goes on; the prototype has no ads, so Free just revives), or give
+     * up with the close button. The coin panel shows over the dim. */
     private showOutOfSpace() {
         const board = this.losePanel('Out of Space!', () => { this.closeOverlay(); this.overlay = 'end'; this.showFailed(); });
         board.add(this.add.image(0, -150, 'lose_heart_break').setScale(0.85));
@@ -1398,9 +1475,72 @@ export class Game extends Phaser.Scene {
         coins.add([
             this.add.image(0, 0, 'lose_btn_purchase').setScale(0.8),
             this.add.image(-66, -12, 'lose_icon_coin').setDisplaySize(64, 70),
-            this.text(38, -14, '900', 58, '#ffffff', '#1f7a12', 10),
+            this.text(38, -14, String(REVIVE_PRICE), 58, '#ffffff', '#1f7a12', 10),
         ]);
-        board.add([this.tapTarget(ad, 323, 194, revive, 'free'), this.tapTarget(coins, 319, 196, revive, 'coins')]);
+        const panel = this.coinPanel();
+        this.overlayBox!.add(panel);
+        board.add([this.tapTarget(ad, 323, 194, revive, 'free'), this.tapTarget(coins, 319, 196, () => this.spend(REVIVE_PRICE, panel, coins, revive), 'coins')]);
+    }
+
+    /** A booster with no uses left (the green plus) opens its purchase popup; the game holds
+     * still. Free (an ad in the Unity game) gives 1; BOOSTER_PRICE coins give BOOSTER_PACK. Either
+     * closes the popup and play goes on; ✕ closes it without buying. */
+    private showBuyBooster(i: number) {
+        this.overlay = 'buy';
+        this.paused = true;
+        this.setPicking(false);
+        const [name, line] = BOOSTER_INFO[i];
+        const board = this.losePanel(name, () => this.closeOverlay());
+        const panel = this.coinPanel();
+        this.overlayBox!.add(panel);
+        const base = this.add.image(0, -150, 'bst_btn').setScale(0.62);
+        const icon = this.add.image(0, -158, BOOSTER_IMAGES[i]);
+        icon.setScale(170 / Math.max(icon.width, icon.height));
+        board.add([base, icon, this.text(0, 110, line, 42, '#1f4fa8', null)]);
+        const give = (n: number) => { this.closeOverlay(); this.setUses(i, this.boosters[i].uses + n); this.boosters[i].bump = 1; this.sfx('add'); };
+        const ad = this.add.container(-170, 300);
+        ad.add([
+            this.add.image(0, 0, 'lose_btn_rv').setScale(0.66),
+            this.add.image(-70, -12, 'lose_icon_rv').setDisplaySize(84, 85),
+            this.text(42, -14, '+1', 58, '#ffffff', '#a8480a', 10),
+        ]);
+        const coins = this.add.container(170, 300);
+        coins.add([
+            this.add.image(0, 0, 'lose_btn_purchase').setScale(0.8),
+            this.add.image(-90, -12, 'lose_icon_coin').setDisplaySize(56, 61),
+            this.text(10, -14, String(BOOSTER_PRICE), 50, '#ffffff', '#1f7a12', 9),
+            this.text(98, -14, '+' + BOOSTER_PACK, 50, '#fff36b', '#1f7a12', 9),
+        ]);
+        board.add([this.tapTarget(ad, 323, 194, () => give(1), 'buy_free'), this.tapTarget(coins, 319, 196, () => this.spend(BOOSTER_PRICE, panel, coins, () => give(BOOSTER_PACK)), 'buy_coins')]);
+    }
+
+    /** Pay `n` coins from an overlay's coin panel, then run `then`: the count runs down, a coin
+     * flies from the panel to the button `btn` and `then` runs as it lands. Without enough coins
+     * the panel and the button shake, "Not enough coins!" floats up, and nothing is bought. */
+    private spend(n: number, panel: Phaser.GameObjects.Container, btn: Phaser.GameObjects.Container, then: () => void) {
+        const count = panel.getAt(2) as Phaser.GameObjects.Text;
+        if (this.spending) return;
+        if (this.coins < n) {
+            for (const o of [panel, btn]) {
+                const x = o.x;
+                this.tweens.add({ targets: o, x: x + 12, duration: 50, yoyo: true, repeat: 3, onComplete: () => o.setX(x) });
+            }
+            const r = btn.getBounds(), msg = this.text(r.centerX, r.top - 20, 'Not enough coins!', 44, '#ffffff', '#b8202a', 9);
+            this.overlayBox!.add(msg);
+            this.tweens.add({ targets: msg, y: msg.y - 70, alpha: 0, delay: 600, duration: 500, onComplete: () => msg.destroy() });
+            return;
+        }
+        this.spending = true;
+        const from = this.coins;
+        this.coins -= n;
+        this.coinLabel.setText(String(this.coins));
+        this.tweens.addCounter({ from, to: this.coins, duration: 400, onUpdate: (t) => count.setText(String(Math.round(t.getValue() ?? 0))) });
+        const r = btn.getBounds(), c = this.add.image(COIN_AT.x, COIN_AT.y, 'icon_coin').setDisplaySize(70, 79);
+        this.overlayBox!.add(c);
+        this.tweens.add({
+            targets: c, x: r.centerX, y: r.centerY, scale: c.scale * 0.7, duration: 450, ease: 'Cubic.In',
+            onComplete: () => { c.destroy(); this.sfx('pick', 0.6); this.time.delayedCall(250, () => { this.spending = false; then(); }); },
+        });
     }
 
     /** Gave up: "Level N", the lives (one of five lost, a blank heart) and the time to the next
